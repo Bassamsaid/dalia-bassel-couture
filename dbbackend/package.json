@@ -1,0 +1,13 @@
+{
+  "name": "daliessa-academy",
+  "version": "1.0.0",
+  "description": "Daliessa Academy — pattern & tailoring courses, dresses, and staff app (website + PWA).",
+  "private": true,
+  "scripts": {
+    "start": "node --experimental-sqlite server.js",
+    "seed": "node --experimental-sqlite seed.js"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}

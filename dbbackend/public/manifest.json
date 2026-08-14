@@ -1,0 +1,15 @@
+{
+  "name": "Dalia Bassel Couture",
+  "short_name": "Dalia Bassel",
+  "description": "Couture academy — courses, dresses, students & staff",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f1",
+  "theme_color": "#14110f",
+  "orientation": "portrait",
+  "lang": "en",
+  "dir": "ltr",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
