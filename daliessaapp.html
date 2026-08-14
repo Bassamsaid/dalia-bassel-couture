@@ -234,6 +234,26 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .draw-item:active{background:var(--soft)}
 .draw-item.active{background:var(--tint);color:var(--purple-d)}
 
+/* ===== 2-tab bottom bar ===== */
+.bottomnav.bn2{justify-content:center;gap:10px;padding:8px 10px}
+.bottomnav.bn2 button{flex:1;max-width:220px;min-width:0;flex-direction:row;justify-content:center;gap:8px;
+  padding:12px 10px;font-size:12px;border-radius:14px;margin:2px}
+.bottomnav.bn2 button .ic{font-size:18px}
+.bottomnav.bn2 button.active{background:var(--tint)}
+.bottomnav.bn2 button.active::after{display:none}
+
+/* ===== Dalia news feed ===== */
+.feed-post{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden;
+  box-shadow:var(--shadow-sm);margin-bottom:16px;animation:rise .4s ease both}
+.feed-post .ph{width:100%;display:block;object-fit:cover;cursor:pointer;background:var(--soft)}
+.feed-post .body{padding:16px 18px}
+.feed-post .ttl{font-family:var(--serif);font-size:20px;font-weight:700;line-height:1.3;margin:0 0 4px;color:var(--ink)}
+.feed-post .date{font-size:11px;color:var(--purple-d);letter-spacing:1px;text-transform:uppercase;font-weight:700;margin-bottom:8px}
+.feed-post .txt{font-size:14.5px;line-height:1.7;color:#3a3040;white-space:pre-wrap}
+.feed-hero{background:var(--grad);color:#fff;border-radius:18px;padding:26px 20px;text-align:center;margin-bottom:16px}
+.feed-hero .fn{font-family:var(--serif);font-size:24px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+.feed-hero .fs{font-size:11px;letter-spacing:4px;text-transform:uppercase;opacity:.9;margin-top:5px;font-weight:700}
+
 </style>
 </head>
 <body>
@@ -246,7 +266,7 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
    Replaces the network api() with a localStorage-backed store so the whole
    app runs client-side (for the try-it-now demo artifact). Same routes as server.js. */
 
-const LS = 'daliessa_demo_v3';
+const LS = 'daliessa_demo_v4';
 /* storage that never throws — falls back to memory if localStorage is blocked (sandboxed preview) */
 const _mem = {};
 const ST = {
@@ -294,6 +314,7 @@ function seedDB() {
   db.quizzes.push(quiz);
   [['Measuring unit used in tailoring?', ['Centimeter', 'Kilometer', 'Liter'], 0], ['Which measurement is usually widest?', ['Waist', 'Hips', 'Neck'], 1], ['The basic pattern starts from?', ['Sleeves', 'Bodice', 'Collar'], 1]]
     .forEach((q) => db.quiz_questions.push({ id: id(), quiz_id: quiz.id, text: q[0], options: JSON.stringify(q[1]), correct_index: q[2], points: 1 }));
+  db.dalia_posts.push({ id: id(), title: 'New couture collection', body: 'A glimpse into the latest Dalia Bassel Haute Couture pieces — handcrafted with love. Add your own photos and news here; this screen updates like a mini website.', table_data: null, created_at: nowIso() });
   db.dalia_posts.push({ id: id(), title: 'Course prices', body: 'Dalia Bassel Couture courses and prices', table_data: JSON.stringify({ cols: ['Course', 'Duration', 'Price'], rows: [['Basic pattern-making', '1 month', '5000'], ['Advanced tailoring', '2 months', '8000'], ['Couture dresses', 'On request', 'TBD']] }), created_at: nowIso() });
   const cust = { id: id(), name: 'Laila (client)', email: 'laila@d.com', password: '123456', role: 'customer', active: 1 };
   db.users.push(cust);
@@ -567,11 +588,11 @@ function compressImage(file, cb) {
   fr.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const max = 1280; let { width: w, height: h } = img;
+      const max = 2200; let { width: w, height: h } = img; // HD-quality cap
       if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
       const c = document.createElement('canvas'); c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      cb(c.toDataURL('image/jpeg', 0.82));
+      const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, 0, 0, w, h);
+      cb(c.toDataURL('image/jpeg', 0.92));
     };
     img.onerror = () => cb(fr.result);
     img.src = fr.result;
@@ -659,18 +680,29 @@ const NAV = {
     ['quizzes', 'Quizzes', '📝'],
     ['notes', 'Notes', '📌'],
     ['mypay', 'Account', '💳'],
+    ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
   staff: [
     ['home', 'Attendance', '🕒'],
     ['mysalary', 'Salary', '💵'],
     ['myleaves', 'Leaves', '🌴'],
+    ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
   customer: [
     ['mydresses', 'My Dresses', '👗'],
+    ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
+};
+
+/* bottom bar shows only 2 tabs; the rest live in the side drawer */
+const BOTTOM = {
+  admin: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
+  trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
+  staff: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
+  customer: [['mydresses', 'My Dresses', '👗'], ['dalia', 'Dalia Bassel', '✦']],
 };
 
 function renderApp() {
@@ -688,8 +720,8 @@ function renderApp() {
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div>
-    <div class="bottomnav" id="nav">
-      ${state.nav.map(([k, l, ic]) => `<button data-p="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}
+    <div class="bottomnav bn2" id="nav">
+      ${(BOTTOM[u.role] || state.nav).map(([k, l, ic]) => `<button data-p="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}
     </div>`;
   $('#nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.p); });
   go(state.nav[0][0]);
@@ -1174,17 +1206,21 @@ window.saveAbout = async () => { await PUT('/api/about', { title: $('#abT').valu
 PAGES.dalia = async (c) => {
   const posts = await GET('/api/dalia');
   const admin = state.user.role === 'admin';
-  c.innerHTML = title('Dalia', '') +
-    (admin ? `<button class="btn" onclick="addDalia()">＋ New post</button>` : '') +
+  c.innerHTML = title('Dalia Bassel', '') +
+    `<div class="feed-hero"><div class="fn">Dalia Bassel</div><div class="fs">Haute Couture · News & Highlights</div></div>` +
+    (admin ? `<button class="btn" style="margin-bottom:14px" onclick="addDalia()">＋ New post</button>` : '') +
     (posts.length ? posts.map((p) => {
       let tbl = ''; try { const t = p.table_data && JSON.parse(p.table_data); if (t && t.rows) tbl = renderMiniTable(t); } catch (e) {}
-      return `<div class="card">
-      ${p.image ? `<img class="thumb" style="aspect-ratio:4/5" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','${esc(p.title || '')}')"/>` : ''}
-      ${p.title ? `<div class="nm serif" style="font-size:18px;margin-top:8px">${esc(p.title)}</div>` : ''}
-      ${p.body ? `<div style="font-size:14px;margin-top:4px">${esc(p.body)}</div>` : ''}
-      ${tbl}
-      ${admin ? `<button class="btn danger sm" style="margin-top:8px" onclick="delDalia(${p.id})">Delete</button>` : ''}</div>`;
-    }).join('') : empty('No posts yet', '✦'));
+      return `<div class="feed-post">
+      ${p.image ? `<img class="ph" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','${esc(p.title || '')}')"/>` : ''}
+      <div class="body">
+        <div class="date">${dt(p.created_at)}</div>
+        ${p.title ? `<div class="ttl">${esc(p.title)}</div>` : ''}
+        ${p.body ? `<div class="txt">${esc(p.body)}</div>` : ''}
+        ${tbl}
+        ${admin ? `<button class="btn danger sm" style="margin-top:12px" onclick="delDalia(${p.id})">Delete</button>` : ''}
+      </div></div>`;
+    }).join('') : empty('No posts yet — add photos & news', '✦'));
 };
 function renderMiniTable(t) {
   return `<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr>${(t.cols || []).map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
