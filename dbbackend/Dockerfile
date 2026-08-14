@@ -1,4 +1,4 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY dbbackend/ ./
+COPY . ./
 CMD ["node", "--experimental-sqlite", "server.js"]
