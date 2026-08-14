@@ -149,7 +149,7 @@ document.addEventListener('pointerdown', (e) => {
   setTimeout(() => rip.remove(), 600);
 });
 
-const state = { user: null, page: null, nav: [] };
+const state = { user: null, page: null, nav: [], stack: [] };
 
 /* ---------- boot ---------- */
 async function boot() {
@@ -250,9 +250,12 @@ const BOTTOM = {
 function renderApp() {
   const u = state.user;
   state.nav = NAV[u.role] || NAV.trainee;
+  state.stack = []; state.page = null;
+  try { history.replaceState({ root: true }, ''); } catch (e) {}
   document.body.innerHTML = `
     <div class="app">
       <div class="topbar">
+        <button class="back-btn" id="backBtn" onclick="goBack()" aria-label="Back" style="display:none">‹</button>
         <div class="logo" onclick="openDrawer()" style="cursor:pointer">DB</div>
         <h1>Dalia Bassel</h1>
         <button class="profile-btn" onclick="openDrawer()">
@@ -285,15 +288,38 @@ window.openDrawer = openDrawer; window.closeDrawer = closeDrawer;
 async function logout() { try { await POST('/api/logout'); } catch (e) {} state.user = null; renderAuth(); }
 window.logout = logout;
 
-function go(page) {
+function go(page, opts = {}) {
+  // push the current screen onto the back-stack (skip refreshes of the same page and back navigations)
+  if (!opts._back && state.page && state.page !== page) {
+    state.stack.push(state.page);
+    try { history.pushState({ page }, ''); } catch (e) {}
+  }
   state.page = page;
+  updateBackBtn();
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.p === page));
-  const c = $('#content'); c.innerHTML = '<div class="spinner"></div>'; window.scrollTo(0, 0);
+  const c = $('#content'); if (!c) return; c.innerHTML = '<div class="spinner"></div>'; window.scrollTo(0, 0);
   const fn = PAGES[page];
   if (fn) fn(c).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
   else c.innerHTML = '<div class="empty">Coming soon</div>';
 }
 window.go = go;
+
+function updateBackBtn() {
+  const b = document.getElementById('backBtn');
+  if (b) b.style.display = state.stack.length ? 'flex' : 'none';
+}
+function goBack() { if (state.stack.length) history.back(); }
+window.goBack = goBack;
+
+/* hardware / gesture back (Android back, swipe): close an open overlay first,
+   otherwise step back to the previous screen instead of leaving the app */
+window.addEventListener('popstate', () => {
+  const mr = document.getElementById('modal-root');
+  if (mr && mr.innerHTML.trim()) { mr.innerHTML = ''; try { history.pushState({}, ''); } catch (e) {} return; }
+  const dr = document.getElementById('drawer-root');
+  if (dr && dr.innerHTML.trim()) { dr.innerHTML = ''; try { history.pushState({}, ''); } catch (e) {} return; }
+  if (state.stack.length) { const prev = state.stack.pop(); go(prev, { _back: true }); }
+});
 
 function title(t, icon) { return `<div class="page-title">${icon || ''} ${esc(t)}</div>`; }
 function empty(msg, em = '—') { return `<div class="empty"><div class="em">${em}</div>${esc(msg)}</div>`; }
