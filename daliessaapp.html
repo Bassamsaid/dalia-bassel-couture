@@ -1,0 +1,1504 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#e34a86" />
+<title>Dalia Bassel Couture</title>
+<style>
+:root{
+  --bg:#fdf5f8; --card:#ffffff; --ink:#2b1a24; --muted:#a08893;
+  --rose:#e34a86; --rose-d:#c62f6c; --rose-soft:#fbe3ee; --rose-tint:#fdeef5;
+  --plum:#3d2130; --gold:#c9a24b;
+  --line:#f4e1eb; --ok:#3f9e6b; --warn:#d99a2b; --bad:#d24b62;
+  --grad:linear-gradient(135deg,#ff6fae 0%,#e34a86 55%,#c62f6c 100%);
+  --grad-soft:linear-gradient(135deg,#fff 0%,#fdeef5 100%);
+  --shadow:0 10px 34px rgba(198,47,108,.10); --shadow-sm:0 4px 14px rgba(198,47,108,.08);
+  --r:18px;
+  --serif:"Didot","Bodoni MT","Playfair Display",Georgia,"Times New Roman",serif;
+  --sans:"Helvetica Neue",-apple-system,"Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);
+  direction:ltr;line-height:1.55;font-size:15px;-webkit-font-smoothing:antialiased;letter-spacing:.2px}
+a{color:var(--rose-d);text-decoration:none}
+img{max-width:100%}
+.hidden{display:none!important}
+h1,h2,h3,.serif{font-family:var(--serif);letter-spacing:.4px;font-weight:700}
+::selection{background:var(--rose-soft)}
+
+/* ===== keyframes ===== */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+@keyframes zoomIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+@keyframes shimmer{100%{background-position:-200% 0}}
+@keyframes ripple{to{transform:scale(4);opacity:0}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ===== Auth ===== */
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:radial-gradient(120% 80% at 50% 0%,#ffe3f0 0%,#fdf5f8 55%,#f7e9f0 100%)}
+.auth-card{background:var(--card);width:100%;max-width:390px;border-radius:26px;padding:42px 28px;
+  box-shadow:var(--shadow);text-align:center;border:1px solid var(--line);animation:pop .5s cubic-bezier(.2,.8,.2,1) both}
+.brand-mark{width:98px;height:98px;border-radius:50%;margin:0 auto 18px;display:flex;align-items:center;
+  justify-content:center;background:var(--grad);color:#fff;font-family:var(--serif);
+  font-size:38px;font-weight:600;letter-spacing:1px;box-shadow:0 14px 32px rgba(227,74,134,.42);
+  animation:floaty 4s ease-in-out infinite}
+.brand-title{font-family:var(--serif);font-size:27px;font-weight:700;letter-spacing:2px;margin:0;text-transform:uppercase;
+  background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.brand-sub{color:var(--rose-d);font-size:11px;margin:7px 0 26px;letter-spacing:4px;text-transform:uppercase;font-weight:600}
+
+/* ===== Layout ===== */
+.app{max-width:1100px;margin:0 auto;padding-bottom:92px}
+.topbar{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.9);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:12px 16px}
+.topbar .logo{width:42px;height:42px;border-radius:50%;background:var(--grad);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-weight:600;
+  letter-spacing:.5px;box-shadow:0 6px 16px rgba(227,74,134,.35)}
+.topbar h1{font-size:15px;margin:0;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.topbar .who{margin-inline-start:auto;font-size:12px;color:var(--muted);text-align:end;line-height:1.35}
+.btn-icon{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:6px;transition:transform .15s,color .15s}
+.btn-icon:active{transform:scale(.85);color:var(--rose)}
+
+.content{padding:16px}
+.page-title{font-family:var(--serif);font-size:25px;font-weight:700;margin:8px 2px 16px;letter-spacing:.4px;
+  display:flex;align-items:center;gap:8px;animation:rise .4s ease both}
+
+/* ===== Bottom nav ===== */
+.bottomnav{position:fixed;bottom:0;left:0;right:0;z-index:40;background:rgba(255,255,255,.96);backdrop-filter:blur(12px);
+  border-top:1px solid var(--line);display:flex;overflow-x:auto;max-width:1100px;margin:0 auto;
+  box-shadow:0 -6px 24px rgba(198,47,108,.06);padding-bottom:env(safe-area-inset-bottom)}
+.bottomnav::-webkit-scrollbar{display:none}
+.bottomnav button{flex:0 0 auto;min-width:66px;background:none;border:none;padding:10px 10px 8px;
+  color:var(--muted);font-size:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;
+  letter-spacing:.5px;text-transform:uppercase;font-weight:600;position:relative;transition:color .2s}
+.bottomnav button .ic{font-size:19px;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.bottomnav button.active{color:var(--rose-d)}
+.bottomnav button.active .ic{transform:translateY(-3px) scale(1.12)}
+.bottomnav button.active::after{content:"";position:absolute;bottom:2px;width:20px;height:3px;border-radius:3px;
+  background:var(--grad);animation:pop .3s both}
+
+/* ===== Cards & grid ===== */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:17px;
+  box-shadow:var(--shadow-sm);margin-bottom:14px;animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+.content>.card:nth-of-type(2){animation-delay:.05s}
+.content>.card:nth-of-type(3){animation-delay:.1s}
+.content>.card:nth-of-type(4){animation-delay:.15s}
+.content>.card:nth-of-type(5){animation-delay:.2s}
+.content>.card:nth-of-type(n+6){animation-delay:.25s}
+.grid{display:grid;gap:12px}
+.grid.g2{grid-template-columns:repeat(2,1fr)}
+.grid.g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:560px){.grid.g3{grid-template-columns:repeat(2,1fr)}}
+.stat{background:var(--grad-soft);border:1px solid var(--line);border-radius:var(--r);
+  padding:17px 12px;text-align:center;animation:pop .45s cubic-bezier(.2,.8,.2,1) both;transition:transform .15s,box-shadow .2s}
+.stat:active{transform:scale(.97)}
+.grid>*:nth-child(2) .stat,.grid>*:nth-child(2){animation-delay:.06s}
+.grid>*:nth-child(3){animation-delay:.12s}
+.stat .n{font-family:var(--serif);font-size:25px;font-weight:700;color:var(--rose-d)}
+.stat .l{font-size:10.5px;color:var(--muted);margin-top:4px;letter-spacing:1px;text-transform:uppercase;font-weight:600}
+
+/* ===== Tiles (home menu) ===== */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media(max-width:560px){.tiles{grid-template-columns:repeat(2,1fr)}}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px 10px;text-align:center;
+  box-shadow:var(--shadow-sm);cursor:pointer;transition:transform .16s,box-shadow .2s;animation:pop .45s cubic-bezier(.2,.8,.2,1) both}
+.tile:active{transform:scale(.95)}
+.tile:hover{box-shadow:var(--shadow);transform:translateY(-2px)}
+.tiles>*:nth-child(2){animation-delay:.04s}.tiles>*:nth-child(3){animation-delay:.08s}
+.tiles>*:nth-child(4){animation-delay:.12s}.tiles>*:nth-child(5){animation-delay:.16s}
+.tiles>*:nth-child(6){animation-delay:.2s}.tiles>*:nth-child(n+7){animation-delay:.24s}
+.tile .em{width:52px;height:52px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;
+  justify-content:center;font-size:23px;background:var(--rose-soft)}
+.tile .t{font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+
+/* ===== Forms ===== */
+label{display:block;font-size:11px;color:var(--muted);margin:13px 0 5px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase}
+input,select,textarea{width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:12px;
+  font:inherit;background:#fff;color:var(--ink);transition:border-color .2s,box-shadow .2s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--rose);box-shadow:0 0 0 4px var(--rose-tint)}
+textarea{min-height:80px;resize:vertical}
+.btn{position:relative;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--grad);color:#fff;border:none;border-radius:12px;padding:13px 18px;font:inherit;font-weight:700;
+  cursor:pointer;width:100%;transition:transform .12s,box-shadow .2s;letter-spacing:1px;text-transform:uppercase;
+  font-size:13px;box-shadow:0 8px 20px rgba(227,74,134,.28)}
+.btn:active{transform:scale(.97)}
+.btn:hover{box-shadow:0 10px 26px rgba(227,74,134,.36)}
+.btn.sec{background:#fff;color:var(--rose-d);border:1.5px solid var(--rose);box-shadow:none}
+.btn.ghost{background:var(--rose-soft);color:var(--rose-d);box-shadow:none}
+.btn.sm{width:auto;padding:8px 14px;font-size:11px;border-radius:9px;box-shadow:none}
+.btn.danger{background:#fff;color:var(--bad);border:1.5px solid #f0cdd4;box-shadow:none}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1}
+.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.55);transform:scale(0);
+  animation:ripple .6s linear;pointer-events:none}
+
+/* ===== List items ===== */
+.item{display:flex;gap:12px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line);transition:background .15s}
+.item:last-child{border-bottom:none}
+.item .av{width:46px;height:46px;border-radius:50%;background:var(--rose-soft);color:var(--rose-d);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--serif);flex:0 0 auto;font-size:16px}
+.item .main{flex:1;min-width:0}
+.item .main .nm{font-weight:700}
+.item .main .sub{font-size:12px;color:var(--muted)}
+.badge{display:inline-block;font-size:10px;padding:3px 10px;border-radius:20px;background:var(--rose-soft);
+  color:var(--rose-d);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.badge.ok{background:#e2f4ea;color:var(--ok)}
+.badge.warn{background:#faeed6;color:var(--warn)}
+.badge.bad{background:#fadfe4;color:var(--bad)}
+
+/* ===== Table ===== */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line)}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:440px;background:#fff}
+th,td{padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:right}
+th:first-child,td:first-child{text-align:left;font-weight:600}
+th{background:var(--rose-tint);color:var(--rose-d);font-weight:700;position:sticky;top:0;
+  letter-spacing:.8px;text-transform:uppercase;font-size:10.5px}
+tbody tr:nth-child(even){background:#fdf8fb}
+tbody tr:last-child td{border-bottom:none}
+tfoot td{font-weight:800;background:var(--rose-tint);color:var(--ink);border-top:2px solid var(--rose-soft)}
+
+/* ===== Thumbs / gallery ===== */
+.thumb{width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;cursor:pointer;background:var(--rose-soft);
+  transition:transform .18s,box-shadow .2s}
+.thumb:active{transform:scale(.97)}
+.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(max-width:560px){.gallery{grid-template-columns:repeat(2,1fr)}}
+
+/* ===== Modal / lightbox ===== */
+.modal-back{position:fixed;inset:0;background:rgba(43,26,36,.5);backdrop-filter:blur(2px);z-index:60;
+  display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fadeIn .2s both}
+@media(min-width:600px){.modal-back{align-items:center;padding:20px}}
+.modal{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:24px 24px 0 0;
+  padding:22px;animation:slideUp .32s cubic-bezier(.2,.8,.2,1) both}
+@media(min-width:600px){.modal{border-radius:22px;animation:zoomIn .28s cubic-bezier(.2,.8,.2,1) both}}
+.modal h3{margin:0 0 14px;font-size:21px;font-weight:700}
+.modal .close{position:sticky;top:-22px;float:right;background:none;border:none;font-size:24px;color:var(--muted);cursor:pointer}
+.lightbox{position:fixed;inset:0;background:rgba(30,15,22,.94);z-index:80;display:flex;align-items:center;
+  justify-content:center;padding:14px;flex-direction:column;gap:10px;animation:fadeIn .2s both}
+.lightbox img{max-width:100%;max-height:82vh;border-radius:10px;object-fit:contain;animation:zoomIn .3s both}
+.lightbox .cap{color:#fff;font-size:14px;letter-spacing:.5px}
+.lightbox .x{position:absolute;top:14px;right:14px;color:#fff;font-size:30px;background:none;border:none;cursor:pointer}
+
+/* ===== Misc ===== */
+.empty{text-align:center;color:var(--muted);padding:44px 10px;animation:fadeIn .4s both}
+.empty .em{font-size:40px;margin-bottom:10px;opacity:.5}
+.toast{position:fixed;bottom:104px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--plum);color:#fff;
+  padding:12px 22px;border-radius:30px;font-size:13px;z-index:90;box-shadow:var(--shadow);opacity:0;
+  transition:opacity .25s,transform .25s;max-width:90%;text-align:center;letter-spacing:.3px;font-weight:600}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.sec-title{font-family:var(--serif);font-size:16px;font-weight:700;color:var(--ink);margin:20px 2px 10px;
+  display:flex;align-items:center;gap:6px;letter-spacing:.3px}
+.chip{display:inline-flex;align-items:center;gap:5px;background:#fff;color:var(--muted);
+  border:1.5px solid var(--line);border-radius:22px;padding:8px 15px;font-size:12px;cursor:pointer;font-weight:700;
+  letter-spacing:.4px;white-space:nowrap;transition:all .18s}
+.chip.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(227,74,134,.3)}
+.filters{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px}
+.filters::-webkit-scrollbar{display:none}
+.muted{color:var(--muted)}
+.right{text-align:end}
+.spinner{border:2.5px solid var(--rose-soft);border-top-color:var(--rose);border-radius:50%;width:28px;height:28px;
+  animation:spin .7s linear infinite;margin:44px auto}
+.err{color:var(--bad);font-size:13px;margin-top:8px}
+.hint{font-size:12px;color:var(--muted);margin-top:4px}
+.divider{height:1px;background:var(--line);margin:16px 0}
+.q-timer{font-weight:800;color:var(--bad)}
+.opt{display:block;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;
+  transition:border-color .15s,background .15s,transform .1s}
+.opt:active{transform:scale(.99)}
+.opt.sel{border-color:var(--rose);background:var(--rose-tint);font-weight:600}
+
+</style>
+</head>
+<body>
+<div id="root"><div class="spinner"></div></div>
+<div id="modal-root"></div>
+<div id="toast" class="toast"></div>
+<script>
+'use strict';
+/* Daliessa Academy — IN-BROWSER demo backend.
+   Replaces the network api() with a localStorage-backed store so the whole
+   app runs client-side (for the try-it-now demo artifact). Same routes as server.js. */
+
+const LS = 'daliessa_demo_v3';
+/* storage that never throws — falls back to memory if localStorage is blocked (sandboxed preview) */
+const _mem = {};
+const ST = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return k in _mem ? _mem[k] : null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) { _mem[k] = v; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { delete _mem[k]; } },
+};
+let DB = null;
+try { DB = JSON.parse(ST.get(LS) || 'null'); } catch (e) {}
+if (!DB) { DB = seedDB(); persist(); }
+let SESSION = Number(ST.get(LS + '_sess') || 0) || null;
+
+function persist() { try { ST.set(LS, JSON.stringify(DB)); } catch (e) { /* quota */ } }
+function nid() { DB._seq = (DB._seq || 1000) + 1; return DB._seq; }
+function nowIso() { return new Date().toISOString().slice(0, 19).replace('T', ' '); }
+function upload(v) { if (typeof v === 'string' && v.startsWith('data:')) { const k = 'up_' + (++DB._up); DB.uploads[k] = v; return k; } return v || null; }
+function meUser() { return SESSION ? DB.users.find((u) => u.id === SESSION) : null; }
+function pub(u) { return u && { id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, round_id: u.round_id, group_id: u.group_id, job_title: u.job_title, base_salary: u.base_salary, hire_date: u.hire_date, active: u.active }; }
+window.__resetDemo = () => { ST.del(LS); ST.del(LS + '_sess'); location.reload(); };
+
+function seedDB() {
+  const db = { _seq: 1000, _up: 0, uploads: {}, users: [], rounds: [], groups: [], enrollments: [], payments: [], reminders: [], videos: [], homeworks: [], submissions: [], quizzes: [], quiz_questions: [], quiz_attempts: [], notes: [], about: { id: 1, title: 'Dalia Bassel Couture', body: 'A couture academy specialized in teaching pattern-making and tailoring. Est. 2019.' }, dalia_posts: [], dresses: [], dress_fittings: [], dress_images: [], attendance: [], salaries: [], leaves: [] };
+  const id = () => (db._seq = (db._seq || 1000) + 1);
+  const admin = { id: id(), name: 'Dalia Bassel', email: 'admin@daliessa.com', phone: '', password: 'daliessa123', role: 'admin', active: 1 };
+  db.users.push(admin);
+  const round = { id: id(), number: 1, name: 'August Round', description: 'Basic pattern-making course', start_date: '2026-08-15', active: 1 };
+  db.rounds.push(round);
+  const gs = [['Group 1', 'friday', '11-3'], ['Group 2', 'friday', '5-9'], ['Group 3', 'saturday', '11-3'], ['Group 4', 'saturday', '5-9']]
+    .map((g) => { const gg = { id: id(), round_id: round.id, name: g[0], day: g[1], time_slot: g[2], capacity: 6 }; db.groups.push(gg); return gg.id; });
+  const trainees = [['Malak Ahmed', 'malak@d.com', 5000, 2000, gs[0]], ['Nour Mohamed', 'nour@d.com', 5000, 5000, gs[0]], ['Habiba Ali', 'habiba@d.com', 5000, 1500, gs[1]], ['Salma Khaled', 'salma@d.com', 5000, 3000, gs[2]], ['Reem Samy', 'reem@d.com', 5000, 0, gs[3]]];
+  const tIds = trainees.map((t) => {
+    const u = { id: id(), name: t[0], email: t[1], password: '123456', role: 'trainee', round_id: round.id, group_id: t[4], active: 1 };
+    db.users.push(u); db.enrollments.push({ id: id(), user_id: u.id, round_id: round.id, total_fee: t[2] });
+    if (t[3] > 0) db.payments.push({ id: id(), user_id: u.id, amount: t[3], kind: 'deposit', note: 'Deposit', paid_at: '2026-08-14' });
+    return u.id;
+  });
+  db.reminders.push({ id: id(), user_id: tIds[0], due_date: '2026-09-01', amount: 3000, note: 'Course balance', done: 0 });
+  db.reminders.push({ id: id(), user_id: tIds[3], due_date: '2026-09-05', amount: 2000, note: 'Second installment', done: 0 });
+  db.videos.push({ id: id(), round_id: round.id, title: 'Pattern-making intro', description: 'Basics of drawing a pattern', url: 'https://youtu.be/dQw4w9WgXcQ' });
+  db.videos.push({ id: id(), round_id: round.id, title: 'Taking measurements', description: 'The correct way to take measurements', url: 'https://youtu.be/dQw4w9WgXcQ' });
+  db.homeworks.push({ id: id(), round_id: round.id, title: 'Basic bodice pattern', measurements: 'Bust 90 / Waist 72 / Hips 96 / Length 160', instructions: 'Draw the basic pattern and upload a photo.', due_date: '2026-08-22', created_at: nowIso() });
+  db.notes.push({ id: id(), scope: 'round', round_id: round.id, title: 'Tools for the first class', body: 'You need: pattern paper, ruler, pencil, measuring tape.', created_at: '2026-08-14' });
+  db.notes.push({ id: id(), scope: 'all', title: 'Welcome', body: 'Welcome to all students of Dalia Bassel Couture.', created_at: '2026-08-14' });
+  const quiz = { id: id(), round_id: round.id, title: 'Measurements quiz', ref_code: 'Q-BASIC1', duration_min: 10, active: 1 };
+  db.quizzes.push(quiz);
+  [['Measuring unit used in tailoring?', ['Centimeter', 'Kilometer', 'Liter'], 0], ['Which measurement is usually widest?', ['Waist', 'Hips', 'Neck'], 1], ['The basic pattern starts from?', ['Sleeves', 'Bodice', 'Collar'], 1]]
+    .forEach((q) => db.quiz_questions.push({ id: id(), quiz_id: quiz.id, text: q[0], options: JSON.stringify(q[1]), correct_index: q[2], points: 1 }));
+  db.dalia_posts.push({ id: id(), title: 'Course prices', body: 'Dalia Bassel Couture courses and prices', table_data: JSON.stringify({ cols: ['Course', 'Duration', 'Price'], rows: [['Basic pattern-making', '1 month', '5000'], ['Advanced tailoring', '2 months', '8000'], ['Couture dresses', 'On request', 'TBD']] }), created_at: nowIso() });
+  const cust = { id: id(), name: 'Laila (client)', email: 'laila@d.com', password: '123456', role: 'customer', active: 1 };
+  db.users.push(cust);
+  const dress = { id: id(), customer_name: 'Laila Ahmed', customer_user_id: cust.id, phone: '01000000000', delivery_date: '2026-09-20', status: 'in_progress', note: 'Lace wedding dress', cover_image: null, created_at: nowIso() };
+  db.dresses.push(dress);
+  db.dress_fittings.push({ id: id(), dress_id: dress.id, fitting_date: '2026-08-25', note: 'First fitting', done: 0 });
+  db.dress_fittings.push({ id: id(), dress_id: dress.id, fitting_date: '2026-09-10', note: 'Final fitting', done: 0 });
+  const staff = { id: id(), name: 'Mona (assistant)', email: 'mona@d.com', password: '123456', role: 'staff', job_title: 'Training assistant', base_salary: 6000, hire_date: '2026-01-01', active: 1 };
+  db.users.push(staff);
+  db.salaries.push({ id: id(), user_id: staff.id, month: '2026-07', base: 6000, bonus: 500, deduction: 0, paid: 1 });
+  db.leaves.push({ id: id(), user_id: staff.id, from_date: '2026-08-20', to_date: '2026-08-21', type: 'annual', reason: 'Family matters', status: 'pending' });
+  return db;
+}
+
+/* ---- helpers on collections ---- */
+const byId = (coll, id) => DB[coll].find((x) => x.id === Number(id));
+const rm = (coll, id) => { DB[coll] = DB[coll].filter((x) => x.id !== Number(id)); };
+const uname = (id) => (DB.users.find((u) => u.id === id) || {}).name || '';
+function needAdmin() { const u = meUser(); if (!u || u.role !== 'admin') throw new Error('forbidden'); return u; }
+function needAuth() { const u = meUser(); if (!u) throw new Error('unauthorized'); return u; }
+
+/* ---- the mock api (async, mirrors server.js). Exposed as window.__localApi so app.js routes to it. ---- */
+async function localApi(method, path, body) {
+  const u = path.split('?')[0];
+  const qs = new URLSearchParams((path.split('?')[1] || ''));
+  const seg = u.split('/').filter(Boolean); // ['api', ...]
+  const R = method + ' ' + u.replace(/\/\d+/g, '/:id').split('?')[0];
+  const idIn = (u.match(/\/(\d+)/) || [])[1];
+  const H = ROUTES[R];
+  if (!H) throw new Error('route not found: ' + R);
+  const res = H(body || {}, { id: idIn, qs, seg });
+  persist();
+  return res;
+}
+window.__localApi = localApi;
+
+const ROUTES = {
+  'POST /api/login': (b) => {
+    const usr = DB.users.find((x) => (x.email || '').toLowerCase() === (b.email || '').toLowerCase());
+    if (!usr || usr.active === 0 || usr.password !== b.password) throw new Error('Invalid credentials');
+    SESSION = usr.id; ST.set(LS + '_sess', String(usr.id));
+    return { ok: true, user: { id: usr.id, name: usr.name, role: usr.role } };
+  },
+  'POST /api/logout': () => { SESSION = null; ST.del(LS + '_sess'); return { ok: true }; },
+  'GET /api/me': () => ({ user: pub(meUser()) }),
+
+  'GET /api/users': (b, x) => { needAdmin(); const role = x.qs.get('role'); const round = x.qs.get('round_id'); return DB.users.filter((u) => (!role || u.role === role) && (!round || u.round_id == round)).map(pub).sort((a, c) => (a.name > c.name ? 1 : -1)); },
+  'POST /api/users': (b) => {
+    needAdmin(); if (!b.name) throw new Error('Name is required');
+    if (b.email && DB.users.some((u) => (u.email || '').toLowerCase() === b.email.toLowerCase())) throw new Error('Email already in use');
+    const u = { id: nid(), name: b.name, email: b.email || null, phone: b.phone || null, password: b.password || 'daliessa', role: b.role || 'trainee', round_id: b.round_id ? Number(b.round_id) : null, group_id: b.group_id ? Number(b.group_id) : null, job_title: b.job_title || null, base_salary: b.base_salary || 0, hire_date: b.hire_date || null, active: 1, created_at: nowIso() };
+    DB.users.push(u);
+    if (b.role !== 'staff' && (b.total_fee != null || b.round_id)) DB.enrollments.push({ id: nid(), user_id: u.id, round_id: u.round_id, total_fee: b.total_fee || 0 });
+    return { id: u.id };
+  },
+  'PUT /api/users/:id': (b, x) => {
+    needAdmin(); const u = byId('users', x.id); if (!u) throw new Error('not found');
+    ['name', 'email', 'phone', 'role', 'job_title', 'hire_date'].forEach((k) => { if (b[k] !== undefined && b[k] !== null && b[k] !== '') u[k] = b[k]; });
+    if (b.round_id !== undefined) u.round_id = b.round_id ? Number(b.round_id) : null;
+    if (b.group_id !== undefined) u.group_id = b.group_id ? Number(b.group_id) : null;
+    if (b.base_salary != null) u.base_salary = b.base_salary;
+    if (b.password) u.password = b.password;
+    if (b.total_fee != null) { let e = DB.enrollments.find((z) => z.user_id === u.id); if (e) { e.total_fee = b.total_fee; e.round_id = u.round_id; } else DB.enrollments.push({ id: nid(), user_id: u.id, round_id: u.round_id, total_fee: b.total_fee }); }
+    return { ok: true };
+  },
+  'DELETE /api/users/:id': (b, x) => { needAdmin(); const u = byId('users', x.id); if (u && u.role !== 'admin') rm('users', x.id); return { ok: true }; },
+
+  'GET /api/finance/sheet': () => {
+    needAdmin();
+    const rows = DB.users.filter((u) => u.role === 'trainee').map((u) => {
+      const fee = (DB.enrollments.find((e) => e.user_id === u.id) || {}).total_fee || 0;
+      const paid = DB.payments.filter((p) => p.user_id === u.id).reduce((a, p) => a + (p.amount || 0), 0);
+      return { id: u.id, name: u.name, phone: u.phone, round_id: u.round_id, group_id: u.group_id, total_fee: fee, paid, remaining: Math.max(0, fee - paid) };
+    }).sort((a, c) => (a.name > c.name ? 1 : -1));
+    const totals = rows.reduce((a, r) => { a.total_fee += r.total_fee; a.paid += r.paid; a.remaining += r.remaining; return a; }, { total_fee: 0, paid: 0, remaining: 0, count: rows.length });
+    return { rows, totals };
+  },
+
+  'GET /api/payments': (b, x) => {
+    const me = needAuth(); const uid = x.qs.get('user_id');
+    if (me.role !== 'admin') return DB.payments.filter((p) => p.user_id === me.id).sort(byPaidDesc);
+    if (uid) return DB.payments.filter((p) => p.user_id == uid).sort(byPaidDesc);
+    return DB.payments.map((p) => ({ ...p, user_name: uname(p.user_id) })).sort(byPaidDesc);
+  },
+  'POST /api/payments': (b) => { needAdmin(); if (!b.user_id) throw new Error('Select a student'); DB.payments.push({ id: nid(), user_id: Number(b.user_id), amount: b.amount || 0, kind: b.kind || 'installment', image: upload(b.image), note: b.note || null, paid_at: b.paid_at || nowIso() }); return { ok: true }; },
+  'DELETE /api/payments/:id': (b, x) => { needAdmin(); rm('payments', x.id); return { ok: true }; },
+
+  'GET /api/reminders': () => { const me = needAuth(); const list = me.role === 'admin' ? DB.reminders.map((r) => ({ ...r, user_name: uname(r.user_id) })) : DB.reminders.filter((r) => r.user_id === me.id); return list.sort((a, c) => (a.done - c.done) || (a.due_date > c.due_date ? 1 : -1)); },
+  'POST /api/reminders': (b) => { needAdmin(); DB.reminders.push({ id: nid(), user_id: Number(b.user_id), due_date: b.due_date, amount: b.amount || 0, note: b.note || null, done: 0 }); return { ok: true }; },
+  'PUT /api/reminders/:id': (b, x) => { needAdmin(); const r = byId('reminders', x.id); if (r) r.done = b.done ? 1 : 0; return { ok: true }; },
+  'DELETE /api/reminders/:id': (b, x) => { needAdmin(); rm('reminders', x.id); return { ok: true }; },
+
+  'GET /api/rounds': () => { needAuth(); return [...DB.rounds].sort((a, c) => c.id - a.id); },
+  'POST /api/rounds': (b) => { needAdmin(); const r = { id: nid(), number: b.number || null, name: b.name, description: b.description || null, start_date: b.start_date || null, active: 1 }; DB.rounds.push(r); return { id: r.id }; },
+  'PUT /api/rounds/:id': (b, x) => { needAdmin(); const r = byId('rounds', x.id); if (r) ['number', 'name', 'description', 'start_date'].forEach((k) => { if (b[k] !== undefined) r[k] = b[k]; }); return { ok: true }; },
+  'DELETE /api/rounds/:id': (b, x) => { needAdmin(); rm('rounds', x.id); return { ok: true }; },
+  'GET /api/groups': () => { needAuth(); return [...DB.groups].sort((a, c) => c.id - a.id); },
+  'POST /api/groups': (b) => { needAdmin(); const g = { id: nid(), round_id: b.round_id ? Number(b.round_id) : null, name: b.name, day: b.day || null, time_slot: b.time_slot || null, capacity: b.capacity || 0 }; DB.groups.push(g); return { id: g.id }; },
+  'DELETE /api/groups/:id': (b, x) => { needAdmin(); rm('groups', x.id); return { ok: true }; },
+
+  'GET /api/videos': () => { const me = needAuth(); const list = me.role === 'admin' ? DB.videos : DB.videos.filter((v) => v.round_id == null || v.round_id === me.round_id); return [...list].sort((a, c) => c.id - a.id); },
+  'POST /api/videos': (b) => { needAdmin(); DB.videos.push({ id: nid(), round_id: b.round_id ? Number(b.round_id) : null, title: b.title, description: b.description || null, url: b.url || null, file: (b.file && b.file.startsWith('data:')) ? upload(b.file) : null }); return { ok: true }; },
+  'DELETE /api/videos/:id': (b, x) => { needAdmin(); rm('videos', x.id); return { ok: true }; },
+
+  'GET /api/homeworks': () => {
+    const me = needAuth(); let list = me.role === 'admin' ? DB.homeworks : DB.homeworks.filter((h) => h.round_id == null || h.round_id === me.round_id);
+    list = [...list].sort((a, c) => c.id - a.id);
+    if (me.role !== 'admin') list = list.map((h) => ({ ...h, my_submission: DB.submissions.find((s) => s.homework_id === h.id && s.user_id === me.id) || null }));
+    return list;
+  },
+  'POST /api/homeworks': (b) => { needAdmin(); DB.homeworks.push({ id: nid(), round_id: b.round_id ? Number(b.round_id) : null, title: b.title, measurements: b.measurements || null, instructions: b.instructions || null, due_date: b.due_date || null, created_at: nowIso() }); return { ok: true }; },
+  'DELETE /api/homeworks/:id': (b, x) => { needAdmin(); rm('homeworks', x.id); DB.submissions = DB.submissions.filter((s) => s.homework_id !== Number(x.id)); return { ok: true }; },
+  'GET /api/homeworks/:id/submissions': (b, x) => { needAdmin(); return DB.submissions.filter((s) => s.homework_id === Number(x.id)).map((s) => ({ ...s, user_name: uname(s.user_id) })); },
+  'POST /api/homeworks/:id/submit': (b, x) => { const me = needAuth(); const ex = DB.submissions.find((s) => s.homework_id === Number(x.id) && s.user_id === me.id); if (ex) { ex.image = upload(b.image); ex.note = b.note || null; ex.submitted_at = nowIso(); } else DB.submissions.push({ id: nid(), homework_id: Number(x.id), user_id: me.id, image: upload(b.image), note: b.note || null, submitted_at: nowIso() }); return { ok: true }; },
+  'PUT /api/submissions/:id': (b, x) => { needAdmin(); const s = byId('submissions', x.id); if (s) { s.grade = b.grade || null; s.feedback = b.feedback || null; } return { ok: true }; },
+
+  'GET /api/quizzes': () => {
+    const me = needAuth(); let list = me.role === 'admin' ? DB.quizzes : DB.quizzes.filter((q) => q.active && (q.round_id == null || q.round_id === me.round_id));
+    list = [...list].sort((a, c) => c.id - a.id).map((q) => {
+      const o = { ...q, questions_count: DB.quiz_questions.filter((x) => x.quiz_id === q.id).length };
+      if (me.role !== 'admin') o.my_attempt = DB.quiz_attempts.find((a) => a.quiz_id === q.id && a.user_id === me.id && a.submitted_at) || null;
+      return o;
+    });
+    return list;
+  },
+  'POST /api/quizzes': (b) => {
+    needAdmin(); const ref = b.ref_code || 'Q-' + Math.random().toString(16).slice(2, 8).toUpperCase();
+    const q = { id: nid(), round_id: b.round_id ? Number(b.round_id) : null, title: b.title, ref_code: ref, duration_min: b.duration_min || 15, active: 1 }; DB.quizzes.push(q);
+    (b.questions || []).forEach((qq) => DB.quiz_questions.push({ id: nid(), quiz_id: q.id, text: qq.text, options: JSON.stringify(qq.options || []), correct_index: qq.correct_index || 0, points: qq.points || 1 }));
+    return { id: q.id, ref_code: ref };
+  },
+  'DELETE /api/quizzes/:id': (b, x) => { needAdmin(); rm('quizzes', x.id); DB.quiz_questions = DB.quiz_questions.filter((q) => q.quiz_id !== Number(x.id)); DB.quiz_attempts = DB.quiz_attempts.filter((a) => a.quiz_id !== Number(x.id)); return { ok: true }; },
+  'GET /api/quizzes/:id': (b, x) => {
+    const me = needAuth(); const quiz = byId('quizzes', x.id); if (!quiz) throw new Error('not found');
+    const qs = DB.quiz_questions.filter((q) => q.quiz_id === quiz.id).map((q) => ({ id: q.id, text: q.text, options: JSON.parse(q.options), points: q.points, ...(me.role === 'admin' ? { correct_index: q.correct_index } : {}) }));
+    return { ...quiz, questions: qs };
+  },
+  'POST /api/quizzes/:id/attempt': (b, x) => {
+    const me = needAuth(); const qs = DB.quiz_questions.filter((q) => q.quiz_id === Number(x.id));
+    let score = 0, total = 0; qs.forEach((q) => { total += q.points; if (Number((b.answers || {})[q.id]) === q.correct_index) score += q.points; });
+    DB.quiz_attempts.push({ id: nid(), quiz_id: Number(x.id), user_id: me.id, answers: JSON.stringify(b.answers || {}), score, total, submitted_at: nowIso() });
+    return { score, total };
+  },
+  'GET /api/quizzes/:id/results': (b, x) => { needAuth(); return DB.quiz_attempts.filter((a) => a.quiz_id === Number(x.id) && a.submitted_at).map((a) => ({ score: a.score, total: a.total, submitted_at: a.submitted_at, user_name: uname(a.user_id) })).sort((a, c) => c.score - a.score); },
+
+  'GET /api/notes': () => { const me = needAuth(); const list = me.role === 'admin' ? DB.notes : DB.notes.filter((n) => n.scope === 'all' || (n.scope === 'round' && n.round_id === me.round_id) || (n.scope === 'user' && n.user_id === me.id)); return [...list].sort((a, c) => c.id - a.id); },
+  'POST /api/notes': (b) => { needAdmin(); DB.notes.push({ id: nid(), scope: b.scope || 'all', round_id: b.round_id ? Number(b.round_id) : null, user_id: b.user_id ? Number(b.user_id) : null, title: b.title, body: b.body || null, created_at: nowIso() }); return { ok: true }; },
+  'DELETE /api/notes/:id': (b, x) => { needAdmin(); rm('notes', x.id); return { ok: true }; },
+
+  'GET /api/about': () => DB.about || {},
+  'PUT /api/about': (b) => { needAdmin(); DB.about = { id: 1, title: b.title, body: b.body, image: (b.image && b.image.startsWith('data:')) ? upload(b.image) : (b.image || (DB.about && DB.about.image)) }; return { ok: true }; },
+
+  'GET /api/dalia': () => { needAuth(); return [...DB.dalia_posts].sort((a, c) => c.id - a.id); },
+  'POST /api/dalia': (b) => { needAdmin(); DB.dalia_posts.push({ id: nid(), title: b.title || null, body: b.body || null, image: upload(b.image), table_data: b.table_data ? JSON.stringify(b.table_data) : null, created_at: nowIso() }); return { ok: true }; },
+  'DELETE /api/dalia/:id': (b, x) => { needAdmin(); rm('dalia_posts', x.id); return { ok: true }; },
+
+  'GET /api/dresses': () => {
+    const me = needAuth(); let list = me.role === 'admin' ? DB.dresses : DB.dresses.filter((d) => d.customer_user_id === me.id);
+    return [...list].sort((a, c) => c.id - a.id).map((d) => ({ ...d, fittings: DB.dress_fittings.filter((f) => f.dress_id === d.id).sort((a, c) => (a.fitting_date > c.fitting_date ? 1 : -1)), images: DB.dress_images.filter((i) => i.dress_id === d.id) }));
+  },
+  'POST /api/dresses': (b) => { needAdmin(); const d = { id: nid(), customer_name: b.customer_name, customer_user_id: b.customer_user_id ? Number(b.customer_user_id) : null, phone: b.phone || null, delivery_date: b.delivery_date || null, status: b.status || 'open', note: b.note || null, cover_image: upload(b.cover_image), created_at: nowIso() }; DB.dresses.push(d); return { id: d.id }; },
+  'PUT /api/dresses/:id': (b, x) => { needAdmin(); const d = byId('dresses', x.id); if (d) ['customer_name', 'phone', 'delivery_date', 'status', 'note'].forEach((k) => { if (b[k] !== undefined) d[k] = b[k]; }); if (d && b.customer_user_id !== undefined) d.customer_user_id = b.customer_user_id ? Number(b.customer_user_id) : null; return { ok: true }; },
+  'DELETE /api/dresses/:id': (b, x) => { needAdmin(); rm('dresses', x.id); DB.dress_fittings = DB.dress_fittings.filter((f) => f.dress_id !== Number(x.id)); DB.dress_images = DB.dress_images.filter((i) => i.dress_id !== Number(x.id)); return { ok: true }; },
+  'POST /api/dresses/:id/fittings': (b, x) => { needAdmin(); DB.dress_fittings.push({ id: nid(), dress_id: Number(x.id), fitting_date: b.fitting_date, note: b.note || null, done: b.done ? 1 : 0 }); return { ok: true }; },
+  'DELETE /api/fittings/:id': (b, x) => { needAdmin(); rm('dress_fittings', x.id); return { ok: true }; },
+  'POST /api/dresses/:id/images': (b, x) => { needAdmin(); const img = upload(b.image); if (!img) throw new Error('no image'); DB.dress_images.push({ id: nid(), dress_id: Number(x.id), image: img, caption: b.caption || null }); const d = byId('dresses', x.id); if (d && !d.cover_image) d.cover_image = img; return { ok: true }; },
+  'DELETE /api/dress-images/:id': (b, x) => { needAdmin(); rm('dress_images', x.id); return { ok: true }; },
+
+  'GET /api/attendance': (b, x) => {
+    const me = needAuth();
+    if (me.role === 'admin') { const uid = x.qs.get('user_id'); let list = uid ? DB.attendance.filter((a) => a.user_id == uid) : DB.attendance; return [...list].map((a) => ({ ...a, user_name: uname(a.user_id) })).sort((a, c) => (a.date < c.date ? 1 : -1)); }
+    return DB.attendance.filter((a) => a.user_id === me.id).sort((a, c) => (a.date < c.date ? 1 : -1));
+  },
+  'POST /api/attendance/check': () => {
+    const me = needAuth(); const day = new Date().toISOString().slice(0, 10); const t = new Date().toTimeString().slice(0, 5);
+    let rec = DB.attendance.find((a) => a.user_id === me.id && a.date === day);
+    if (!rec) { DB.attendance.push({ id: nid(), user_id: me.id, date: day, check_in: t, check_out: null }); return { action: 'in', time: t }; }
+    if (!rec.check_out) { rec.check_out = t; return { action: 'out', time: t }; }
+    return { action: 'done' };
+  },
+  'POST /api/attendance': (b) => { needAdmin(); DB.attendance.push({ id: nid(), user_id: Number(b.user_id), date: b.date, check_in: b.check_in || null, check_out: b.check_out || null, note: b.note || null }); return { ok: true }; },
+
+  'GET /api/salaries': () => { const me = needAuth(); const list = me.role === 'admin' ? DB.salaries.map((s) => ({ ...s, user_name: uname(s.user_id), net: s.base + s.bonus - s.deduction })) : DB.salaries.filter((s) => s.user_id === me.id).map((s) => ({ ...s, net: s.base + s.bonus - s.deduction })); return list.sort((a, c) => (a.month < c.month ? 1 : -1)); },
+  'POST /api/salaries': (b) => { needAdmin(); DB.salaries.push({ id: nid(), user_id: Number(b.user_id), month: b.month, base: b.base || 0, bonus: b.bonus || 0, deduction: b.deduction || 0, paid: b.paid ? 1 : 0, note: b.note || null }); return { ok: true }; },
+  'PUT /api/salaries/:id': (b, x) => { needAdmin(); const s = byId('salaries', x.id); if (s) s.paid = b.paid ? 1 : 0; return { ok: true }; },
+  'DELETE /api/salaries/:id': (b, x) => { needAdmin(); rm('salaries', x.id); return { ok: true }; },
+
+  'GET /api/leaves': () => { const me = needAuth(); const list = me.role === 'admin' ? DB.leaves.map((l) => ({ ...l, user_name: uname(l.user_id) })) : DB.leaves.filter((l) => l.user_id === me.id); return list.sort((a, c) => (a.from_date < c.from_date ? 1 : -1)); },
+  'POST /api/leaves': (b) => { const me = needAuth(); const uid = me.role === 'admin' ? Number(b.user_id) : me.id; DB.leaves.push({ id: nid(), user_id: uid, from_date: b.from_date, to_date: b.to_date, type: b.type || 'annual', reason: b.reason || null, status: me.role === 'admin' ? (b.status || 'approved') : 'pending' }); return { ok: true }; },
+  'PUT /api/leaves/:id': (b, x) => { needAdmin(); const l = byId('leaves', x.id); if (l) l.status = b.status; return { ok: true }; },
+};
+function byPaidDesc(a, c) { return (a.paid_at < c.paid_at ? 1 : -1); }
+
+/* Rewrite /uploads/<key> image sources to their stored data URLs (demo has no server). */
+function fixUploads(rootEl) {
+  (rootEl || document).querySelectorAll('img[src^="/uploads/"],video[src^="/uploads/"]').forEach((el) => {
+    const key = el.getAttribute('src').split('/uploads/')[1];
+    if (DB.uploads[key]) el.setAttribute('src', DB.uploads[key]);
+  });
+}
+new MutationObserver((muts) => { muts.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) fixUploads(n.parentNode || n); })); }).observe(document.documentElement, { childList: true, subtree: true });
+
+</script>
+<script>
+'use strict';
+/* Dalia Bassel Couture — single-page app (vanilla JS). Website + installable PWA. */
+
+/* ---------- tiny helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const root = () => $('#root');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = (n) => (Number(n || 0)).toLocaleString('en-US') + ' EGP';
+const dt = (s) => s ? String(s).slice(0, 10) : '—';
+const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
+const today = () => new Date().toISOString().slice(0, 10);
+
+async function api(method, path, body) {
+  if (window.__localApi) return window.__localApi(method, path, body); // demo mode (no server)
+  const opt = { method, headers: {} };
+  if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  let data = null; try { data = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error((data && data.error) || 'Connection error');
+  return data;
+}
+const GET = (p) => api('GET', p);
+const POST = (p, b) => api('POST', p, b);
+const PUT = (p, b) => api('PUT', p, b);
+const DEL = (p) => api('DELETE', p);
+
+/* ensure a container exists even after body is re-rendered */
+function ensureEl(id, cls) {
+  let el = document.getElementById(id);
+  if (!el) { el = document.createElement('div'); el.id = id; if (cls) el.className = cls; document.body.appendChild(el); }
+  return el;
+}
+function toast(msg) {
+  const t = ensureEl('toast', 'toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400);
+}
+function modal(html) {
+  const mr = ensureEl('modal-root');
+  mr.innerHTML = `<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal">
+    <button class="close" onclick="closeModal()">✕</button>${html}</div></div>`;
+}
+function closeModal() { const m = document.getElementById('modal-root'); if (m) m.innerHTML = ''; }
+window.closeModal = closeModal;
+
+function lightbox(src, cap) {
+  const mr = ensureEl('modal-root');
+  mr.innerHTML = `<div class="lightbox" onclick="if(event.target===this)closeModal()">
+    <button class="x" onclick="closeModal()">✕</button>
+    <img src="${esc(src)}" alt=""/>${cap ? `<div class="cap">${esc(cap)}</div>` : ''}</div>`;
+}
+window.lightbox = lightbox;
+
+/* pick an image file -> base64 data URL (compressed) */
+function pickImage(cb, accept = 'image/*') {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = accept;
+  inp.onchange = () => {
+    const f = inp.files[0]; if (!f) return;
+    if (accept.startsWith('image')) compressImage(f, cb);
+    else { const fr = new FileReader(); fr.onload = () => cb(fr.result); fr.readAsDataURL(f); }
+  };
+  inp.click();
+}
+function compressImage(file, cb) {
+  const fr = new FileReader();
+  fr.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 1280; let { width: w, height: h } = img;
+      if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      cb(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => cb(fr.result);
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+window.pickImage = pickImage;
+
+/* ripple effect on buttons (attached to document so it survives re-renders) */
+document.addEventListener('pointerdown', (e) => {
+  const btn = e.target.closest && e.target.closest('.btn');
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  const rip = document.createElement('span');
+  rip.className = 'ripple';
+  rip.style.width = rip.style.height = size + 'px';
+  rip.style.left = (e.clientX - rect.left - size / 2) + 'px';
+  rip.style.top = (e.clientY - rect.top - size / 2) + 'px';
+  if (/\b(sec|ghost|danger)\b/.test(btn.className)) rip.style.background = 'rgba(227,74,134,.20)';
+  btn.appendChild(rip);
+  setTimeout(() => rip.remove(), 600);
+});
+
+const state = { user: null, page: null, nav: [] };
+
+/* ---------- boot ---------- */
+async function boot() {
+  try {
+    const { user } = await GET('/api/me');
+    if (user) { state.user = user; renderApp(); }
+    else renderAuth();
+  } catch (e) { renderAuth(); }
+  
+}
+
+/* ---------- auth ---------- */
+function renderAuth() {
+  document.body.innerHTML = `
+  <div class="auth-wrap"><div class="auth-card">
+    <div class="brand-mark">DB</div>
+    <h1 class="brand-title">Dalia Bassel</h1>
+    <p class="brand-sub">Couture · Est 2019</p>
+    <form id="loginForm" style="text-align:start">
+      <label>Email</label>
+      <input name="email" type="email" placeholder="you@email.com" required />
+      <label>Password</label>
+      <input name="password" type="password" placeholder="••••••" required />
+      <div class="err hidden" id="loginErr"></div>
+      <button class="btn" style="margin-top:18px" type="submit">Sign in</button>
+    </form>
+    <p class="hint" style="margin-top:18px">Default admin account:<br>admin@daliessa.com / daliessa123</p>
+  </div></div>`;
+  $('#loginForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    try {
+      await POST('/api/login', { email: fd.get('email'), password: fd.get('password') });
+      state.user = (await GET('/api/me')).user;
+      renderApp();
+    } catch (err) { const el = $('#loginErr'); el.textContent = err.message; el.classList.remove('hidden'); }
+  };
+}
+
+/* ---------- app shell ---------- */
+const NAV = {
+  admin: [
+    ['home', 'Home', '⌂'],
+    ['students', 'Students', '👩‍🎓'],
+    ['finance', 'Payments', '💳'],
+    ['rounds', 'Rounds', '🗓'],
+    ['courses', 'Courses', '🎬'],
+    ['homework', 'Tasks', '✎'],
+    ['quizzes', 'Quizzes', '📝'],
+    ['notes', 'Notes', '📌'],
+    ['dalia', 'Dalia', '✦'],
+    ['dresses', 'Dresses', '👗'],
+    ['staff', 'Staff', '💼'],
+    ['about', 'About', 'ℹ'],
+  ],
+  trainee: [
+    ['home', 'Home', '⌂'],
+    ['courses', 'Courses', '🎬'],
+    ['homework', 'Tasks', '✎'],
+    ['quizzes', 'Quizzes', '📝'],
+    ['notes', 'Notes', '📌'],
+    ['mypay', 'Account', '💳'],
+    ['about', 'About', 'ℹ'],
+  ],
+  staff: [
+    ['home', 'Attendance', '🕒'],
+    ['mysalary', 'Salary', '💵'],
+    ['myleaves', 'Leaves', '🌴'],
+    ['about', 'About', 'ℹ'],
+  ],
+  customer: [
+    ['mydresses', 'My Dresses', '👗'],
+    ['about', 'About', 'ℹ'],
+  ],
+};
+
+function renderApp() {
+  const u = state.user;
+  state.nav = NAV[u.role] || NAV.trainee;
+  document.body.innerHTML = `
+    <div class="app">
+      <div class="topbar">
+        <div class="logo">DB</div>
+        <h1>Dalia Bassel</h1>
+        <div class="who">${esc(u.name)}<br><span class="muted">${roleLabel(u.role)}</span></div>
+        <button class="btn-icon" title="Sign out" onclick="logout()">⏻</button>
+      </div>
+      <div class="content" id="content"><div class="spinner"></div></div>
+    </div>
+    <div class="bottomnav" id="nav">
+      ${state.nav.map(([k, l, ic]) => `<button data-p="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}
+    </div>`;
+  $('#nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.p); });
+  go(state.nav[0][0]);
+}
+function roleLabel(r) { return { admin: 'Admin', trainee: 'Student', staff: 'Staff', customer: 'Client' }[r] || r; }
+async function logout() { try { await POST('/api/logout'); } catch (e) {} state.user = null; renderAuth(); }
+window.logout = logout;
+
+function go(page) {
+  state.page = page;
+  document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.p === page));
+  const c = $('#content'); c.innerHTML = '<div class="spinner"></div>'; window.scrollTo(0, 0);
+  const fn = PAGES[page];
+  if (fn) fn(c).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
+  else c.innerHTML = '<div class="empty">Coming soon</div>';
+}
+window.go = go;
+
+function title(t, icon) { return `<div class="page-title">${icon || ''} ${esc(t)}</div>`; }
+function empty(msg, em = '—') { return `<div class="empty"><div class="em">${em}</div>${esc(msg)}</div>`; }
+
+const PAGES = {};
+boot();
+
+</script>
+<script>
+'use strict';
+/* Dalia Bassel Couture — ADMIN pages */
+
+/* generic form modal. fields: {name,label,type,options,required,value,accept,rows} */
+function formModal(heading, fields, onSubmit, opts = {}) {
+  const body = fields.map((f) => {
+    if (f.type === 'hidden') return '';
+    const v = f.value ?? '';
+    if (f.type === 'select') {
+      return `<label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}">${
+        (f.options || []).map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(v) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
+    }
+    if (f.type === 'textarea') return `<label>${f.label}${f.required ? ' *' : ''}</label><textarea name="${f.name}" ${f.rows ? `style="min-height:${f.rows * 22}px"` : ''}>${esc(v)}</textarea>`;
+    if (f.type === 'image' || f.type === 'file') {
+      return `<label>${f.label}</label>
+        <div class="row"><button type="button" class="btn ghost sm" onclick="pickForField('${f.name}','${f.type}','${f.accept || ''}')">📷 Choose ${f.type === 'file' ? 'file' : 'image'}</button>
+        <span class="hint" id="fh_${f.name}" style="flex:2">${v ? 'Selected' : 'None'}</span></div>
+        <input type="hidden" name="${f.name}" id="fi_${f.name}" value="${esc(v)}" />`;
+    }
+    return `<label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}" ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} />`;
+  }).join('');
+  modal(`<h3>${esc(heading)}</h3><form id="fm">${body}<div class="err hidden" id="fmErr"></div>
+    <button class="btn" type="submit" style="margin-top:16px">${esc(opts.submitLabel || 'Save')}</button></form>`);
+  $('#fm').onsubmit = async (e) => {
+    e.preventDefault();
+    const data = {};
+    fields.forEach((f) => {
+      const el = $(`[name="${f.name}"]`, e.target); if (!el) return;
+      let val = el.value;
+      if (f.type === 'number') val = val === '' ? null : Number(val);
+      data[f.name] = val;
+    });
+    try { await onSubmit(data); closeModal(); } catch (err) { const x = $('#fmErr'); x.textContent = err.message; x.classList.remove('hidden'); }
+  };
+}
+window.pickForField = (name, type, accept) => pickImage((b64) => {
+  $(`#fi_${name}`).value = b64; $(`#fh_${name}`).textContent = 'Selected ✓';
+}, accept || (type === 'file' ? 'video/*,image/*' : 'image/*'));
+
+function confirmDel(msg, fn) { if (confirm(msg || 'Delete this?')) fn(); }
+window.confirmDel = confirmDel;
+function dayEn(d) { return { friday: 'Friday', saturday: 'Saturday' }[d] || d || ''; }
+function leaveEn(t) { return { annual: 'Annual', sick: 'Sick', unpaid: 'Unpaid' }[t] || t; }
+
+/* ============ HOME / DASHBOARD ============ */
+PAGES.home_admin = async (c) => {
+  const [sheet, rounds, dresses, reminders] = await Promise.all([
+    GET('/api/finance/sheet'), GET('/api/rounds'), GET('/api/dresses'), GET('/api/reminders'),
+  ]);
+  const dueSoon = reminders.filter((r) => !r.done).length;
+  c.innerHTML = title('Welcome, Dalia', '') + `
+    <div class="grid g3" style="margin-bottom:14px">
+      <div class="stat"><div class="n">${sheet.totals.count}</div><div class="l">Students</div></div>
+      <div class="stat"><div class="n">${rounds.length}</div><div class="l">Rounds</div></div>
+      <div class="stat"><div class="n">${dresses.length}</div><div class="l">Dresses</div></div>
+    </div>
+    <div class="card">
+      <div class="sec-title">Payments summary</div>
+      <div class="grid g3">
+        <div class="stat"><div class="n">${money(sheet.totals.paid)}</div><div class="l">Collected</div></div>
+        <div class="stat"><div class="n">${money(sheet.totals.remaining)}</div><div class="l">Remaining</div></div>
+        <div class="stat"><div class="n">${money(sheet.totals.total_fee)}</div><div class="l">Total</div></div>
+      </div>
+    </div>
+    ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
+      reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
+        <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
+        <button class="btn sm ghost" onclick="markReminder(${r.id})">Done</button></div>`).join('')}</div>` : ''}
+    <div class="sec-title">Shortcuts</div>
+    <div class="tiles">
+      ${[['students', '👩‍🎓', 'Add student'], ['finance', '💳', 'Record payment'], ['courses', '🎬', 'Upload video'], ['homework', '✎', 'Send task'], ['quizzes', '📝', 'New quiz'], ['dresses', '👗', 'Book dress']]
+        .map(([p, e, t]) => `<div class="tile" onclick="go('${p}')"><div class="em">${e}</div><div class="t">${t}</div></div>`).join('')}
+    </div>`;
+};
+window.markReminder = async (id) => { await PUT('/api/reminders/' + id, { done: 1 }); toast('Done'); go('home'); };
+
+/* ============ STUDENTS ============ */
+PAGES.students = async (c) => {
+  const [users, rounds, groups] = await Promise.all([GET('/api/users?role=trainee'), GET('/api/rounds'), GET('/api/groups')]);
+  const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
+  const gMap = Object.fromEntries(groups.map((g) => [g.id, g.name]));
+  window._students = { users, rounds, groups };
+  const filter = window._stF || 'all';
+  const list = users.filter((u) => filter === 'all' || u.round_id == filter);
+  c.innerHTML = title('Students', '') +
+    `<button class="btn" onclick="editStudent()">＋ Add student</button>
+     <div class="filters" style="margin-top:12px">
+       <span class="chip ${filter === 'all' ? 'active' : ''}" onclick="stFilter('all')">All (${users.length})</span>
+       ${rounds.map((r) => `<span class="chip ${filter == r.id ? 'active' : ''}" onclick="stFilter(${r.id})">${esc(r.name)}</span>`).join('')}
+     </div>
+     <div class="card">${list.length ? list.map((u) => `
+       <div class="item">
+         <div class="av">${esc(initials(u.name))}</div>
+         <div class="main"><div class="nm">${esc(u.name)}</div>
+           <div class="sub">${u.phone ? esc(u.phone) + ' · ' : ''}${rMap[u.round_id] ? esc(rMap[u.round_id]) : 'No round'}${gMap[u.group_id] ? ' · ' + esc(gMap[u.group_id]) : ''}</div></div>
+         <button class="btn sm sec" onclick="editStudent(${u.id})">Edit</button>
+       </div>`).join('') : empty('No students yet')}</div>`;
+};
+window.stFilter = (f) => { window._stF = f; go('students'); };
+window.editStudent = async (id) => {
+  const { rounds, groups } = window._students;
+  const u = id ? window._students.users.find((x) => x.id === id) : {};
+  let fee = 0;
+  if (id) { try { const s = await GET('/api/finance/sheet'); fee = (s.rows.find((r) => r.id === id) || {}).total_fee || 0; } catch (e) {} }
+  formModal(id ? 'Edit student' : 'New student', [
+    { name: 'name', label: 'Name', required: true, value: u.name },
+    { name: 'phone', label: 'Phone', value: u.phone },
+    { name: 'email', label: 'Email (login)', type: 'email', value: u.email },
+    { name: 'password', label: id ? 'New password (optional)' : 'Password', value: '' },
+    { name: 'round_id', label: 'Round', type: 'select', value: u.round_id, options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
+    { name: 'group_id', label: 'Group', type: 'select', value: u.group_id, options: [{ value: '', label: '—' }, ...groups.map((g) => ({ value: g.id, label: g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '') }))] },
+    { name: 'total_fee', label: 'Course fee (EGP)', type: 'number', value: fee },
+  ], async (d) => {
+    d.role = 'trainee';
+    if (id) await PUT('/api/users/' + id, d); else await POST('/api/users', d);
+    toast('Saved'); go('students');
+  });
+  if (id) $('#fm').insertAdjacentHTML('beforeend', `<button type="button" class="btn danger" style="margin-top:8px" onclick="delStudent(${id})">Delete student</button>`);
+};
+window.delStudent = (id) => confirmDel('Delete this student and all their data?', async () => { await DEL('/api/users/' + id); closeModal(); toast('Deleted'); go('students'); });
+
+/* ============ FINANCE (sheet + payments + reminders) ============ */
+PAGES.finance = async (c) => {
+  const [sheet, payments, reminders, users] = await Promise.all([
+    GET('/api/finance/sheet'), GET('/api/payments'), GET('/api/reminders'), GET('/api/users?role=trainee'),
+  ]);
+  window._fin = { users };
+  const tab = window._finTab || 'sheet';
+  const tabs = [['sheet', 'Sheet'], ['pay', 'Payments'], ['rem', 'Reminders']];
+  let inner = '';
+  if (tab === 'sheet') {
+    inner = `<div class="card"><div class="tbl-wrap"><table>
+      <thead><tr><th>Name</th><th>Total</th><th>Paid</th><th>Remaining</th></tr></thead>
+      <tbody>${sheet.rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${money(r.total_fee)}</td>
+        <td style="color:var(--ok)">${money(r.paid)}</td><td style="color:${r.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(r.remaining)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Total (${sheet.totals.count})</td><td>${money(sheet.totals.total_fee)}</td><td>${money(sheet.totals.paid)}</td><td>${money(sheet.totals.remaining)}</td></tr></tfoot>
+      </table></div></div>`;
+  } else if (tab === 'pay') {
+    inner = `<button class="btn" onclick="addPayment()">＋ Record payment</button>
+      <div class="card" style="margin-top:12px">${payments.length ? payments.map((p) => `
+      <div class="item">
+        <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','Transfer ${esc(p.user_name || '')}')"/>` : '💵'}</div>
+        <div class="main"><div class="nm">${esc(p.user_name || '')} · ${money(p.amount)}</div>
+          <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+        <button class="btn-icon" onclick="delPayment(${p.id})">🗑</button>
+      </div>`).join('') : empty('No payments yet')}</div>`;
+  } else {
+    inner = `<button class="btn" onclick="addReminder()">＋ Payment reminder</button>
+      <div class="card" style="margin-top:12px">${reminders.length ? reminders.map((r) => `
+      <div class="item"><div class="av">${r.done ? '✓' : '◷'}</div>
+        <div class="main"><div class="nm">${esc(r.user_name)}</div>
+          <div class="sub">${dt(r.due_date)} · ${money(r.amount)}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
+        ${r.done ? '<span class="badge ok">Done</span>' : `<button class="btn sm ghost" onclick="markReminder2(${r.id})">Done</button>`}
+        <button class="btn-icon" onclick="delReminder(${r.id})">🗑</button></div>`).join('') : empty('No reminders')}</div>`;
+  }
+  c.innerHTML = title('Payments', '') +
+    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="finTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+};
+window.finTab = (t) => { window._finTab = t; go('finance'); };
+window.addPayment = () => formModal('Record payment', [
+  { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'kind', label: 'Type', type: 'select', options: [{ value: 'deposit', label: 'Deposit' }, { value: 'installment', label: 'Installment' }] },
+  { name: 'paid_at', label: 'Date', type: 'date', value: today() },
+  { name: 'note', label: 'Note', value: '' },
+  { name: 'image', label: 'Transfer screenshot', type: 'image' },
+], async (d) => { await POST('/api/payments', d); toast('Recorded'); go('finance'); });
+window.delPayment = (id) => confirmDel('Delete this payment?', async () => { await DEL('/api/payments/' + id); toast('Deleted'); go('finance'); });
+window.addReminder = () => formModal('Payment reminder', [
+  { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },
+  { name: 'due_date', label: 'Due date', type: 'date', required: true, value: today() },
+  { name: 'amount', label: 'Expected amount', type: 'number' },
+  { name: 'note', label: 'Note', value: '' },
+], async (d) => { await POST('/api/reminders', d); toast('Added'); go('finance'); });
+window.markReminder2 = async (id) => { await PUT('/api/reminders/' + id, { done: 1 }); go('finance'); };
+window.delReminder = (id) => confirmDel('Delete reminder?', async () => { await DEL('/api/reminders/' + id); go('finance'); });
+
+/* ============ ROUNDS & GROUPS ============ */
+PAGES.rounds = async (c) => {
+  const [rounds, groups, users] = await Promise.all([GET('/api/rounds'), GET('/api/groups'), GET('/api/users?role=trainee')]);
+  const cnt = (rid) => users.filter((u) => u.round_id === rid).length;
+  const gcnt = (gid) => users.filter((u) => u.group_id === gid).length;
+  c.innerHTML = title('Rounds & Groups', '') +
+    `<div class="row"><button class="btn" onclick="addRound()">＋ Round</button><button class="btn sec" onclick="addGroup()">＋ Group</button></div>
+    ${rounds.length ? rounds.map((r) => `<div class="card">
+      <div class="item"><div class="av">${r.number || '#'}</div>
+        <div class="main"><div class="nm">${esc(r.name)} <span class="badge">${cnt(r.id)} students</span></div>
+          <div class="sub">${r.start_date ? 'Starts ' + dt(r.start_date) : ''} ${r.description ? '· ' + esc(r.description) : ''}</div></div>
+        <button class="btn-icon" onclick="delRound(${r.id})">🗑</button></div>
+      ${groups.filter((g) => g.round_id === r.id).map((g) => `<div class="item" style="padding-inline-start:14px">
+        <div class="av" style="background:#fff">◦</div>
+        <div class="main"><div class="nm">${esc(g.name)}</div>
+          <div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'}</div></div>
+        <button class="btn-icon" onclick="delGroup(${g.id})">🗑</button></div>`).join('')}
+    </div>`).join('') : empty('No rounds yet — start by adding a round')}`;
+  window._rounds = rounds;
+};
+window.addRound = () => formModal('New round', [
+  { name: 'number', label: 'Round number', type: 'number' },
+  { name: 'name', label: 'Name', required: true, placeholder: 'August Round' },
+  { name: 'start_date', label: 'Start date', type: 'date' },
+  { name: 'description', label: 'Description', type: 'textarea' },
+], async (d) => { await POST('/api/rounds', d); toast('Added'); go('rounds'); });
+window.delRound = (id) => confirmDel('Delete round?', async () => { await DEL('/api/rounds/' + id); go('rounds'); });
+window.addGroup = async () => {
+  const rounds = window._rounds || await GET('/api/rounds');
+  formModal('New group', [
+    { name: 'round_id', label: 'Round', type: 'select', options: rounds.map((r) => ({ value: r.id, label: r.name })) },
+    { name: 'name', label: 'Group name', required: true, placeholder: 'Group 1' },
+    { name: 'day', label: 'Day', type: 'select', options: [{ value: 'friday', label: 'Friday' }, { value: 'saturday', label: 'Saturday' }] },
+    { name: 'time_slot', label: 'Time', type: 'select', options: [{ value: '11-3', label: '11 AM – 3 PM' }, { value: '5-9', label: '5 PM – 9 PM' }] },
+    { name: 'capacity', label: 'Capacity', type: 'number', value: 6 },
+  ], async (d) => { await POST('/api/groups', d); toast('Added'); go('rounds'); });
+};
+window.delGroup = (id) => confirmDel('Delete group?', async () => { await DEL('/api/groups/' + id); go('rounds'); });
+
+/* ============ COURSES / VIDEOS ============ */
+PAGES.courses = async (c) => {
+  if (state.user.role !== 'admin') return PAGES.courses_trainee(c);
+  const [videos, rounds] = await Promise.all([GET('/api/videos'), GET('/api/rounds')]);
+  const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
+  window._rounds = rounds;
+  c.innerHTML = title('Courses — Videos', '') +
+    `<button class="btn" onclick="addVideo()">＋ Upload / add video</button>
+    <div class="grid g2" style="margin-top:12px">${videos.length ? videos.map((v) => `
+      <div class="card" style="margin:0">
+        <div class="nm" style="font-weight:600">${esc(v.title)}</div>
+        <div class="sub muted" style="font-size:12px">${v.round_id ? esc(rMap[v.round_id] || '') : 'All rounds'}</div>
+        ${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
+        ${videoEmbed(v)}
+        <button class="btn danger sm" style="margin-top:8px" onclick="delVideo(${v.id})">Delete</button>
+      </div>`).join('') : empty('No videos yet', '🎬')}</div>`;
+};
+function videoEmbed(v) {
+  if (v.file) return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>`;
+  if (v.url) {
+    const yt = v.url.match(/(?:youtu\.be\/|v=)([\w-]{11})/);
+    if (yt) return `<div style="position:relative;padding-top:56%;margin-top:6px"><iframe style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px" src="https://www.youtube.com/embed/${yt[1]}" allowfullscreen></iframe></div>`;
+    return `<a class="btn sec sm" style="margin-top:6px" href="${esc(v.url)}" target="_blank">▶ Open video</a>`;
+  }
+  return '';
+}
+window.addVideo = async () => {
+  const rounds = window._rounds || await GET('/api/rounds');
+  formModal('New video', [
+    { name: 'title', label: 'Title', required: true },
+    { name: 'round_id', label: 'Round', type: 'select', options: [{ value: '', label: 'All rounds' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
+    { name: 'description', label: 'Description', type: 'textarea' },
+    { name: 'url', label: 'Link (YouTube or any URL)', placeholder: 'https://...' },
+    { name: 'file', label: 'Or upload a video from device', type: 'file', accept: 'video/*' },
+  ], async (d) => { await POST('/api/videos', d); toast('Uploaded'); go('courses'); });
+};
+window.delVideo = (id) => confirmDel('Delete video?', async () => { await DEL('/api/videos/' + id); go('courses'); });
+
+/* ============ HOMEWORK / TASKS ============ */
+PAGES.homework = async (c) => {
+  if (state.user.role !== 'admin') return PAGES.homework_trainee(c);
+  const [hw, rounds] = await Promise.all([GET('/api/homeworks'), GET('/api/rounds')]);
+  const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
+  window._rounds = rounds;
+  c.innerHTML = title('Tasks (Patterns)', '') +
+    `<button class="btn" onclick="addHomework()">＋ Send task</button>
+    ${hw.length ? hw.map((h) => `<div class="card">
+      <div class="item"><div class="av">✎</div>
+        <div class="main"><div class="nm">${esc(h.title)}</div>
+          <div class="sub">${h.round_id ? esc(rMap[h.round_id] || '') : 'All'} ${h.due_date ? '· due ' + dt(h.due_date) : ''}</div></div>
+        <button class="btn sm sec" onclick="viewSubs(${h.id},'${esc(h.title)}')">Submissions</button>
+        <button class="btn-icon" onclick="delHomework(${h.id})">🗑</button></div>
+      ${h.measurements ? `<div class="hint">Measurements: ${esc(h.measurements)}</div>` : ''}
+      ${h.instructions ? `<div class="hint">${esc(h.instructions)}</div>` : ''}
+    </div>`).join('') : empty('No tasks yet', '✎')}`;
+};
+window.addHomework = async () => {
+  const rounds = window._rounds || await GET('/api/rounds');
+  formModal('New task', [
+    { name: 'title', label: 'Title', required: true, placeholder: 'Basic bodice pattern' },
+    { name: 'round_id', label: 'Round', type: 'select', options: [{ value: '', label: 'All rounds' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
+    { name: 'measurements', label: 'Measurements sent', type: 'textarea', placeholder: 'Bust 90 / Waist 70 / Length 160 ...' },
+    { name: 'instructions', label: 'Instructions', type: 'textarea' },
+    { name: 'due_date', label: 'Due date', type: 'date' },
+  ], async (d) => { await POST('/api/homeworks', d); toast('Sent'); go('homework'); });
+};
+window.delHomework = (id) => confirmDel('Delete task?', async () => { await DEL('/api/homeworks/' + id); go('homework'); });
+window.viewSubs = async (id, tt) => {
+  const subs = await GET(`/api/homeworks/${id}/submissions`);
+  modal(`<h3>Submissions: ${esc(tt)}</h3>${subs.length ? subs.map((s) => `
+    <div class="item"><div class="av">${s.image ? `<img class="thumb" style="width:46px;height:46px;aspect-ratio:1" src="/uploads/${esc(s.image)}" onclick="lightbox('/uploads/${esc(s.image)}','${esc(s.user_name)}')"/>` : '▤'}</div>
+      <div class="main"><div class="nm">${esc(s.user_name)}</div><div class="sub">${dt(s.submitted_at)}${s.note ? ' · ' + esc(s.note) : ''}${s.grade ? ' · ' + esc(s.grade) : ''}</div></div>
+      <button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button></div>`).join('') : empty('No submissions')}`);
+};
+window.gradeSub = (id, cur) => formModal('Grade submission', [
+  { name: 'grade', label: 'Grade', value: cur },
+  { name: 'feedback', label: 'Feedback', type: 'textarea' },
+], async (d) => { await PUT('/api/submissions/' + id, d); toast('Saved'); closeModal(); });
+
+/* ============ QUIZZES ============ */
+PAGES.quizzes = async (c) => {
+  if (state.user.role !== 'admin') return PAGES.quizzes_trainee(c);
+  const [quizzes, rounds] = await Promise.all([GET('/api/quizzes'), GET('/api/rounds')]);
+  const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
+  window._rounds = rounds;
+  c.innerHTML = title('Quizzes', '') +
+    `<button class="btn" onclick="newQuiz()">＋ New quiz</button>
+    ${quizzes.length ? quizzes.map((q) => `<div class="card">
+      <div class="item"><div class="av">📝</div>
+        <div class="main"><div class="nm">${esc(q.title)} <span class="badge">${q.ref_code}</span></div>
+          <div class="sub">${q.questions_count} questions · ${q.duration_min} min · ${q.round_id ? esc(rMap[q.round_id] || '') : 'All'} · ${q.active ? 'Active' : 'Off'}</div></div>
+        <button class="btn sm sec" onclick="quizResults(${q.id},'${esc(q.title)}')">Results</button>
+        <button class="btn-icon" onclick="delQuiz(${q.id})">🗑</button></div></div>`).join('') : empty('No quizzes yet', '📝')}`;
+};
+window.delQuiz = (id) => confirmDel('Delete quiz?', async () => { await DEL('/api/quizzes/' + id); go('quizzes'); });
+window.quizResults = async (id, tt) => {
+  const rows = await GET(`/api/quizzes/${id}/results`);
+  modal(`<h3>Results: ${esc(tt)}</h3>${rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Date</th></tr></thead>
+    <tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.user_name)}</td><td>${r.score}/${r.total}</td><td>${dt(r.submitted_at)}</td></tr>`).join('')}</tbody></table></div>` : empty('No attempts yet')}`);
+};
+let _qDraft = [];
+window.newQuiz = async () => {
+  const rounds = window._rounds || await GET('/api/rounds');
+  _qDraft = [];
+  modal(`<h3>New quiz</h3>
+    <label>Title *</label><input id="qTitle" />
+    <label>Round</label><select id="qRound"><option value="">All</option>${rounds.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select>
+    <label>Duration (minutes)</label><input id="qDur" type="number" value="15" />
+    <label>Reference code (optional)</label><input id="qRef" placeholder="auto-generated" />
+    <div class="divider"></div>
+    <div class="sec-title">Questions</div>
+    <div id="qList"></div>
+    <button class="btn ghost sm" onclick="addQ()">＋ Question</button>
+    <div class="err hidden" id="qErr"></div>
+    <button class="btn" style="margin-top:12px" onclick="saveQuiz()">Save quiz</button>`);
+  addQ();
+};
+window.addQ = () => {
+  const i = _qDraft.length; _qDraft.push({ text: '', options: ['', '', '', ''], correct_index: 0 });
+  $('#qList').insertAdjacentHTML('beforeend', `<div class="card" style="padding:12px" id="q_${i}">
+    <label>Question ${i + 1}</label><input oninput="_qDraft[${i}].text=this.value" />
+    ${[0, 1, 2, 3].map((o) => `<div class="row" style="align-items:center;margin-top:4px">
+      <input placeholder="Answer ${o + 1}" oninput="_qDraft[${i}].options[${o}]=this.value" style="flex:4" />
+      <label style="margin:0;flex:1;white-space:nowrap"><input type="radio" name="correct_${i}" ${o === 0 ? 'checked' : ''} onchange="_qDraft[${i}].correct_index=${o}" style="width:auto"/> correct</label>
+    </div>`).join('')}</div>`);
+};
+window.saveQuiz = async () => {
+  const t = $('#qTitle').value.trim();
+  if (!t) { const e = $('#qErr'); e.textContent = 'Enter a title'; e.classList.remove('hidden'); return; }
+  const qs = _qDraft.filter((q) => q.text.trim());
+  try {
+    await POST('/api/quizzes', { title: t, round_id: $('#qRound').value || null, duration_min: Number($('#qDur').value) || 15, ref_code: $('#qRef').value || null, questions: qs });
+    closeModal(); toast('Saved'); go('quizzes');
+  } catch (e) { const x = $('#qErr'); x.textContent = e.message; x.classList.remove('hidden'); }
+};
+
+/* ============ NOTES ============ */
+PAGES.notes = async (c) => {
+  if (state.user.role !== 'admin') return PAGES.notes_trainee(c);
+  const [notes, rounds, users] = await Promise.all([GET('/api/notes'), GET('/api/rounds'), GET('/api/users?role=trainee')]);
+  window._noteRef = { rounds, users };
+  const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
+  const uMap = Object.fromEntries(users.map((u) => [u.id, u.name]));
+  c.innerHTML = title('Notes & Instructions', '') +
+    `<button class="btn" onclick="addNote()">＋ Send note</button>
+    ${notes.length ? notes.map((n) => `<div class="card">
+      <div class="item"><div class="av">📌</div>
+        <div class="main"><div class="nm">${esc(n.title)}</div>
+          <div class="sub">${n.scope === 'all' ? 'All students' : n.scope === 'round' ? esc(rMap[n.round_id] || 'Round') : esc(uMap[n.user_id] || 'Student')} · ${dt(n.created_at)}</div></div>
+        <button class="btn-icon" onclick="delNote(${n.id})">🗑</button></div>
+      ${n.body ? `<div style="font-size:14px;margin-top:6px">${esc(n.body)}</div>` : ''}</div>`).join('') : empty('No notes yet', '📌')}`;
+};
+window.addNote = () => {
+  const { rounds, users } = window._noteRef;
+  formModal('Note / instructions', [
+    { name: 'title', label: 'Title', required: true },
+    { name: 'body', label: 'Text', type: 'textarea', rows: 4 },
+    { name: 'scope', label: 'Send to', type: 'select', options: [{ value: 'all', label: 'All students' }, { value: 'round', label: 'A specific round' }, { value: 'user', label: 'A specific student' }] },
+    { name: 'round_id', label: 'Round (if round)', type: 'select', options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
+    { name: 'user_id', label: 'Student (if specific)', type: 'select', options: [{ value: '', label: '—' }, ...users.map((u) => ({ value: u.id, label: u.name }))] },
+  ], async (d) => { await POST('/api/notes', d); toast('Sent'); go('notes'); });
+};
+window.delNote = (id) => confirmDel('Delete note?', async () => { await DEL('/api/notes/' + id); go('notes'); });
+
+/* ============ ABOUT (edit) ============ */
+PAGES.about = async (c) => {
+  const a = await GET('/api/about');
+  if (state.user.role !== 'admin') return PAGES.about_view(c, a);
+  c.innerHTML = title('About the Academy', '') + `<div class="card">
+    ${a.image ? `<img class="thumb" style="aspect-ratio:16/9;margin-bottom:10px" src="/uploads/${esc(a.image)}" onclick="lightbox('/uploads/${esc(a.image)}')"/>` : ''}
+    <label>Title</label><input id="abT" value="${esc(a.title || '')}" />
+    <label>Description</label><textarea id="abB" style="min-height:140px">${esc(a.body || '')}</textarea>
+    <div class="row" style="margin-top:10px"><button class="btn ghost" onclick="abPic()">📷 Cover image</button>
+    <button class="btn" onclick="saveAbout()">Save</button></div>
+    <span class="hint" id="abH"></span></div>`;
+  window._abImg = null;
+};
+window.abPic = () => pickImage((b) => { window._abImg = b; $('#abH').textContent = 'Image selected ✓'; });
+window.saveAbout = async () => { await PUT('/api/about', { title: $('#abT').value, body: $('#abB').value, image: window._abImg }); toast('Saved'); go('about'); };
+
+/* ============ DALIA POSTS ============ */
+PAGES.dalia = async (c) => {
+  const posts = await GET('/api/dalia');
+  const admin = state.user.role === 'admin';
+  c.innerHTML = title('Dalia', '') +
+    (admin ? `<button class="btn" onclick="addDalia()">＋ New post</button>` : '') +
+    (posts.length ? posts.map((p) => {
+      let tbl = ''; try { const t = p.table_data && JSON.parse(p.table_data); if (t && t.rows) tbl = renderMiniTable(t); } catch (e) {}
+      return `<div class="card">
+      ${p.image ? `<img class="thumb" style="aspect-ratio:4/5" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','${esc(p.title || '')}')"/>` : ''}
+      ${p.title ? `<div class="nm serif" style="font-size:18px;margin-top:8px">${esc(p.title)}</div>` : ''}
+      ${p.body ? `<div style="font-size:14px;margin-top:4px">${esc(p.body)}</div>` : ''}
+      ${tbl}
+      ${admin ? `<button class="btn danger sm" style="margin-top:8px" onclick="delDalia(${p.id})">Delete</button>` : ''}</div>`;
+    }).join('') : empty('No posts yet', '✦'));
+};
+function renderMiniTable(t) {
+  return `<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr>${(t.cols || []).map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+    <tbody>${(t.rows || []).map((r) => `<tr>${r.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+window.addDalia = () => {
+  modal(`<h3>New post</h3>
+    <label>Title</label><input id="dT" />
+    <label>Text</label><textarea id="dB"></textarea>
+    <div class="row"><button class="btn ghost sm" onclick="dPic()">📷 Image</button><span class="hint" id="dH">optional</span></div>
+    <div class="divider"></div><div class="sec-title">Table (optional)</div>
+    <label>Column headers (comma-separated)</label><input id="dCols" placeholder="Item, Qty, Price" />
+    <label>Rows (one per line, values comma-separated)</label><textarea id="dRows" placeholder="Dress, 2, 3000&#10;Embroidery, 1, 500"></textarea>
+    <button class="btn" style="margin-top:12px" onclick="saveDalia()">Publish</button>`);
+  window._dImg = null;
+};
+window.dPic = () => pickImage((b) => { window._dImg = b; $('#dH').textContent = 'Selected ✓'; });
+window.saveDalia = async () => {
+  let td = null;
+  const cols = $('#dCols').value.trim(); const rows = $('#dRows').value.trim();
+  if (cols || rows) td = { cols: cols.split(',').map((s) => s.trim()), rows: rows.split('\n').filter(Boolean).map((l) => l.split(',').map((s) => s.trim())) };
+  await POST('/api/dalia', { title: $('#dT').value, body: $('#dB').value, image: window._dImg, table_data: td });
+  closeModal(); toast('Published'); go('dalia');
+};
+window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/api/dalia/' + id); go('dalia'); });
+
+/* ============ DRESSES ============ */
+PAGES.dresses = async (c) => {
+  if (state.user.role !== 'admin') return PAGES.mydresses(c);
+  const [dresses, customers] = await Promise.all([GET('/api/dresses'), GET('/api/users?role=customer')]);
+  window._dressRef = { customers };
+  const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
+  const stCls = { open: 'warn', in_progress: '', delivered: 'ok' };
+  c.innerHTML = title('Dresses', '') +
+    `<button class="btn" onclick="addDress()">＋ Book a dress</button>
+    <div class="grid g2" style="margin-top:12px">${dresses.length ? dresses.map((d) => `
+      <div class="card" style="margin:0">
+        ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
+        <div class="nm" style="font-weight:600;margin-top:8px">${esc(d.customer_name)}</div>
+        <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
+        <div class="sub muted" style="font-size:12px">${d.fittings.length} fittings · ${d.images.length} photos</div>
+        <button class="btn sec sm" style="margin-top:8px" onclick="openDress(${d.id})">Details</button>
+      </div>`).join('') : empty('No dresses yet', '👗')}</div>`;
+  window._dresses = dresses;
+};
+window.addDress = () => {
+  const { customers } = window._dressRef;
+  formModal('Book a dress', [
+    { name: 'customer_name', label: 'Client name', required: true },
+    { name: 'phone', label: 'Phone' },
+    { name: 'delivery_date', label: 'Delivery date', type: 'date' },
+    { name: 'status', label: 'Status', type: 'select', options: [{ value: 'open', label: 'New' }, { value: 'in_progress', label: 'In progress' }, { value: 'delivered', label: 'Delivered' }] },
+    { name: 'customer_user_id', label: 'Link to client account (optional)', type: 'select', options: [{ value: '', label: '—' }, ...customers.map((u) => ({ value: u.id, label: u.name + (u.email ? ' · ' + u.email : '') }))] },
+    { name: 'note', label: 'Notes', type: 'textarea' },
+    { name: 'cover_image', label: 'Dress photo', type: 'image' },
+  ], async (d) => { await POST('/api/dresses', d); toast('Booked'); go('dresses'); });
+};
+window.openDress = (id) => {
+  const d = window._dresses.find((x) => x.id === id);
+  modal(`<h3>${esc(d.customer_name)}</h3>
+    <div class="sub muted">${d.phone ? esc(d.phone) + ' · ' : ''}Delivery ${dt(d.delivery_date)}</div>
+    ${d.note ? `<div class="hint">${esc(d.note)}</div>` : ''}
+    <div class="sec-title">Fittings</div>
+    ${d.fittings.length ? d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div>
+      <div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div>
+      <button class="btn-icon" onclick="delFitting(${f.id},${id})">🗑</button></div>`).join('') : '<div class="hint">No fittings scheduled</div>'}
+    <button class="btn ghost sm" style="margin-top:8px" onclick="addFitting(${id})">＋ Fitting date</button>
+    <div class="sec-title">Dress photos</div>
+    <div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>
+    <div class="divider"></div>
+    <button class="btn danger" onclick="delDress(${id})">Delete booking</button>`);
+};
+window.addFitting = (id) => formModal('Fitting date', [
+  { name: 'fitting_date', label: 'Date', type: 'date', required: true, value: today() },
+  { name: 'note', label: 'Note' },
+], async (d) => { await POST(`/api/dresses/${id}/fittings`, d); toast('Added'); closeModal(); refreshDress(id); });
+window.delFitting = async (fid, id) => { await DEL('/api/fittings/' + fid); refreshDress(id); };
+window.addDressImg = (id) => pickImage(async (b64) => { await POST(`/api/dresses/${id}/images`, { image: b64 }); toast('Uploaded'); refreshDress(id); });
+window.delDress = (id) => confirmDel('Delete dress booking?', async () => { await DEL('/api/dresses/' + id); closeModal(); go('dresses'); });
+async function refreshDress(id) { window._dresses = await GET('/api/dresses'); openDress(id); }
+
+/* ============ STAFF HR ============ */
+PAGES.staff = async (c) => {
+  const [staff, att, sal, lv] = await Promise.all([GET('/api/users?role=staff'), GET('/api/attendance'), GET('/api/salaries'), GET('/api/leaves')]);
+  window._staff = staff;
+  const tab = window._staffTab || 'people';
+  const tabs = [['people', 'Staff'], ['att', 'Attendance'], ['sal', 'Salaries'], ['lv', 'Leaves']];
+  let inner = '';
+  if (tab === 'people') {
+    inner = `<button class="btn" onclick="addStaff()">＋ Staff member</button>
+      <div class="card" style="margin-top:12px">${staff.length ? staff.map((s) => `<div class="item"><div class="av">${esc(initials(s.name))}</div>
+        <div class="main"><div class="nm">${esc(s.name)}</div><div class="sub">${s.job_title ? esc(s.job_title) + ' · ' : ''}${money(s.base_salary)} ${s.hire_date ? '· since ' + dt(s.hire_date) : ''}</div></div>
+        <button class="btn sm sec" onclick="editStaff(${s.id})">Edit</button></div>`).join('') : empty('No staff yet', '💼')}</div>`;
+  } else if (tab === 'att') {
+    inner = `<button class="btn sec" onclick="addAtt()">＋ Manual entry</button>
+      <div class="card" style="margin-top:12px"><div class="tbl-wrap"><table><thead><tr><th>Staff</th><th>Day</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>${att.length ? att.map((a) => `<tr><td>${esc(a.user_name)}</td><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+  } else if (tab === 'sal') {
+    inner = `<button class="btn" onclick="addSalary()">＋ Salary</button>
+      <div class="card" style="margin-top:12px"><div class="tbl-wrap"><table><thead><tr><th>Staff</th><th>Month</th><th>Base</th><th>Bonus</th><th>Deduct</th><th>Net</th><th></th></tr></thead>
+      <tbody>${sal.length ? sal.map((s) => `<tr><td>${esc(s.user_name)}</td><td>${esc(s.month)}</td><td>${money(s.base)}</td><td>${money(s.bonus)}</td><td>${money(s.deduction)}</td><td>${money(s.net)}</td>
+        <td>${s.paid ? '<span class="badge ok">Paid</span>' : `<button class="btn sm ghost" onclick="paySalary(${s.id})">Pay</button>`}</td></tr>`).join('') : '<tr><td colspan="7" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+  } else {
+    inner = `<div class="card">${lv.length ? lv.map((l) => `<div class="item"><div class="av">🌴</div>
+      <div class="main"><div class="nm">${esc(l.user_name)}</div><div class="sub">${dt(l.from_date)} → ${dt(l.to_date)} · ${leaveEn(l.type)}${l.reason ? ' · ' + esc(l.reason) : ''}</div></div>
+      ${l.status === 'pending' ? `<button class="btn sm ghost" onclick="setLeave(${l.id},'approved')">Approve</button><button class="btn sm danger" onclick="setLeave(${l.id},'rejected')">Reject</button>` : `<span class="badge ${l.status === 'approved' ? 'ok' : 'bad'}">${l.status === 'approved' ? 'Approved' : 'Rejected'}</span>`}</div>`).join('') : empty('No leaves', '🌴')}</div>`;
+  }
+  c.innerHTML = title('Staff', '') +
+    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="staffTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+};
+window.staffTab = (t) => { window._staffTab = t; go('staff'); };
+window.addStaff = () => formModal('New staff member', [
+  { name: 'name', label: 'Name', required: true },
+  { name: 'phone', label: 'Phone' },
+  { name: 'email', label: 'Email (login)', type: 'email' },
+  { name: 'password', label: 'Password' },
+  { name: 'job_title', label: 'Job title' },
+  { name: 'base_salary', label: 'Base salary', type: 'number' },
+  { name: 'hire_date', label: 'Hire date', type: 'date' },
+], async (d) => { d.role = 'staff'; await POST('/api/users', d); toast('Added'); go('staff'); });
+window.editStaff = (id) => {
+  const s = window._staff.find((x) => x.id === id);
+  formModal('Edit staff', [
+    { name: 'name', label: 'Name', required: true, value: s.name },
+    { name: 'phone', label: 'Phone', value: s.phone },
+    { name: 'email', label: 'Email', type: 'email', value: s.email },
+    { name: 'password', label: 'New password (optional)' },
+    { name: 'job_title', label: 'Job title', value: s.job_title },
+    { name: 'base_salary', label: 'Base salary', type: 'number', value: s.base_salary },
+    { name: 'hire_date', label: 'Hire date', type: 'date', value: s.hire_date },
+  ], async (d) => { d.role = 'staff'; await PUT('/api/users/' + id, d); toast('Saved'); go('staff'); });
+};
+window.addAtt = () => formModal('Manual attendance', [
+  { name: 'user_id', label: 'Staff', type: 'select', options: window._staff.map((s) => ({ value: s.id, label: s.name })) },
+  { name: 'date', label: 'Day', type: 'date', value: today() },
+  { name: 'check_in', label: 'In', type: 'time' },
+  { name: 'check_out', label: 'Out', type: 'time' },
+], async (d) => { await POST('/api/attendance', d); toast('Saved'); go('staff'); });
+window.addSalary = () => formModal('Monthly salary', [
+  { name: 'user_id', label: 'Staff', type: 'select', options: window._staff.map((s) => ({ value: s.id, label: s.name })) },
+  { name: 'month', label: 'Month', type: 'month', value: today().slice(0, 7) },
+  { name: 'base', label: 'Base', type: 'number' },
+  { name: 'bonus', label: 'Bonus', type: 'number' },
+  { name: 'deduction', label: 'Deduction', type: 'number' },
+], async (d) => { await POST('/api/salaries', d); toast('Saved'); go('staff'); });
+window.paySalary = async (id) => { await PUT('/api/salaries/' + id, { paid: 1 }); toast('Paid'); go('staff'); };
+window.setLeave = async (id, st) => { await PUT('/api/leaves/' + id, { status: st }); go('staff'); };
+
+</script>
+<script>
+'use strict';
+/* Dalia Bassel Couture — STUDENT / STAFF / CLIENT pages + role dispatch */
+
+/* ---- role dispatch for the shared "home" nav key ---- */
+PAGES.home = async (c) => {
+  const r = state.user.role;
+  if (r === 'admin') return PAGES.home_admin(c);
+  if (r === 'staff') return PAGES.home_staff(c);
+  return PAGES.home_trainee(c);
+};
+
+/* ============ STUDENT HOME ============ */
+PAGES.home_trainee = async (c) => {
+  const u = state.user;
+  const [pay, quizzes, hw, notes, rounds] = await Promise.all([
+    GET('/api/payments'), GET('/api/quizzes'), GET('/api/homeworks'), GET('/api/notes'), GET('/api/rounds'),
+  ]);
+  const round = rounds.find((r) => r.id === u.round_id);
+  const paid = pay.reduce((a, p) => a + (p.amount || 0), 0);
+  const pendingHw = hw.filter((h) => !h.my_submission).length;
+  const newQuiz = quizzes.filter((q) => !q.my_attempt).length;
+  c.innerHTML = title(`Welcome, ${u.name}`, '') + `
+    <div class="card">
+      <div class="sec-title">Your round</div>
+      ${round ? `<div class="nm serif" style="font-size:18px">${esc(round.name)}${round.number ? ' · Round ' + round.number : ''}</div>
+        <div class="sub muted">${round.start_date ? 'Starts ' + dt(round.start_date) : ''} ${round.description ? '· ' + esc(round.description) : ''}</div>` : '<div class="muted">Not enrolled in a round yet</div>'}
+    </div>
+    <div class="grid g3">
+      <div class="stat" onclick="go('mypay')"><div class="n">${money(paid)}</div><div class="l">Paid</div></div>
+      <div class="stat" onclick="go('homework')"><div class="n">${pendingHw}</div><div class="l">Tasks due</div></div>
+      <div class="stat" onclick="go('quizzes')"><div class="n">${newQuiz}</div><div class="l">New quiz</div></div>
+    </div>
+    <div class="sec-title">Menu</div>
+    <div class="tiles">
+      ${[['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['notes', '📌', 'Notes'], ['mypay', '💳', 'Account'], ['about', 'ℹ', 'About']]
+      .map(([p, e, t]) => `<div class="tile" onclick="go('${p}')"><div class="em">${e}</div><div class="t">${t}</div></div>`).join('')}
+    </div>
+    ${notes.length ? `<div class="sec-title">Latest notes</div>${notes.slice(0, 3).map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>${n.body ? `<div style="font-size:13px">${esc(n.body)}</div>` : ''}</div>`).join('')}` : ''}`;
+};
+
+/* ============ STUDENT COURSES (videos, read-only) ============ */
+PAGES.courses_trainee = async (c) => {
+  const videos = await GET('/api/videos');
+  c.innerHTML = title('Courses', '') +
+    (videos.length ? videos.map((v) => `<div class="card">
+      <div class="nm" style="font-weight:600">${esc(v.title)}</div>
+      ${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
+      ${videoEmbed(v)}</div>`).join('') : empty('No videos yet', '🎬'));
+};
+
+/* ============ STUDENT TASKS ============ */
+PAGES.homework_trainee = async (c) => {
+  const hw = await GET('/api/homeworks');
+  c.innerHTML = title('Tasks', '') +
+    (hw.length ? hw.map((h) => `<div class="card">
+      <div class="nm" style="font-weight:600">${esc(h.title)}</div>
+      <div class="sub muted">${h.due_date ? 'Due ' + dt(h.due_date) : ''}</div>
+      ${h.measurements ? `<div class="hint">Measurements: ${esc(h.measurements)}</div>` : ''}
+      ${h.instructions ? `<div class="hint">${esc(h.instructions)}</div>` : ''}
+      ${h.my_submission ? `<div class="item" style="margin-top:8px">
+          ${h.my_submission.image ? `<img class="thumb" style="width:54px;height:54px;aspect-ratio:1" src="/uploads/${esc(h.my_submission.image)}" onclick="lightbox('/uploads/${esc(h.my_submission.image)}')"/>` : '▤'}
+          <div class="main"><div class="nm">Submitted ✓</div><div class="sub">${dt(h.my_submission.submitted_at)}${h.my_submission.grade ? ' · ' + esc(h.my_submission.grade) : ''}</div>
+          ${h.my_submission.feedback ? `<div class="hint">${esc(h.my_submission.feedback)}</div>` : ''}</div>
+          <button class="btn sm sec" onclick="submitHw(${h.id})">Edit</button></div>`
+        : `<button class="btn" style="margin-top:8px" onclick="submitHw(${h.id})">Upload pattern</button>`}
+    </div>`).join('') : empty('No tasks yet', '✎'));
+};
+window.submitHw = (id) => {
+  modal(`<h3>Upload pattern</h3>
+    <div class="row"><button class="btn ghost" onclick="hwPic()">📷 Pattern photo</button></div>
+    <img id="hwPrev" class="thumb hidden" style="aspect-ratio:3/4;margin-top:10px"/>
+    <label>Note (optional)</label><textarea id="hwNote"></textarea>
+    <button class="btn" style="margin-top:12px" onclick="doSubmitHw(${id})">Submit</button>`);
+  window._hwImg = null;
+};
+window.hwPic = () => pickImage((b) => { window._hwImg = b; const p = $('#hwPrev'); p.src = b; p.classList.remove('hidden'); });
+window.doSubmitHw = async (id) => {
+  if (!window._hwImg) return toast('Choose the pattern photo');
+  await POST(`/api/homeworks/${id}/submit`, { image: window._hwImg, note: $('#hwNote').value });
+  closeModal(); toast('Submitted ✓'); go('homework');
+};
+
+/* ============ STUDENT QUIZZES ============ */
+PAGES.quizzes_trainee = async (c) => {
+  const quizzes = await GET('/api/quizzes');
+  c.innerHTML = title('Quizzes', '') +
+    (quizzes.length ? quizzes.map((q) => `<div class="card">
+      <div class="item"><div class="av">📝</div>
+        <div class="main"><div class="nm">${esc(q.title)} <span class="badge">${q.ref_code}</span></div>
+          <div class="sub">${q.questions_count} questions · ${q.duration_min} min</div></div>
+        ${q.my_attempt ? `<span class="badge ok">${q.my_attempt.score}/${q.my_attempt.total}</span>` : `<button class="btn sm" onclick="startQuiz(${q.id})">Start</button>`}</div>
+      <button class="btn sec sm" style="margin-top:6px" onclick="quizResults(${q.id},'${esc(q.title)}')">All results</button>
+    </div>`).join('') : empty('No quizzes available', '📝'));
+};
+let _quizState = null;
+window.startQuiz = async (id) => {
+  const quiz = await GET('/api/quizzes/' + id);
+  if (!quiz.questions.length) return toast('This quiz has no questions yet');
+  _quizState = { quiz, answers: {}, endsAt: Date.now() + quiz.duration_min * 60000 };
+  renderQuizRunner();
+};
+function renderQuizRunner() {
+  const { quiz } = _quizState;
+  modal(`<h3>${esc(quiz.title)}</h3>
+    <div class="right"><span class="q-timer" id="qTimer"></span></div>
+    <div id="qBody">${quiz.questions.map((q, i) => `<div class="card" style="padding:12px">
+      <div class="nm" style="font-weight:600">${i + 1}. ${esc(q.text)}</div>
+      ${q.options.map((o, oi) => `<label class="opt" id="opt_${q.id}_${oi}" onclick="pickAns(${q.id},${oi})">${esc(o)}</label>`).join('')}
+    </div>`).join('')}</div>
+    <button class="btn" onclick="finishQuiz()">Submit quiz</button>`);
+  tickTimer();
+}
+window.pickAns = (qid, oi) => {
+  _quizState.answers[qid] = oi;
+  _quizState.quiz.questions.find((q) => q.id === qid).options.forEach((_, i) => $(`#opt_${qid}_${i}`).classList.toggle('sel', i === oi));
+};
+function tickTimer() {
+  const el = $('#qTimer'); if (!el || !_quizState) return;
+  const left = Math.max(0, _quizState.endsAt - Date.now());
+  const m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
+  el.textContent = `${m}:${String(s).padStart(2, '0')}`;
+  if (left <= 0) { finishQuiz(); return; }
+  _quizState.timer = setTimeout(tickTimer, 1000);
+}
+window.finishQuiz = async () => {
+  if (!_quizState) return;
+  clearTimeout(_quizState.timer);
+  const { quiz, answers } = _quizState; _quizState = null;
+  const r = await POST(`/api/quizzes/${quiz.id}/attempt`, { answers });
+  modal(`<h3>Your score</h3><div class="stat" style="margin:10px 0"><div class="n">${r.score} / ${r.total}</div><div class="l">${esc(quiz.title)}</div></div>
+    <button class="btn sec" onclick="quizResults(${quiz.id},'${esc(quiz.title)}')">See all results</button>
+    <button class="btn" style="margin-top:8px" onclick="closeModal();go('quizzes')">Done</button>`);
+};
+
+/* ============ STUDENT NOTES ============ */
+PAGES.notes_trainee = async (c) => {
+  const notes = await GET('/api/notes');
+  c.innerHTML = title('Notes & Instructions', '') +
+    (notes.length ? notes.map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>
+      <div class="sub muted">${dt(n.created_at)}</div>
+      ${n.body ? `<div style="font-size:14px;margin-top:6px">${esc(n.body)}</div>` : ''}</div>`).join('') : empty('No notes yet', '📌'));
+};
+
+/* ============ STUDENT ACCOUNT (payments) ============ */
+PAGES.mypay = async (c) => {
+  const pay = await GET('/api/payments');
+  const rem = await GET('/api/reminders');
+  const paid = pay.reduce((a, p) => a + (p.amount || 0), 0);
+  c.innerHTML = title('My Account', '') + `
+    <div class="grid g2"><div class="stat"><div class="n">${money(paid)}</div><div class="l">Total paid</div></div>
+      <div class="stat"><div class="n">${pay.length}</div><div class="l">Payments</div></div></div>
+    <div class="sec-title">My payments</div>
+    <div class="card">${pay.length ? pay.map((p) => `<div class="item">
+      <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : '💵'}</div>
+      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`).join('') : empty('No payments yet', '💵')}</div>
+    ${rem.filter((r) => !r.done).length ? `<div class="sec-title">Upcoming payments</div><div class="card">${rem.filter((r) => !r.done).map((r) => `<div class="item"><div class="av">◷</div><div class="main"><div class="nm">${dt(r.due_date)}</div><div class="sub">${money(r.amount)}${r.note ? ' · ' + esc(r.note) : ''}</div></div></div>`).join('')}</div>` : ''}`;
+};
+
+/* ============ ABOUT (view for non-admin) ============ */
+PAGES.about_view = async (c, a) => {
+  a = a || await GET('/api/about');
+  c.innerHTML = title(a.title || 'Dalia Bassel Couture', '') + `<div class="card">
+    ${a.image ? `<img class="thumb" style="aspect-ratio:16/9;margin-bottom:10px" src="/uploads/${esc(a.image)}" onclick="lightbox('/uploads/${esc(a.image)}')"/>` : ''}
+    <div style="font-size:15px;white-space:pre-wrap">${esc(a.body || 'A couture academy for pattern-making and tailoring.')}</div></div>`;
+};
+
+/* ============ STAFF HOME (attendance) ============ */
+PAGES.home_staff = async (c) => {
+  const att = await GET('/api/attendance');
+  const todayRec = att.find((a) => a.date === today());
+  let label = 'Check in', ic = '●';
+  if (todayRec && todayRec.check_in && !todayRec.check_out) { label = 'Check out'; ic = '◐'; }
+  else if (todayRec && todayRec.check_out) { label = 'Done for today ✓'; ic = '✓'; }
+  c.innerHTML = title(`Welcome, ${state.user.name}`, '') + `
+    <div class="card" style="text-align:center">
+      <div style="font-size:40px">${ic}</div>
+      <div class="nm" style="font-weight:600;font-size:16px;margin:8px 0">${todayRec ? `In: ${todayRec.check_in || '—'} · Out: ${todayRec.check_out || '—'}` : 'No attendance today yet'}</div>
+      ${todayRec && todayRec.check_out ? '' : `<button class="btn" onclick="doCheck()">${label}</button>`}
+    </div>
+    <div class="sec-title">Recent attendance</div>
+    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>${att.length ? att.slice(0, 30).map((a) => `<tr><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="3" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+};
+window.doCheck = async () => { const r = await POST('/api/attendance/check'); toast(r.action === 'in' ? 'Checked in' : r.action === 'out' ? 'Checked out' : 'Done'); go('home'); };
+
+/* ============ STAFF SALARY ============ */
+PAGES.mysalary = async (c) => {
+  const sal = await GET('/api/salaries');
+  const total = sal.filter((s) => s.paid).reduce((a, s) => a + s.net, 0);
+  c.innerHTML = title('My Salary', '') + `
+    <div class="grid g2"><div class="stat"><div class="n">${money(state.user.base_salary)}</div><div class="l">Base</div></div>
+      <div class="stat"><div class="n">${money(total)}</div><div class="l">Received</div></div></div>
+    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Month</th><th>Base</th><th>Bonus</th><th>Deduct</th><th>Net</th><th></th></tr></thead>
+      <tbody>${sal.length ? sal.map((s) => `<tr><td>${esc(s.month)}</td><td>${money(s.base)}</td><td>${money(s.bonus)}</td><td>${money(s.deduction)}</td><td>${money(s.net)}</td><td>${s.paid ? '<span class="badge ok">Paid</span>' : '<span class="badge warn">Pending</span>'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+};
+
+/* ============ STAFF LEAVES ============ */
+PAGES.myleaves = async (c) => {
+  const lv = await GET('/api/leaves');
+  c.innerHTML = title('My Leaves', '') +
+    `<button class="btn" onclick="requestLeave()">＋ Request leave</button>
+    <div class="card" style="margin-top:12px">${lv.length ? lv.map((l) => `<div class="item"><div class="av">🌴</div>
+      <div class="main"><div class="nm">${dt(l.from_date)} → ${dt(l.to_date)}</div><div class="sub">${leaveEn(l.type)}${l.reason ? ' · ' + esc(l.reason) : ''}</div></div>
+      <span class="badge ${l.status === 'approved' ? 'ok' : l.status === 'rejected' ? 'bad' : 'warn'}">${l.status === 'approved' ? 'Approved' : l.status === 'rejected' ? 'Rejected' : 'Pending'}</span></div>`).join('') : empty('No leaves yet', '🌴')}</div>`;
+};
+window.requestLeave = () => formModal('Request leave', [
+  { name: 'from_date', label: 'From', type: 'date', required: true, value: today() },
+  { name: 'to_date', label: 'To', type: 'date', required: true, value: today() },
+  { name: 'type', label: 'Type', type: 'select', options: [{ value: 'annual', label: 'Annual' }, { value: 'sick', label: 'Sick' }, { value: 'unpaid', label: 'Unpaid' }] },
+  { name: 'reason', label: 'Reason', type: 'textarea' },
+], async (d) => { await POST('/api/leaves', d); toast('Sent for approval'); go('myleaves'); });
+
+/* ============ CLIENT DRESSES ============ */
+PAGES.mydresses = async (c) => {
+  const dresses = await GET('/api/dresses');
+  const stEn = { open: 'In preparation', in_progress: 'In progress', delivered: 'Ready' };
+  c.innerHTML = title('My Dresses', '') +
+    (dresses.length ? dresses.map((d) => `<div class="card">
+      <div class="nm serif" style="font-size:18px">${esc(d.customer_name)} <span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span></div>
+      <div class="sub muted">Delivery: ${dt(d.delivery_date)}</div>
+      ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
+      ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
+    </div>`).join('') : empty('No bookings yet', '👗'));
+};
+
+</script>
+<script>
+
+/* --- demo-only overrides --- */
+videoEmbed = function (v) {
+  if (v.file) return '<video controls style="width:100%;border-radius:12px;margin-top:6px" src="/uploads/' + v.file + '"></video>';
+  if (v.url) return '<a class="btn sec sm" style="margin-top:6px" href="' + esc(v.url) + '" target="_blank" rel="noopener">▶ Open video</a>';
+  return '';
+};
+function ensureFab() {
+  if (document.getElementById('demoReset')) return;
+  if (!document.querySelector('#nav')) return; // only when logged in
+  var b = document.createElement('button');
+  b.id = 'demoReset'; b.textContent = '↺ Reset demo';
+  b.style.cssText = 'position:fixed;bottom:96px;inset-inline-start:12px;z-index:70;background:#fff;color:#c62f6c;border:1.5px solid #f4e1eb;border-radius:24px;padding:8px 14px;font:inherit;font-size:12px;font-weight:700;letter-spacing:.5px;box-shadow:0 6px 24px rgba(198,47,108,.18);cursor:pointer';
+  b.onclick = function () { if (confirm('Reset all demo data back to the start?')) window.__resetDemo(); };
+  document.body.appendChild(b);
+}
+setInterval(ensureFab, 700);
+
+</script>
+</body>
+</html>
