@@ -305,10 +305,14 @@ function go(page, opts = {}) {
 window.go = go;
 
 function updateBackBtn() {
+  // always visible on every screen; on the first screen it simply returns Home
   const b = document.getElementById('backBtn');
-  if (b) b.style.display = state.stack.length ? 'flex' : 'none';
+  if (b) b.style.display = 'flex';
 }
-function goBack() { if (state.stack.length) history.back(); }
+function goBack() {
+  if (state.stack.length) history.back();
+  else if (state.page !== state.nav[0][0]) go(state.nav[0][0]); // no history: go Home
+}
 window.goBack = goBack;
 
 /* hardware / gesture back (Android back, swipe): close an open overlay first,
