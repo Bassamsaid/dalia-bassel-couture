@@ -65,11 +65,15 @@ PAGES.home_trainee = async (c) => {
 /* ============ STUDENT COURSES (videos, read-only) ============ */
 PAGES.courses_trainee = async (c) => {
   const videos = await GET('/api/videos');
+  const tab = window._courseTab === 'onsite' ? 'onsite' : 'online';
+  const tabs = [['online', 'Online Course'], ['onsite', 'In‑person']];
+  const list = videos.filter((v) => (v.kind || 'online') === tab);
   c.innerHTML = title('Courses', '') +
-    (videos.length ? videos.map((v) => `<div class="card">
+    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="courseTab('${k}')">${l}</span>`).join('')}</div>` +
+    (list.length ? list.map((v) => `<div class="card">
       <div class="nm" style="font-weight:600">${esc(v.title)}</div>
       ${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
-      ${videoEmbed(v)}</div>`).join('') : empty('No videos yet', '🎬'));
+      ${videoEmbed(v)}</div>`).join('') : empty(tab === 'onsite' ? 'No in‑person videos yet' : 'No online videos yet', '🎬'));
 };
 
 /* ============ STUDENT TASKS ============ */

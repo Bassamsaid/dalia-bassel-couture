@@ -231,6 +231,8 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .draw-item.active{background:var(--tint);color:var(--purple-d)}
 
 /* ===== 2-tab bottom bar ===== */
+.bottomnav.bn4{justify-content:space-around;padding:6px 6px}
+.bottomnav.bn4 button{flex:1;min-width:0;padding:8px 4px}
 .bottomnav.bn2{justify-content:center;gap:10px;padding:8px 10px}
 .bottomnav.bn2 button{flex:1;max-width:220px;min-width:0;flex-direction:row;justify-content:center;gap:8px;
   padding:12px 10px;font-size:12px;border-radius:14px;margin:2px}

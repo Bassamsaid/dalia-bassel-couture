@@ -290,17 +290,22 @@ PAGES.courses = async (c) => {
   const [videos, rounds] = await Promise.all([GET('/api/videos'), GET('/api/rounds')]);
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   window._rounds = rounds;
-  c.innerHTML = title('Courses — Videos', '') +
-    `<button class="btn" onclick="addVideo()">＋ Upload / add video</button>
-    <div class="grid g2" style="margin-top:12px">${videos.length ? videos.map((v) => `
+  const tab = window._courseTab === 'onsite' ? 'onsite' : 'online';
+  const tabs = [['online', 'Online Course'], ['onsite', 'In‑person']];
+  const list = videos.filter((v) => (v.kind || 'online') === tab);
+  c.innerHTML = title('Courses', '') +
+    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="courseTab('${k}')">${l}</span>`).join('')}</div>
+    <button class="btn" onclick="addVideo('${tab}')">＋ Upload / add ${tab === 'onsite' ? 'in‑person' : 'online'} video</button>
+    <div class="grid g2" style="margin-top:12px">${list.length ? list.map((v) => `
       <div class="card" style="margin:0">
         <div class="nm" style="font-weight:600">${esc(v.title)}</div>
         <div class="sub muted" style="font-size:12px">${v.round_id ? esc(rMap[v.round_id] || '') : 'All rounds'}</div>
         ${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
         ${videoEmbed(v)}
         <button class="btn danger sm" style="margin-top:8px" onclick="delVideo(${v.id})">Delete</button>
-      </div>`).join('') : empty('No videos yet', '🎬')}</div>`;
+      </div>`).join('') : empty(tab === 'onsite' ? 'No in‑person videos yet' : 'No online videos yet', '🎬')}</div>`;
 };
+window.courseTab = (t) => { window._courseTab = t; go('courses'); };
 function videoEmbed(v) {
   if (v.file) return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>`;
   if (v.url) {
@@ -310,10 +315,11 @@ function videoEmbed(v) {
   }
   return '';
 }
-window.addVideo = async () => {
+window.addVideo = async (kind) => {
   const rounds = window._rounds || await GET('/api/rounds');
   formModal('New video', [
     { name: 'title', label: 'Title', required: true },
+    { name: 'kind', label: 'Course type', type: 'select', value: kind === 'onsite' ? 'onsite' : 'online', options: [{ value: 'online', label: 'Online Course' }, { value: 'onsite', label: 'In‑person' }] },
     { name: 'round_id', label: 'Round', type: 'select', options: [{ value: '', label: 'All rounds' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'description', label: 'Description', type: 'textarea' },
     { name: 'url', label: 'Link (YouTube or any URL)', placeholder: 'https://...' },

@@ -241,7 +241,7 @@ const NAV = {
 
 /* bottom bar shows only 2 tabs; the rest live in the side drawer */
 const BOTTOM = {
-  admin: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
+  admin: [['home', 'Home', '⌂'], ['courses', 'Courses', '🎬'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
   trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
   staff: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
   customer: [['mydresses', 'My Dresses', '👗'], ['dalia', 'Dalia Bassel', '✦']],
@@ -265,7 +265,7 @@ function renderApp() {
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div>
-    <div class="bottomnav bn2" id="nav">
+    <div class="bottomnav bn${(BOTTOM[u.role] || state.nav).length}" id="nav">
       ${(BOTTOM[u.role] || state.nav).map(([k, l, ic]) => `<button data-p="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}
     </div>`;
   $('#nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.p); });

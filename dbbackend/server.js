@@ -274,7 +274,8 @@ api['POST /api/videos'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   const file = b.file && b.file.startsWith('data:') ? saveImage(b.file, '.mp4') : null;
-  const r = db.prepare('INSERT INTO videos (round_id,title,description,url,file) VALUES (?,?,?,?,?)').run(b.round_id || null, b.title, b.description || null, b.url || null, file);
+  const kind = b.kind === 'onsite' ? 'onsite' : 'online';
+  const r = db.prepare('INSERT INTO videos (round_id,title,description,url,file,kind) VALUES (?,?,?,?,?,?)').run(b.round_id || null, b.title, b.description || null, b.url || null, file, kind);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/videos/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM videos WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
