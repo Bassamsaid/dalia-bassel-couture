@@ -1,6 +1,6 @@
-// Daliessa Academy — minimal offline shell cache
-const CACHE = 'daliessa-v1';
-const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.json', '/icon.svg'];
+// Dalia Bassel Couture — network-first service worker
+const CACHE = 'dalia-v2';
+const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/admin.js', '/portal.js', '/manifest.json', '/icon.svg'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
@@ -11,10 +11,10 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.pathname.startsWith('/api') || url.pathname.startsWith('/uploads')) return;
   e.respondWith(
-    caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+    fetch(e.request).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
       return res;
-    }).catch(() => caches.match('/index.html')))
+    }).catch(() => caches.match(e.request).then((hit) => hit || caches.match('/index.html')))
   );
 });
