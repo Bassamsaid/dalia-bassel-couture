@@ -57,6 +57,7 @@ PAGES.home_trainee = async (c) => {
     <div class="sec-title">Menu</div>
     <div class="tiles">
       ${[['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['notes', '📌', 'Notes'], ['mypay', '💳', 'Account'], ['about', 'ℹ', 'About']]
+      .filter(([p]) => !isHidden(p))
       .map(([p, e, t]) => `<div class="tile" onclick="go('${p}')"><div class="em">${e}</div><div class="t">${t}</div></div>`).join('')}
     </div>
     ${notes.length ? `<div class="sec-title">Latest notes</div>${notes.slice(0, 3).map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>${n.body ? `<div style="font-size:13px">${esc(n.body)}</div>` : ''}</div>`).join('')}` : ''}`;

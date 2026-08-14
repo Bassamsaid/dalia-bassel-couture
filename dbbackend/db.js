@@ -244,6 +244,14 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Which sections each ROLE can see. A missing (role,page) row means visible (default on).
+CREATE TABLE IF NOT EXISTS role_perms (
+  role TEXT NOT NULL,                         -- trainee | staff | customer
+  page TEXT NOT NULL,                         -- nav key, e.g. courses | quizzes | mypay ...
+  visible INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (role, page)
+);
 `);
 
 // ---- password helpers (scrypt, no deps) ----

@@ -149,13 +149,25 @@ document.addEventListener('pointerdown', (e) => {
   setTimeout(() => rip.remove(), 600);
 });
 
-const state = { user: null, page: null, nav: [], stack: [] };
+const state = { user: null, page: null, nav: [], stack: [], hidden: new Set() };
+
+/* which sections are hidden for the signed-in user's role (admin sees everything) */
+async function loadPerms() {
+  try { const r = await GET('/api/my-permissions'); state.hidden = new Set(r.hidden || []); }
+  catch (e) { state.hidden = new Set(); }
+}
+function isHidden(page) {
+  if (!state.user || state.user.role === 'admin') return false;
+  const first = (NAV[state.user.role] || [])[0];
+  if (page === 'profile' || (first && page === first[0])) return false; // landing + profile always available
+  return state.hidden.has(page);
+}
 
 /* ---------- boot ---------- */
 async function boot() {
   try {
     const { user } = await GET('/api/me');
-    if (user) { state.user = user; renderApp(); }
+    if (user) { state.user = user; await loadPerms(); renderApp(); }
     else renderAuth();
   } catch (e) { renderAuth(); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -192,6 +204,7 @@ function renderAuth(mode) {
       if (isReg) await POST('/api/register', { name: fd.get('name'), email: fd.get('email'), password: fd.get('password'), role: fd.get('role') });
       else await POST('/api/login', { email: fd.get('email'), password: fd.get('password') });
       state.user = (await GET('/api/me')).user;
+      await loadPerms();
       renderApp();
     } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.classList.remove('hidden'); }
   };
@@ -213,6 +226,7 @@ const NAV = {
     ['dalia', 'Dalia', '✦'],
     ['dresses', 'Dresses', '👗'],
     ['staff', 'Staff', '💼'],
+    ['permissions', 'Permissions', '🔒'],
     ['about', 'About', 'ℹ'],
   ],
   trainee: [
@@ -249,7 +263,7 @@ const BOTTOM = {
 
 function renderApp() {
   const u = state.user;
-  state.nav = NAV[u.role] || NAV.trainee;
+  state.nav = (NAV[u.role] || NAV.trainee).filter(([k]) => !isHidden(k));
   state.stack = []; state.page = null;
   try { history.replaceState({ root: true }, ''); } catch (e) {}
   document.body.innerHTML = `
@@ -265,8 +279,8 @@ function renderApp() {
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
     </div>
-    <div class="bottomnav bn${(BOTTOM[u.role] || state.nav).length}" id="nav">
-      ${(BOTTOM[u.role] || state.nav).map(([k, l, ic]) => `<button data-p="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}
+    <div class="bottomnav bn${((BOTTOM[u.role] || state.nav).filter(([k]) => !isHidden(k))).length}" id="nav">
+      ${(BOTTOM[u.role] || state.nav).filter(([k]) => !isHidden(k)).map(([k, l, ic]) => `<button data-p="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}
     </div>`;
   $('#nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.p); });
   go(state.nav[0][0]);
@@ -289,6 +303,7 @@ async function logout() { try { await POST('/api/logout'); } catch (e) {} state.
 window.logout = logout;
 
 function go(page, opts = {}) {
+  if (isHidden(page)) page = (NAV[state.user.role] || [])[0][0]; // blocked section -> landing
   // push the current screen onto the back-stack (skip refreshes of the same page and back navigations)
   if (!opts._back && state.page && state.page !== page) {
     state.stack.push(state.page);

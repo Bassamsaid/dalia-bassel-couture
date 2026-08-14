@@ -536,6 +536,34 @@ api['PUT /api/leaves/:id'] = async (req, res, user, url, params) => {
   send(res, 200, { ok: true });
 };
 
+// ================= ROLE PERMISSIONS (admin-managed section visibility) =================
+// Admin reads the full matrix of hidden sections per role
+api['GET /api/permissions'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const rows = db.prepare('SELECT role,page,visible FROM role_perms').all();
+  const hidden = {}; // { role: [pages hidden] }
+  rows.forEach((r) => { if (!r.visible) { (hidden[r.role] = hidden[r.role] || []).push(r.page); } });
+  send(res, 200, { hidden });
+};
+// Admin flips a single (role,page) toggle
+api['PUT /api/permissions'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.role || !b.page) return send(res, 400, { error: 'role and page required' });
+  if (b.role === 'admin') return send(res, 400, { error: 'admin always has full access' });
+  const vis = b.visible ? 1 : 0;
+  db.prepare(`INSERT INTO role_perms (role,page,visible) VALUES (?,?,?)
+    ON CONFLICT(role,page) DO UPDATE SET visible=excluded.visible`).run(b.role, b.page, vis);
+  send(res, 200, { ok: true });
+};
+// Any signed-in user gets the list of sections hidden for THEIR role (admin: none)
+api['GET /api/my-permissions'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  if (user.role === 'admin') return send(res, 200, { hidden: [] });
+  const rows = db.prepare('SELECT page FROM role_perms WHERE role=? AND visible=0').all(user.role);
+  send(res, 200, { hidden: rows.map((r) => r.page) });
+};
+
 // ---------- router ----------
 const routes = Object.keys(api).map((key) => {
   const [method, pat] = key.split(' ');

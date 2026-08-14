@@ -637,3 +637,30 @@ window.addSalary = () => formModal('Monthly salary', [
 ], async (d) => { await POST('/api/salaries', d); toast('Saved'); go('staff'); });
 window.paySalary = async (id) => { await PUT('/api/salaries/' + id, { paid: 1 }); toast('Paid'); go('staff'); };
 window.setLeave = async (id, st) => { await PUT('/api/leaves/' + id, { status: st }); go('staff'); };
+
+/* ============ PERMISSIONS (per-role section visibility) ============ */
+PAGES.permissions = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🔒'); return; }
+  const data = await GET('/api/permissions');
+  const hidden = data.hidden || {};
+  const roles = [['trainee', 'Students'], ['staff', 'Staff'], ['customer', 'Clients']];
+  const role = window._permRole || 'trainee';
+  const pages = (NAV[role] || []).slice(1); // skip the landing (home) — always visible
+  const hiddenForRole = hidden[role] || [];
+  const isHid = (p) => hiddenForRole.includes(p);
+  c.innerHTML = title('Permissions', '🔒') +
+    `<div class="filters">${roles.map(([k, l]) => `<span class="chip ${role === k ? 'active' : ''}" onclick="permRole('${k}')">${l}</span>`).join('')}</div>
+    <div class="hint" style="margin:2px 2px 10px">Choose what <b>${esc(roles.find((r) => r[0] === role)[1])}</b> can see when they log in. Home is always visible.</div>
+    <div class="card">${pages.map(([k, l, ic]) => `
+      <div class="item">
+        <div class="av">${ic}</div>
+        <div class="main"><div class="nm">${esc(l)}</div><div class="sub muted">${isHid(k) ? 'Hidden from this role' : 'Visible'}</div></div>
+        <button class="btn sm ${isHid(k) ? 'sec' : ''}" onclick="togglePerm('${role}','${k}',${isHid(k) ? 1 : 0})">${isHid(k) ? '🚫 Hidden' : '✓ Visible'}</button>
+      </div>`).join('')}</div>`;
+};
+window.permRole = (r) => { window._permRole = r; go('permissions'); };
+window.togglePerm = async (role, page, currentlyHidden) => {
+  // if it's currently hidden, clicking makes it visible (and vice-versa)
+  await PUT('/api/permissions', { role, page, visible: currentlyHidden ? 1 : 0 });
+  toast('Updated'); go('permissions');
+};
