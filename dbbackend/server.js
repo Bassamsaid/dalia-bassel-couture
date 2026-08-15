@@ -4,8 +4,46 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const tls = require('node:tls');
 const { URL } = require('node:url');
 const { db, hashPassword, verifyPassword } = require('./db');
+
+// Minimal SMTP-over-TLS sender (Gmail: smtp.gmail.com:465), no dependencies.
+function smtpSend({ user, pass, to, subject, text }) {
+  return new Promise((resolve, reject) => {
+    const body = `From: Dalia Bassel Couture <${user}>\r\nTo: <${to}>\r\nSubject: ${subject}\r\n`
+      + `MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${String(text).replace(/\r?\n/g, '\r\n')}\r\n.`;
+    const seq = [
+      { cmd: 'EHLO localhost', expect: 250 },
+      { cmd: 'AUTH LOGIN', expect: 334 },
+      { cmd: Buffer.from(user).toString('base64'), expect: 334 },
+      { cmd: Buffer.from(pass).toString('base64'), expect: 235 },
+      { cmd: `MAIL FROM:<${user}>`, expect: 250 },
+      { cmd: `RCPT TO:<${to}>`, expect: 250 },
+      { cmd: 'DATA', expect: 354 },
+      { cmd: body, expect: 250 },
+      { cmd: 'QUIT', expect: 221 },
+    ];
+    const socket = tls.connect({ host: 'smtp.gmail.com', port: 465, servername: 'smtp.gmail.com' });
+    socket.setEncoding('utf8');
+    let i = -1, buf = '', done = false;
+    const finish = (err) => { if (done) return; done = true; try { socket.end(); } catch (_) {} err ? reject(err) : resolve(); };
+    socket.setTimeout(20000, () => finish(new Error('smtp timeout')));
+    socket.on('error', (e) => finish(e));
+    socket.on('data', (chunk) => {
+      buf += chunk;
+      const lines = buf.split('\r\n').filter(Boolean);
+      const last = lines[lines.length - 1];
+      if (!/^\d{3} /.test(last || '')) return; // wait for the final (space) reply line
+      const code = parseInt(last.slice(0, 3), 10);
+      buf = '';
+      if (i === -1) { if (code !== 220) return finish(new Error('greeting ' + last)); i = 0; socket.write(seq[0].cmd + '\r\n'); return; }
+      if (code !== seq[i].expect) return finish(new Error(`SMTP step ${i}: ${last}`));
+      i++;
+      if (i < seq.length) socket.write(seq[i].cmd + '\r\n'); else finish();
+    });
+  });
+}
 
 const PORT = process.env.PORT || 4000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -89,6 +127,40 @@ api['POST /api/logout'] = async (req, res) => {
   send(res, 200, { ok: true }, { 'Set-Cookie': 'sid=; Path=/; Max-Age=0' });
 };
 api['GET /api/me'] = async (req, res, user) => send(res, 200, { user });
+
+// -- passwordless email OTP login --
+api['POST /api/otp/request'] = async (req, res) => {
+  const b = await readBody(req);
+  const email = (b.email || '').trim();
+  if (!email) return send(res, 400, { error: 'الإيميل مطلوب' });
+  const u = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(email);
+  if (!u || !u.active) return send(res, 404, { error: 'مفيش حساب بالإيميل ده' });
+  const gUser = process.env.GMAIL_USER, gPass = process.env.GMAIL_APP_PASSWORD;
+  if (!gUser || !gPass) return send(res, 503, { error: 'تسجيل الدخول بالإيميل مش متظبط بعد' });
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expires = new Date(Date.now() + 10 * 60000).toISOString();
+  db.prepare('INSERT INTO otps (email,code,expires_at) VALUES (lower(?),?,?) ON CONFLICT(email) DO UPDATE SET code=excluded.code,expires_at=excluded.expires_at').run(email, code, expires);
+  try {
+    await smtpSend({ user: gUser, pass: gPass, to: email, subject: 'Dalia Bassel — your login code', text: `Your Dalia Bassel login code is: ${code}\n\nIt expires in 10 minutes.` });
+  } catch (e) { console.error('OTP email failed:', e.message); return send(res, 502, { error: 'تعذّر إرسال الإيميل — راجعي إعدادات البريد' }); }
+  send(res, 200, { ok: true });
+};
+api['POST /api/otp/verify'] = async (req, res) => {
+  const b = await readBody(req);
+  const email = (b.email || '').trim().toLowerCase();
+  const code = (b.code || '').trim();
+  const row = db.prepare('SELECT * FROM otps WHERE email=?').get(email);
+  if (!row || row.code !== code) return send(res, 401, { error: 'كود غير صحيح' });
+  if (new Date(row.expires_at).getTime() < Date.now()) return send(res, 401, { error: 'الكود انتهت صلاحيته' });
+  const u = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get(email);
+  if (!u || !u.active) return send(res, 401, { error: 'مفيش حساب' });
+  db.prepare('DELETE FROM otps WHERE email=?').run(email);
+  const token = crypto.randomBytes(24).toString('hex');
+  db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(token, u.id);
+  send(res, 200, { ok: true, user: { id: u.id, name: u.name, role: u.role } }, {
+    'Set-Cookie': `sid=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`,
+  });
+};
 api['POST /api/register'] = async (req, res) => {
   const b = await readBody(req);
   if (!b.name || !b.email || !b.password) return send(res, 400, { error: 'All fields are required' });
@@ -137,7 +209,7 @@ api['POST /api/users'] = async (req, res, user) => {
   try {
     const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date)
       VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
-      b.name, b.email || null, b.phone || null, hashPassword(b.password || 'daliessa'),
+      b.name, b.email || null, b.phone || null, hashPassword(b.password || crypto.randomBytes(9).toString('hex')),
       b.role || 'trainee', b.round_id || null, b.group_id || null,
       b.job_title || null, b.base_salary || 0, b.hire_date || null);
     const uid = r.lastInsertRowid;

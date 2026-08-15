@@ -179,12 +179,23 @@ async function boot() {
 /* ---------- auth ---------- */
 function renderAuth(mode) {
   const isReg = mode === 'register';
-  document.body.innerHTML = `
-  <div class="auth-wrap"><div class="auth-card">
-    <div class="brand-mark">DB</div>
+  const isOtp = mode === 'otp';
+  const brand = `<div class="brand-mark">DB</div>
     <h1 class="brand-title">Dalia Bassel</h1>
-    <p class="brand-sub">Haute Couture · Est 2019</p>
-    <form id="authForm" style="text-align:start">
+    <p class="brand-sub">Haute Couture · Est 2019</p>`;
+  let inner;
+  if (isOtp) {
+    inner = `<div style="text-align:start">
+      <label>Email</label>
+      <input id="otpEmail" type="email" placeholder="you@email.com" />
+      <div id="otpStep2" class="hidden"><label>6-digit code (check your email)</label>
+        <input id="otpCode" inputmode="numeric" maxlength="6" placeholder="– – – – – –" style="letter-spacing:4px;text-align:center" /></div>
+      <div class="err hidden" id="authErr"></div>
+      <button class="btn" style="margin-top:18px" id="otpBtn" onclick="otpSend()">Email me a code</button>
+    </div>
+    <p class="hint" style="margin-top:16px"><a href="#" onclick="renderAuth('');return false" style="font-weight:700">← Sign in with password</a></p>`;
+  } else {
+    inner = `<form id="authForm" style="text-align:start">
       ${isReg ? '<label>Full name</label><input name="name" placeholder="Your name" required />' : ''}
       <label>Email</label>
       <input name="email" type="email" placeholder="you@email.com" required />
@@ -198,9 +209,11 @@ function renderAuth(mode) {
     </form>
     <p class="hint" style="margin-top:16px">${isReg ? 'Already have an account? ' : "Don't have an account? "}
       <a href="#" onclick="renderAuth('${isReg ? '' : 'register'}');return false" style="font-weight:700">${isReg ? 'Sign in' : 'Create one'}</a></p>
-    ${isReg ? '' : '<p class="hint">Demo admin: admin@daliessa.com / daliessa123</p>'}
-  </div></div>`;
-  $('#authForm').onsubmit = async (e) => {
+    ${isReg ? '' : '<p class="hint"><a href="#" onclick="renderAuth(\'otp\');return false" style="font-weight:700">Student? Sign in with an email code →</a></p>'}`;
+  }
+  document.body.innerHTML = `<div class="auth-wrap"><div class="auth-card">${brand}${inner}</div></div>`;
+  const form = $('#authForm');
+  if (form) form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     try {
@@ -213,6 +226,29 @@ function renderAuth(mode) {
   };
 }
 window.renderAuth = renderAuth;
+window.otpSend = async () => {
+  const email = ($('#otpEmail').value || '').trim();
+  const err = $('#authErr'); err.classList.add('hidden');
+  if (!email) { err.textContent = 'Enter your email'; err.classList.remove('hidden'); return; }
+  try {
+    await POST('/api/otp/request', { email });
+    $('#otpStep2').classList.remove('hidden');
+    $('#otpEmail').setAttribute('readonly', 'true');
+    const b = $('#otpBtn'); b.textContent = 'Sign in'; b.setAttribute('onclick', 'otpVerify()');
+    toast('Code sent to your email');
+  } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+};
+window.otpVerify = async () => {
+  const email = ($('#otpEmail').value || '').trim();
+  const code = ($('#otpCode').value || '').trim();
+  const err = $('#authErr'); err.classList.add('hidden');
+  try {
+    await POST('/api/otp/verify', { email, code });
+    state.user = (await GET('/api/me')).user;
+    await loadPerms(); await loadConfig();
+    renderApp();
+  } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+};
 
 /* ---------- app shell ---------- */
 const NAV = {

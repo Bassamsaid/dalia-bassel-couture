@@ -277,6 +277,13 @@ CREATE TABLE IF NOT EXISTS advances (
   note TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- One-time login codes (passwordless email OTP)
+CREATE TABLE IF NOT EXISTS otps (
+  email TEXT PRIMARY KEY,
+  code TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
 `);
 
 // seed default configuration once

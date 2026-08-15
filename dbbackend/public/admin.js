@@ -175,8 +175,7 @@ window.editStudent = async (id) => {
   formModal(id ? 'Edit student' : 'New student', [
     { name: 'name', label: 'Name', required: true, value: u.name },
     { name: 'phone', label: 'Phone', value: u.phone },
-    { name: 'email', label: 'Email (login)', type: 'email', value: u.email },
-    { name: 'password', label: id ? 'New password (optional)' : 'Password', value: '' },
+    { name: 'email', label: 'Email (for login code)', type: 'email', value: u.email },
     { name: 'round_id', label: 'Round', type: 'select', value: u.round_id, options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'group_id', label: 'Group', type: 'select', value: u.group_id, options: [{ value: '', label: '—' }, ...groups.map((g) => ({ value: g.id, label: g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '') }))] },
     { name: 'total_fee', label: 'Course fee (EGP)', type: 'number', value: fee },
