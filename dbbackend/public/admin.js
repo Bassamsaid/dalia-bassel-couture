@@ -847,17 +847,36 @@ window.printMeasurements = (id) => {
 PAGES.purchases = async (c) => {
   const [invoices, dresses] = await Promise.all([GET('/api/purchases'), GET('/api/dresses')]);
   window._allDressesForPurchase = dresses;
+  window._purchases = invoices;
   c.innerHTML = title('Purchases', '🧾') +
     `<button class="btn" onclick="newPurchase()">＋ New purchase (فاتورة)</button>
     <div style="margin-top:12px">${invoices.length ? invoices.map((inv) => `<div class="card">
-      <div class="item">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}" onclick="lightbox('/uploads/${esc(inv.image)}')"/></div>` : '<div class="av">🧾</div>'}
-        <div class="main"><div class="nm">${esc(inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''}</div></div>
-        <button class="btn-icon" onclick="delPurchase(${inv.id})">🗑</button></div>
+      <div class="item" style="cursor:pointer" onclick="openPurchase(${inv.id})">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}"/></div>` : '<div class="av">🧾</div>'}
+        <div class="main"><div class="nm">${esc(inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · tap to view ›</div></div>
+        <span class="muted" style="font-size:20px">›</span></div>
       ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div>
         <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
     </div>`).join('') : empty('No purchases yet', '🧾')}</div>`;
 };
-window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); go('purchases'); });
+window.openPurchase = (id) => {
+  const inv = (window._purchases || []).find((x) => x.id === id);
+  if (!inv) return;
+  modal(`<h3>${esc(inv.shop || 'Purchase')}</h3>
+    <div class="sub muted">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)} · Total ${money(inv.total)}</div>
+    ${inv.note ? `<div class="hint">${esc(inv.note)}</div>` : ''}
+    <div class="sec-title">Invoice</div>
+    ${inv.image
+      ? `<img style="width:100%;max-height:360px;object-fit:contain;background:#faf7ff;border-radius:12px;cursor:zoom-in" src="/uploads/${esc(inv.image)}" onclick="lightbox('/uploads/${esc(inv.image)}','${esc(inv.shop || '')}')"/>
+         <button class="btn ghost sm" style="margin-top:8px" onclick="addPurchaseImg(${id})">📷 Replace invoice photo</button>`
+      : `<div class="hint">No invoice photo yet</div><button class="btn ghost sm" style="margin-top:6px" onclick="addPurchaseImg(${id})">📷 Add invoice photo</button>`}
+    <div class="sec-title">Items</div>
+    <div class="card" style="box-shadow:none;margin:0">${inv.lines.map((li) => `<div class="item"><div class="av" style="background:#fff">◦</div>
+      <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}</div>
+    <div class="divider"></div>
+    <button class="btn danger" onclick="delPurchase(${id})">Delete purchase</button>`);
+};
+window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purchases/' + id, { image: b64 }); toast('Invoice photo saved'); window._purchases = await GET('/api/purchases'); openPurchase(id); });
+window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); closeModal(); go('purchases'); });
 let _puLineN = 0;
 window.newPurchase = async (presetDressId) => {
   const dresses = window._allDressesForPurchase || await GET('/api/dresses');

@@ -838,6 +838,14 @@ api['POST /api/purchases'] = async (req, res, user) => {
   });
   send(res, 200, { id: invId });
 };
+api['PUT /api/purchases/:id'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req); const c = db.prepare('SELECT * FROM purchase_invoices WHERE id=?').get(params.id);
+  if (!c) return send(res, 404, {});
+  const img = (b.image && b.image.startsWith('data:')) ? maybeImage(b.image) : (b.image ?? c.image);
+  db.prepare('UPDATE purchase_invoices SET shop=?,note=?,invoice_date=?,image=? WHERE id=?').run(b.shop ?? c.shop, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
+  send(res, 200, { ok: true });
+};
 api['DELETE /api/purchases/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM purchase_lines WHERE invoice_id=?').run(params.id);
