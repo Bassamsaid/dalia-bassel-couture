@@ -285,6 +285,17 @@ CREATE TABLE IF NOT EXISTS otps (
   expires_at TEXT NOT NULL
 );
 
+-- Manual salary adjustments per staff per month: bonus (adds) / deduction (subtracts)
+CREATE TABLE IF NOT EXISTS salary_adjustments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  month TEXT,
+  amount REAL NOT NULL DEFAULT 0,
+  type TEXT NOT NULL DEFAULT 'bonus',          -- bonus | deduction
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Dress material purchases: a shop invoice (with photo) whose line items are each linked to a dress
 CREATE TABLE IF NOT EXISTS purchase_invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -372,5 +383,6 @@ try { db.exec('ALTER TABLE dresses ADD COLUMN price REAL DEFAULT 0'); } catch (e
 try { db.exec('ALTER TABLE dresses ADD COLUMN measurements TEXT'); } catch (e) { /* column exists */ }            // JSON of measurement fields
 try { db.exec('ALTER TABLE dresses ADD COLUMN measure_note TEXT'); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE dresses ADD COLUMN measure_image TEXT'); } catch (e) { /* column exists */ }           // reference photo
+try { db.exec("ALTER TABLE absences ADD COLUMN status TEXT DEFAULT 'confirmed'"); } catch (e) { /* column exists */ } // pending | confirmed (admin approves)
 
 module.exports = { db, hashPassword, verifyPassword };

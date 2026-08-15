@@ -709,12 +709,36 @@ api['GET /api/absences'] = async (req, res, user, url) => {
 api['POST /api/absences'] = async (req, res, user) => {
   if (!requireStaffish(user, res)) return;
   const b = await readBody(req);
-  const uid = user.role === 'admin' ? b.user_id : user.id; // staff report their own absence
+  const uid = user.role === 'admin' ? b.user_id : user.id; // staff report their own absence (pending until admin confirms)
   if (!uid || !b.date) return send(res, 400, { error: 'date required' });
-  const r = db.prepare('INSERT INTO absences (user_id,date,reason) VALUES (?,?,?)').run(uid, b.date, b.reason || null);
+  const status = user.role === 'admin' ? 'confirmed' : 'pending';
+  const r = db.prepare('INSERT INTO absences (user_id,date,reason,status) VALUES (?,?,?,?)').run(uid, b.date, b.reason || null, status);
   send(res, 200, { id: r.lastInsertRowid });
 };
+api['PUT /api/absences/:id/confirm'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  db.prepare("UPDATE absences SET status='confirmed' WHERE id=?").run(params.id);
+  send(res, 200, { ok: true });
+};
 api['DELETE /api/absences/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM absences WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
+// manual salary adjustments (bonus / deduction) per month
+api['GET /api/adjustments'] = async (req, res, user, url) => {
+  if (!requireAdmin(user, res)) return;
+  const uid = url.searchParams.get('user_id');
+  const q = uid ? 'SELECT * FROM salary_adjustments WHERE user_id=? ORDER BY created_at DESC'
+    : 'SELECT a.*,u.name user_name FROM salary_adjustments a JOIN users u ON u.id=a.user_id ORDER BY created_at DESC';
+  send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
+};
+api['POST /api/adjustments'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.user_id || !b.amount) return send(res, 400, { error: 'staff and amount required' });
+  const type = b.type === 'deduction' ? 'deduction' : 'bonus';
+  const r = db.prepare('INSERT INTO salary_adjustments (user_id,month,amount,type,note) VALUES (?,?,?,?,?)').run(b.user_id, b.month || null, b.amount, type, b.note || null);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/adjustments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM salary_adjustments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 api['GET /api/advances'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return;
@@ -752,12 +776,13 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const wd = Number((db.prepare("SELECT value FROM settings WHERE key='work_days_per_month'").get() || {}).value) || 30;
   const base = Number(u.base_salary) || 0;
   const daily = wd ? base / wd : 0;
-  const absDays = db.prepare("SELECT COUNT(*) c FROM absences WHERE user_id=? AND substr(date,1,7)=?").get(params.id, month).c;
+  const absDays = db.prepare("SELECT COUNT(*) c FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").get(params.id, month).c;
   const advTotal = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=? AND (status IS NULL OR status='approved')").get(params.id, month).s;
-  const bonus = Number(url.searchParams.get('bonus')) || 0;
+  const bonus = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='bonus'").get(params.id, month).s;
+  const deductions = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='deduction'").get(params.id, month).s;
   const absenceDeduction = Math.round(daily * absDays * 100) / 100;
-  const net = Math.round((base + bonus - absenceDeduction - advTotal) * 100) / 100;
-  send(res, 200, { user: u.name, month, base, work_days: wd, daily: Math.round(daily * 100) / 100, absent_days: absDays, absence_deduction: absenceDeduction, advances: advTotal, bonus, net });
+  const net = Math.round((base + bonus - absenceDeduction - advTotal - deductions) * 100) / 100;
+  send(res, 200, { user: u.name, month, base, work_days: wd, daily: Math.round(daily * 100) / 100, absent_days: absDays, absence_deduction: absenceDeduction, advances: advTotal, bonus, deductions, net });
 };
 
 // ================= DRESS MATERIAL PURCHASES (invoices + dress-linked lines) =================

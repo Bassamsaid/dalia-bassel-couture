@@ -962,17 +962,23 @@ PAGES.staffmember = async (c) => {
       <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>`;
   } else if (tab === 'salary') {
     const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
-    const pays = await GET(`/api/salary-payments?user_id=${id}`);
+    const [pays, adjustments] = await Promise.all([GET(`/api/salary-payments?user_id=${id}`), GET(`/api/adjustments?user_id=${id}`)]);
     inner = `<div class="filters"><input type="month" value="${month}" onchange="setSalMonth(this.value)" style="width:auto;padding:8px" /></div>
       <div class="card">
         ${kv('Base salary', money(sal.base))}
         ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
         ${kv('Absent days', sal.absent_days + ' day(s)')}
         ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+        ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
+        ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
         ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
         <div class="divider"></div>
         <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
       </div>
+      <div class="row" style="margin-top:10px"><button class="btn sec" onclick="addAdjustment(${id},'bonus','${month}')">＋ Bonus</button><button class="btn danger" onclick="addAdjustment(${id},'deduction','${month}')">＋ Deduction</button></div>
+      ${adjustments.length ? `<div class="card" style="margin-top:10px">${adjustments.map((a) => `<div class="item"><div class="av">${a.type === 'bonus' ? '➕' : '➖'}</div>
+        <div class="main"><div class="nm" style="color:var(--${a.type === 'bonus' ? 'ok' : 'bad'})">${a.type === 'bonus' ? '+' : '−'} ${money(a.amount)} <span class="badge">${esc(a.month || '')}</span></div><div class="sub">${a.note ? esc(a.note) : a.type}</div></div>
+        <button class="btn-icon" onclick="delAdjustment(${a.id})">🗑</button></div>`).join('')}</div>` : ''}
       <button class="btn" style="margin-top:12px" onclick="sendSalary(${id},${sal.net},'${month}')">＋ Send salary (with transfer)</button>
       <div class="sec-title">Salary sent</div>
       <div class="card">${pays.length ? pays.map((p) => `<div class="item">
@@ -982,9 +988,10 @@ PAGES.staffmember = async (c) => {
         <button class="btn-icon" onclick="delSalaryPay(${p.id})">🗑</button></div>`).join('') : empty('No salary sent yet')}</div>`;
   } else if (tab === 'absence') {
     inner = `<button class="btn" onclick="addAbsence(${id})">＋ Add absence</button>
-      <div class="card" style="margin-top:12px">${absences.length ? absences.map((a) => `<div class="item"><div class="av">✕</div>
-        <div class="main"><div class="nm">${dt(a.date)}</div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div>
-        <button class="btn-icon" onclick="delAbsence(${a.id})">🗑</button></div>`).join('') : empty('No absences recorded')}</div>`;
+      <div class="card" style="margin-top:12px">${absences.length ? absences.map((a) => { const st = a.status || 'confirmed'; return `<div class="item"><div class="av">✕</div>
+        <div class="main"><div class="nm">${dt(a.date)} <span class="badge ${st === 'confirmed' ? 'ok' : 'warn'}">${st === 'confirmed' ? 'Confirmed' : 'Pending'}</span></div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div>
+        ${st === 'pending' ? `<button class="btn sm ghost" onclick="confirmAbsence(${a.id})">Confirm</button>` : ''}
+        <button class="btn-icon" onclick="delAbsence(${a.id})">🗑</button></div>`; }).join('') : empty('No absences recorded')}</div>`;
   } else if (tab === 'advance') {
     inner = `<button class="btn" onclick="addAdvance(${id})">＋ Add advance (سلفة)</button>
       <div class="card" style="margin-top:12px">${advances.length ? advances.map((a) => { const st = a.status || 'approved'; return `<div class="item"><div class="av">💵</div>
@@ -1027,6 +1034,13 @@ window.addAbsence = (id) => formModal('Add absence', [
   { name: 'reason', label: 'Reason (optional)' },
 ], async (d) => { d.user_id = id; await POST('/api/absences', d); toast('Added'); go('staffmember'); });
 window.delAbsence = (aid) => confirmDel('Delete this absence?', async () => { await DEL('/api/absences/' + aid); go('staffmember'); });
+window.confirmAbsence = async (aid) => { await PUT('/api/absences/' + aid + '/confirm', {}); toast('Confirmed'); go('staffmember'); };
+window.addAdjustment = (id, type, month) => formModal(type === 'bonus' ? 'Add bonus' : 'Add deduction', [
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'month', label: 'Month', type: 'month', value: month },
+  { name: 'note', label: 'Note (optional)' },
+], async (d) => { d.user_id = id; d.type = type; await POST('/api/adjustments', d); toast('Saved'); go('staffmember'); });
+window.delAdjustment = (aid) => confirmDel('Delete this?', async () => { await DEL('/api/adjustments/' + aid); go('staffmember'); });
 window.addAdvance = (id) => formModal('Add advance (سلفة)', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'month', label: 'Deduct from month', type: 'month', value: today().slice(0, 7) },

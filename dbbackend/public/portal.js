@@ -241,6 +241,8 @@ PAGES.mysalary = async (c) => {
       ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
       ${kv('Absent days', sal.absent_days + ' day(s)')}
       ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+      ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
+      ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
       ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
       <div class="divider"></div>
       <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
@@ -262,8 +264,8 @@ PAGES.myrequests = async (c) => {
     <div class="row"><button class="btn" onclick="reportAbsence()">＋ Report absence</button>
       <button class="btn sec" onclick="requestAdvance()">＋ Request advance (سلفة)</button></div>
     <div class="sec-title">My absences</div>
-    <div class="card">${absences.length ? absences.map((a) => `<div class="item"><div class="av">✕</div>
-      <div class="main"><div class="nm">${dt(a.date)}</div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div></div>`).join('') : empty('No absences')}</div>
+    <div class="card">${absences.length ? absences.map((a) => { const st = a.status || 'confirmed'; return `<div class="item"><div class="av">✕</div>
+      <div class="main"><div class="nm">${dt(a.date)} <span class="badge ${st === 'confirmed' ? 'ok' : 'warn'}">${st === 'confirmed' ? 'Confirmed' : 'Pending'}</span></div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div></div>`; }).join('') : empty('No absences')}</div>
     <div class="sec-title">My advances (سلف)</div>
     <div class="card">${advances.length ? advances.map((a) => `<div class="item"><div class="av">💵</div>
       <div class="main"><div class="nm">${money(a.amount)}</div><div class="sub">${a.month ? 'Deduct ' + a.month : ''}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
