@@ -2,25 +2,39 @@
 /* Dalia Bassel Couture — ADMIN pages */
 
 /* generic form modal. fields: {name,label,type,options,required,value,accept,rows} */
+function fmField(f) {
+  if (f.type === 'hidden') return `<input type="hidden" name="${f.name}" value="${esc(f.value ?? '')}" />`;
+  const v = f.value ?? '';
+  const req = f.required ? ' data-req="1"' : '';
+  if (f.type === 'select') return `<label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}"${req}>${
+    (f.options || []).map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(v) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
+  if (f.type === 'textarea') return `<label>${f.label}${f.required ? ' *' : ''}</label><textarea name="${f.name}"${req} ${f.rows ? `style="min-height:${f.rows * 22}px"` : ''}>${esc(v)}</textarea>`;
+  if (f.type === 'image' || f.type === 'file') return `<label>${f.label}</label>
+    <div class="row"><button type="button" class="btn ghost sm" onclick="pickForField('${f.name}','${f.type}','${f.accept || ''}')">📷 Choose ${f.type === 'file' ? 'file' : 'image'}</button>
+    <span class="hint" id="fh_${f.name}" style="flex:2">${v ? 'Selected' : 'None'}</span></div>
+    <input type="hidden" name="${f.name}" id="fi_${f.name}" value="${esc(v)}" />`;
+  return `<label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}"${req} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} />`;
+}
+let _wiz = null;
+/* light step-by-step wizard: fields are shown a few at a time (calmer than a wall of inputs) */
 function formModal(heading, fields, onSubmit, opts = {}) {
-  const body = fields.map((f) => {
-    if (f.type === 'hidden') return '';
-    const v = f.value ?? '';
-    if (f.type === 'select') {
-      return `<label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}">${
-        (f.options || []).map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(v) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
-    }
-    if (f.type === 'textarea') return `<label>${f.label}${f.required ? ' *' : ''}</label><textarea name="${f.name}" ${f.rows ? `style="min-height:${f.rows * 22}px"` : ''}>${esc(v)}</textarea>`;
-    if (f.type === 'image' || f.type === 'file') {
-      return `<label>${f.label}</label>
-        <div class="row"><button type="button" class="btn ghost sm" onclick="pickForField('${f.name}','${f.type}','${f.accept || ''}')">📷 Choose ${f.type === 'file' ? 'file' : 'image'}</button>
-        <span class="hint" id="fh_${f.name}" style="flex:2">${v ? 'Selected' : 'None'}</span></div>
-        <input type="hidden" name="${f.name}" id="fi_${f.name}" value="${esc(v)}" />`;
-    }
-    return `<label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}" ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} />`;
-  }).join('');
-  modal(`<h3>${esc(heading)}</h3><form id="fm">${body}<div class="err hidden" id="fmErr"></div>
-    <button class="btn" type="submit" style="margin-top:16px">${esc(opts.submitLabel || 'Save')}</button></form>`);
+  const vis = fields.filter((f) => f.type !== 'hidden');
+  const hid = fields.filter((f) => f.type === 'hidden');
+  const per = opts.perStep || 3;
+  const steps = [];
+  for (let i = 0; i < vis.length; i += per) steps.push(vis.slice(i, i + per));
+  if (!steps.length) steps.push([]);
+  const multi = steps.length > 1;
+  const stepsHtml = steps.map((grp, si) => `<div class="wstep" data-s="${si}" ${si ? 'style="display:none"' : ''}>${grp.map(fmField).join('')}</div>`).join('');
+  const dots = multi ? `<div class="wdots">${steps.map((_, i) => `<span class="wdot ${i ? '' : 'on'}"></span>`).join('')}</div>` : '';
+  modal(`<h3>${esc(heading)}</h3>${dots}<form id="fm">${stepsHtml}${hid.map(fmField).join('')}
+    <div class="err hidden" id="fmErr"></div>
+    <div class="wnav">
+      <button type="button" class="btn sec" id="wBack" onclick="wizNav(-1)" style="display:none">Back</button>
+      <button type="button" class="btn" id="wNext" onclick="wizNav(1)" ${multi ? '' : 'style="display:none"'}>Next</button>
+      <button class="btn" id="wSave" type="submit" ${multi ? 'style="display:none"' : ''}>${esc(opts.submitLabel || 'Save')}</button>
+    </div></form>`);
+  _wiz = { step: 0, count: steps.length };
   $('#fm').onsubmit = async (e) => {
     e.preventDefault();
     const data = {};
@@ -33,6 +47,23 @@ function formModal(heading, fields, onSubmit, opts = {}) {
     try { await onSubmit(data); closeModal(); } catch (err) { const x = $('#fmErr'); x.textContent = err.message; x.classList.remove('hidden'); }
   };
 }
+window.wizNav = (dir) => {
+  if (!_wiz) return;
+  const err = $('#fmErr'); if (err) err.classList.add('hidden');
+  if (dir > 0) {
+    const cur = document.querySelector(`.wstep[data-s="${_wiz.step}"]`);
+    const missing = cur && [...cur.querySelectorAll('[data-req]')].some((el) => !String(el.value || '').trim());
+    if (missing) { err.textContent = 'Please fill the required field(s)'; err.classList.remove('hidden'); return; }
+  }
+  _wiz.step = Math.max(0, Math.min(_wiz.count - 1, _wiz.step + dir));
+  document.querySelectorAll('.wstep').forEach((d) => { d.style.display = Number(d.dataset.s) === _wiz.step ? '' : 'none'; });
+  document.querySelectorAll('.wdot').forEach((d, i) => d.classList.toggle('on', i <= _wiz.step));
+  const last = _wiz.step === _wiz.count - 1;
+  const back = $('#wBack'), next = $('#wNext'), save = $('#wSave');
+  if (back) back.style.display = _wiz.step ? '' : 'none';
+  if (next) next.style.display = last ? 'none' : '';
+  if (save) save.style.display = last ? '' : 'none';
+};
 window.pickForField = (name, type, accept) => pickImage((b64) => {
   $(`#fi_${name}`).value = b64; $(`#fh_${name}`).textContent = 'Selected ✓';
 }, accept || (type === 'file' ? 'video/*,image/*' : 'image/*'));

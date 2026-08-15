@@ -154,11 +154,18 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .modal-back{position:fixed;inset:0;background:rgba(34,24,38,.5);backdrop-filter:blur(2px);z-index:60;
   display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fadeIn .2s both}
 @media(min-width:600px){.modal-back{align-items:center;padding:20px}}
-.modal{background:#fff;width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;
+.modal{background:#fff;width:100%;max-width:440px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;
   padding:22px;animation:slideUp .3s cubic-bezier(.2,.8,.2,1) both}
-@media(min-width:600px){.modal{border-radius:20px;animation:zoomIn .25s ease both}}
-.modal h3{margin:0 0 14px;font-size:20px;font-weight:700;color:var(--ink)}
+@media(min-width:600px){.modal{border-radius:20px;animation:zoomIn .22s ease both}}
+.modal h3{margin:0 0 14px;font-size:18px;font-weight:700;color:var(--ink)}
 .modal .close{position:sticky;top:-22px;float:right;background:none;border:none;font-size:24px;color:var(--muted);cursor:pointer}
+/* light stepped wizard for add forms */
+.wdots{display:flex;gap:6px;justify-content:center;margin:2px 0 16px}
+.wdot{width:7px;height:7px;border-radius:999px;background:var(--line);transition:.22s ease}
+.wdot.on{background:var(--purple);width:16px}
+.wstep{animation:rise .22s ease both}
+.wnav{display:flex;gap:10px;margin-top:18px}
+.wnav .btn{margin-top:0}
 .lightbox{position:fixed;inset:0;background:rgba(20,14,26,.94);z-index:80;display:flex;align-items:center;
   justify-content:center;padding:14px;flex-direction:column;gap:10px;animation:fadeIn .2s both}
 .lightbox img{max-width:100%;max-height:82vh;border-radius:10px;object-fit:contain}
