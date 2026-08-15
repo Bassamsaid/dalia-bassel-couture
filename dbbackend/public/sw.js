@@ -1,5 +1,5 @@
 // Dalia Bassel Couture — network-first service worker
-const CACHE = 'dalia-v15';
+const CACHE = 'dalia-v16';
 const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/admin.js', '/portal.js', '/manifest.json', '/icon.svg'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

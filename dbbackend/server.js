@@ -196,7 +196,7 @@ api['GET /api/users'] = async (req, res, user, url) => {
   if (!requireManager(user, res)) return;
   const role = url.searchParams.get('role');
   const round = url.searchParams.get('round_id');
-  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,created_at FROM users WHERE 1=1';
+  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,created_at FROM users WHERE 1=1';
   const args = [];
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
@@ -209,11 +209,11 @@ api['POST /api/users'] = async (req, res, user) => {
   if (!b.name) return send(res, 400, { error: 'الاسم مطلوب' });
   if (user.role === 'manager' && !['trainee', 'customer'].includes(b.role || 'trainee')) return send(res, 403, { error: 'managers can only add students or clients' });
   try {
-    const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
+    const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date,governorate)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
       b.name, b.email || null, b.phone || null, hashPassword(b.password || crypto.randomBytes(9).toString('hex')),
       b.role || 'trainee', b.round_id || null, b.group_id || null,
-      b.job_title || null, b.base_salary || 0, b.hire_date || null);
+      b.job_title || null, b.base_salary || 0, b.hire_date || null, b.governorate || null);
     const uid = r.lastInsertRowid;
     if (b.role !== 'staff' && (b.total_fee != null || b.round_id)) {
       db.prepare('INSERT INTO enrollments (user_id,round_id,total_fee) VALUES (?,?,?)').run(uid, b.round_id || null, b.total_fee || 0);
@@ -230,10 +230,10 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
     if (!['trainee', 'customer'].includes(cur.role)) return send(res, 403, { error: 'forbidden' });
     if (b.role && !['trainee', 'customer'].includes(b.role)) return send(res, 403, { error: 'cannot change role' });
   }
-  db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=? WHERE id=?`).run(
+  db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=? WHERE id=?`).run(
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
-    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, params.id);
+    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, params.id);
   if (b.password) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(b.password), params.id);
   if (b.total_fee != null) {
     const en = db.prepare('SELECT id FROM enrollments WHERE user_id=?').get(params.id);

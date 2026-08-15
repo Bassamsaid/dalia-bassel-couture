@@ -1,6 +1,9 @@
 'use strict';
 /* Dalia Bassel Couture — ADMIN pages */
 
+/* Egypt governorates (for student registration) */
+const EG_GOV = ['القاهرة', 'الجيزة', 'الإسكندرية', 'القليوبية', 'الدقهلية', 'الشرقية', 'الغربية', 'المنوفية', 'البحيرة', 'كفر الشيخ', 'دمياط', 'بورسعيد', 'الإسماعيلية', 'السويس', 'الفيوم', 'بني سويف', 'المنيا', 'أسيوط', 'سوهاج', 'قنا', 'الأقصر', 'أسوان', 'البحر الأحمر', 'الوادي الجديد', 'مطروح', 'شمال سيناء', 'جنوب سيناء'];
+
 /* generic form modal. fields: {name,label,type,options,required,value,accept,rows} */
 function fmField(f) {
   if (f.type === 'hidden') return `<input type="hidden" name="${f.name}" value="${esc(f.value ?? '')}" />`;
@@ -180,6 +183,7 @@ window.viewStudent = async (id) => {
       <div class="stat"><div class="n" style="color:${fin.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(fin.remaining)}</div><div class="l">Remaining</div></div>
     </div>
     <div class="card" style="box-shadow:none;margin:0 0 12px">
+      ${u.governorate ? `<div class="item"><div class="main"><div class="sub">Governorate</div><div class="nm">${esc(u.governorate)}</div></div></div>` : ''}
       ${u.phone ? `<div class="item"><div class="main"><div class="sub">Phone</div><div class="nm">${esc(u.phone)}</div></div></div>` : ''}
       ${u.email ? `<div class="item"><div class="main"><div class="sub">Email (login)</div><div class="nm">${esc(u.email)}</div></div></div>` : ''}
     </div>
@@ -206,6 +210,7 @@ window.editStudent = async (id) => {
   formModal(id ? 'Edit student' : 'New student', [
     { name: 'name', label: 'Name', required: true, value: u.name },
     { name: 'phone', label: 'Phone', value: u.phone },
+    { name: 'governorate', label: 'Governorate (المحافظة)', type: 'select', value: u.governorate, options: [{ value: '', label: '—' }, ...EG_GOV.map((g) => ({ value: g, label: g }))] },
     { name: 'email', label: 'Email (for login code)', type: 'email', value: u.email },
     { name: 'round_id', label: 'Round', type: 'select', value: u.round_id, options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'group_id', label: 'Group', type: 'select', value: u.group_id, options: [{ value: '', label: '—' }, ...groups.map((g) => ({ value: g.id, label: g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '') }))] },
@@ -385,10 +390,24 @@ PAGES.round = async (c) => {
   const tabs = [['students', 'Students'], ['groups', 'Groups'], ['pay', 'Payments'], ['videos', 'Videos'], ['att', 'Attendance'], ['quiz', 'Quizzes']];
   let inner = '';
   if (tab === 'students') {
+    const payMap = {}; finRows.forEach((r) => { payMap[r.id] = r; });
+    const payStatus = (uid) => { const r = payMap[uid]; if (!r || !r.total_fee) return null; if (r.remaining <= 0) return { t: 'Paid', c: 'ok' }; if (r.paid > 0) return { t: 'Partial', c: 'warn' }; return { t: 'Unpaid', c: 'bad' }; };
+    const govs = [...new Set(students.map((s) => s.governorate).filter(Boolean))].sort();
+    const gf = window._roundGov || 'all';
+    let list = students.slice();
+    if (gf !== 'all') list = list.filter((s) => (s.governorate || '') === gf);
+    if (window._roundSortGov) list.sort((a, b) => (a.governorate || 'زzz').localeCompare(b.governorate || 'زzz') || a.name.localeCompare(b.name));
     inner = `<button class="btn" onclick="editStudent()">＋ Add student</button>
-      <div class="card" style="margin-top:12px">${students.length ? students.map((u) => `<div class="item" style="cursor:pointer" onclick="viewStudent(${u.id})">
-        <div class="av">${esc(initials(u.name))}</div><div class="main"><div class="nm">${esc(u.name)}</div><div class="sub">${u.phone ? esc(u.phone) : 'no phone'}</div></div>
-        <span class="muted" style="font-size:20px">›</span></div>`).join('') : empty('No students in this round')}</div>`;
+      <div class="row" style="margin:10px 2px 4px;align-items:center;gap:8px">
+        <span style="font-weight:700">${list.length} registered</span>
+        <select onchange="setRoundGov(this.value)" style="width:auto;padding:6px 8px;font-size:12px;margin-inline-start:auto">
+          <option value="all">All governorates</option>${govs.map((g) => `<option value="${esc(g)}" ${gf === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
+        <button class="btn ${window._roundSortGov ? '' : 'ghost'} sm" onclick="toggleGovSort()">Sort by gov.</button></div>
+      <div class="card">${list.length ? list.map((u) => { const p = payStatus(u.id); return `<div class="item" style="cursor:pointer" onclick="viewStudent(${u.id})">
+        <div class="av">${esc(initials(u.name))}</div>
+        <div class="main"><div class="nm">${esc(u.name)}${p ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
+          <div class="sub">${u.governorate ? esc(u.governorate) + ' · ' : ''}${u.phone ? esc(u.phone) : 'no phone'}</div></div>
+        <span class="muted" style="font-size:20px">›</span></div>`; }).join('') : empty('No students in this round')}</div>`;
   } else if (tab === 'groups') {
     inner = `<button class="btn" onclick="addGroup(${id})">＋ Group</button>
       <div class="card" style="margin-top:12px">${gList.length ? gList.map((g) => `<div class="item"><div class="av">◦</div>
@@ -422,6 +441,8 @@ PAGES.round = async (c) => {
     <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="roundTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.roundTab = (t) => { window._roundTab = t; go('round'); };
+window.setRoundGov = (v) => { window._roundGov = v; go('round'); };
+window.toggleGovSort = () => { window._roundSortGov = !window._roundSortGov; go('round'); };
 function videoEmbed(v) {
   if (v.file) return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>`;
   if (v.url) {

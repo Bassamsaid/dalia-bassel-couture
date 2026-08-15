@@ -335,5 +335,6 @@ try { db.exec("ALTER TABLE payments ADD COLUMN method TEXT DEFAULT 'transfer'");
 try { db.exec("ALTER TABLE rounds ADD COLUMN kind TEXT DEFAULT 'onsite'"); } catch (e) { /* column exists */ } // online | onsite (in-person)
 try { db.exec("ALTER TABLE advances ADD COLUMN status TEXT DEFAULT 'approved'"); } catch (e) { /* column exists */ } // pending | approved | rejected
 try { db.exec('ALTER TABLE dresses ADD COLUMN assigned_to INTEGER'); } catch (e) { /* column exists */ } // staff responsible for the dress
+try { db.exec('ALTER TABLE users ADD COLUMN governorate TEXT'); } catch (e) { /* column exists */ } // student governorate (Egypt)
 
 module.exports = { db, hashPassword, verifyPassword };
