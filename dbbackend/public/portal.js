@@ -181,7 +181,7 @@ PAGES.mypay = async (c) => {
     <div class="sec-title">My payments</div>
     <div class="card">${pay.length ? pay.map((p) => `<div class="item">
       <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : '💵'}</div>
-      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`).join('') : empty('No payments yet', '💵')}</div>
+      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`).join('') : empty('No payments yet', '💵')}</div>
     ${rem.filter((r) => !r.done).length ? `<div class="sec-title">Upcoming payments</div><div class="card">${rem.filter((r) => !r.done).map((r) => `<div class="item"><div class="av">◷</div><div class="main"><div class="nm">${dt(r.due_date)}</div><div class="sub">${money(r.amount)}${r.note ? ' · ' + esc(r.note) : ''}</div></div></div>`).join('')}</div>` : ''}`;
 };
 

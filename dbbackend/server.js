@@ -199,8 +199,9 @@ api['POST /api/payments'] = async (req, res, user) => {
   const b = await readBody(req);
   if (!b.user_id) return send(res, 400, { error: 'اختر المتدربة' });
   const img = maybeImage(b.image);
-  const r = db.prepare('INSERT INTO payments (user_id,amount,kind,image,note,paid_at) VALUES (?,?,?,?,?,COALESCE(?,datetime(\'now\')))').run(
-    b.user_id, b.amount || 0, b.kind || 'installment', img, b.note || null, b.paid_at || null);
+  const method = b.method === 'cash' ? 'cash' : 'transfer';
+  const r = db.prepare('INSERT INTO payments (user_id,amount,kind,method,image,note,paid_at) VALUES (?,?,?,?,?,?,COALESCE(?,datetime(\'now\')))').run(
+    b.user_id, b.amount || 0, b.kind || 'installment', method, img, b.note || null, b.paid_at || null);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/payments/:id'] = async (req, res, user, url, params) => {

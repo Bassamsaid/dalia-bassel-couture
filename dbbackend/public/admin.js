@@ -211,7 +211,7 @@ PAGES.finance = async (c) => {
       <div class="item">
         <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','Transfer ${esc(p.user_name || '')}')"/>` : '💵'}</div>
         <div class="main"><div class="nm">${esc(p.user_name || '')} · ${money(p.amount)}</div>
-          <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+          <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
         <button class="btn-icon" onclick="delPayment(${p.id})">🗑</button>
       </div>`).join('') : empty('No payments yet')}</div>`;
   } else {
@@ -231,9 +231,10 @@ window.addPayment = () => formModal('Record payment', [
   { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'kind', label: 'Type', type: 'select', options: [{ value: 'deposit', label: 'Deposit' }, { value: 'installment', label: 'Installment' }] },
+  { name: 'method', label: 'Payment method', type: 'select', value: 'transfer', options: [{ value: 'transfer', label: 'Bank transfer' }, { value: 'cash', label: 'Cash' }] },
   { name: 'paid_at', label: 'Date', type: 'date', value: today() },
   { name: 'note', label: 'Note', value: '' },
-  { name: 'image', label: 'Transfer screenshot', type: 'image' },
+  { name: 'image', label: 'Transfer screenshot (if bank transfer)', type: 'image' },
 ], async (d) => { await POST('/api/payments', d); toast('Recorded'); go('finance'); });
 window.delPayment = (id) => confirmDel('Delete this payment?', async () => { await DEL('/api/payments/' + id); toast('Deleted'); go('finance'); });
 window.addReminder = () => formModal('Payment reminder', [
