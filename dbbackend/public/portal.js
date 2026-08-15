@@ -12,7 +12,7 @@ PAGES.profile = async (c) => {
     </div>
     <div class="card">
       <label>Name</label><input id="pfName" value="${esc(u.name)}" />
-      <label>Phone</label><input id="pfPhone" value="${esc(u.phone || '')}" />
+      <label>Phone</label><input id="pfPhone" type="tel" inputmode="tel" value="${esc(u.phone || '')}" />
       <label>New password (optional)</label><input id="pfPass" type="password" placeholder="••••••" />
       <button class="btn" style="margin-top:14px" onclick="saveProfile()">Save changes</button>
     </div>`;
@@ -245,7 +245,7 @@ PAGES.mysalary = async (c) => {
       ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
       ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
       ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
-      ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
+      ${kv('− Advances this month', money(sal.advances), 'bad')}
       <div class="divider"></div>
       <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
     </div>` : empty('No salary info yet', '💵')) +
@@ -264,11 +264,11 @@ PAGES.myrequests = async (c) => {
   const stBadge = (s) => `<span class="badge ${s === 'approved' ? 'ok' : s === 'rejected' ? 'bad' : 'warn'}">${s === 'approved' ? 'Approved' : s === 'rejected' ? 'Rejected' : 'Pending'}</span>`;
   c.innerHTML = title('Absences & Advances', '') + `
     <div class="row"><button class="btn" onclick="reportAbsence()">＋ Report absence</button>
-      <button class="btn sec" onclick="requestAdvance()">＋ Request advance (سلفة)</button></div>
+      <button class="btn sec" onclick="requestAdvance()">＋ Request advance</button></div>
     <div class="sec-title">My absences</div>
     <div class="card">${absences.length ? absences.map((a) => { const st = a.status || 'confirmed'; return `<div class="item"><div class="av">✕</div>
       <div class="main"><div class="nm">${dt(a.date)} <span class="badge ${st === 'confirmed' ? 'ok' : 'warn'}">${st === 'confirmed' ? 'Confirmed' : 'Pending'}</span></div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div></div>`; }).join('') : empty('No absences')}</div>
-    <div class="sec-title">My advances (سلف)</div>
+    <div class="sec-title">My advances</div>
     <div class="card">${advances.length ? advances.map((a) => `<div class="item"><div class="av">💵</div>
       <div class="main"><div class="nm">${money(a.amount)}</div><div class="sub">${a.month ? 'Deduct ' + a.month : ''}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
       ${stBadge(a.status || 'approved')}</div>`).join('') : empty('No advances')}</div>`;
@@ -277,7 +277,7 @@ window.reportAbsence = () => formModal('Report absence', [
   { name: 'date', label: 'Date', type: 'date', required: true, value: today() },
   { name: 'reason', label: 'Reason (optional)' },
 ], async (d) => { await POST('/api/absences', d); toast('Reported'); go('myrequests'); });
-window.requestAdvance = () => formModal('Request advance (سلفة)', [
+window.requestAdvance = () => formModal('Request advance', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'note', label: 'Note (optional)' },
 ], async (d) => { await POST('/api/advances', d); toast('Request sent'); go('myrequests'); });
@@ -297,15 +297,15 @@ PAGES.mydresses = async (c, opts = {}) => {
       <div class="sub muted">Delivery: ${dt(d.delivery_date)}${isStaff ? ' · ' + (d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned') : ''}</div>
       ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
       ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
-      <div class="sec-title">التحديثات 💬</div>
-      <div id="dupd_${d.id}"><div class="hint">بيحمّل…</div></div>
-      <button class="btn sec sm" style="margin-top:8px" onclick="sendDressNote(${d.id})">📝 ابعتي ملاحظة على الفستان</button>
+      <div class="sec-title">Updates 💬</div>
+      <div id="dupd_${d.id}"><div class="hint">Loading…</div></div>
+      <button class="btn sec sm" style="margin-top:8px" onclick="sendDressNote(${d.id})">📝 Send a note about your dress</button>
     </div>`).join('') : empty(mine ? 'No dresses assigned to you' : 'No bookings yet', '👗'));
   list.forEach((d) => loadDressUpdates(d.id));
   if (window._openDressAfter) { const oid = window._openDressAfter; window._openDressAfter = null; setTimeout(() => { const el = document.getElementById('dress_' + oid); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80); }
 };
 window.myDressTab = (v) => { window._myDressMine = v; go(state.page); };
-window.sendDressNote = (id) => formModal('ملاحظة على الفستان', [
-  { name: 'body', label: 'الملاحظة', type: 'textarea' },
-  { name: 'image', label: 'صورة (اختياري)', type: 'image' },
-], async (d) => { await POST('/api/dresses/' + id + '/updates', d); toast('اتبعت ✅'); closeModal(); go(state.page); });
+window.sendDressNote = (id) => formModal('Note about the dress', [
+  { name: 'body', label: 'Note', type: 'textarea' },
+  { name: 'image', label: 'Photo (optional)', type: 'image' },
+], async (d) => { await POST('/api/dresses/' + id + '/updates', d); toast('Sent ✅'); closeModal(); go(state.page); });

@@ -13,7 +13,12 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{font-family:var(--sans);background:var(--bg);color:var(--ink);
-  direction:ltr;line-height:1.5;font-size:14px;font-weight:500;-webkit-font-smoothing:antialiased;letter-spacing:.1px}
+  direction:ltr;line-height:1.5;font-size:14px;font-weight:600;-webkit-font-smoothing:antialiased;letter-spacing:.1px;
+  font-variant-numeric:tabular-nums lining-nums;font-feature-settings:"tnum" 1,"lnum" 1}
+/* Numbers: tabular, heavier, slightly tighter — consistent across the whole app */
+.n,.nm,.badge,.stat .n,.serif,.amt,.money,.item .main .nm,.chip.active{font-variant-numeric:tabular-nums lining-nums}
+.stat .n{font-weight:800;letter-spacing:.2px}
+.sub,.hint,.muted,.item .main .sub{font-weight:600}
 a{color:var(--purple-d);text-decoration:none}
 img{max-width:100%}
 .hidden{display:none!important}

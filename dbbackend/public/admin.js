@@ -26,7 +26,9 @@ function fmField(f) {
     <div class="row"><button type="button" class="btn ghost sm" onclick="pickForField('${f.name}','${f.type}','${f.accept || ''}')">📷 Choose ${f.type === 'file' ? 'file' : 'image'}</button>
     <span class="hint" id="fh_${f.name}" style="flex:2">${v ? 'Selected' : 'None'}</span></div>
     <input type="hidden" name="${f.name}" id="fi_${f.name}" value="${esc(v)}" />`;
-  return `<label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}"${req} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} />`;
+  // numeric fields pop the number keypad on mobile; phone fields the tel keypad
+  const im = f.inputmode || (f.type === 'number' ? 'decimal' : (/phone|tel|mobile/i.test(f.name) ? 'tel' : ''));
+  return `<label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}"${req}${im ? ` inputmode="${im}"` : ''} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} />`;
 }
 let _wiz = null;
 /* light step-by-step wizard: fields are shown a few at a time (calmer than a wall of inputs) */
@@ -410,7 +412,7 @@ PAGES.round = async (c) => {
     let list = students.slice();
     if (gf !== 'all') list = list.filter((s) => (s.governorate || '') === gf);
     if (pf !== 'all') list = list.filter((s) => { const p = payStatus(s.id); return p && p.t.toLowerCase() === pf; });
-    if (window._roundSortGov) list.sort((a, b) => (a.governorate || 'زzz').localeCompare(b.governorate || 'زzz') || a.name.localeCompare(b.name));
+    if (window._roundSortGov) list.sort((a, b) => (a.governorate || 'zzzz').localeCompare(b.governorate || 'zzzz') || a.name.localeCompare(b.name));
     inner = `<button class="btn" onclick="editStudent()">＋ Add student</button>
       <div class="row" style="margin:10px 2px 4px;align-items:center;gap:8px">
         <span style="font-weight:700">${list.length} registered</span>
@@ -553,7 +555,7 @@ window.newQuiz = async () => {
   modal(`<h3>New quiz</h3>
     <label>Title *</label><input id="qTitle" />
     <label>Round</label><select id="qRound"><option value="">All</option>${rounds.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}</select>
-    <label>Duration (minutes)</label><input id="qDur" type="number" value="15" />
+    <label>Duration (minutes)</label><input id="qDur" type="number" inputmode="numeric" value="15" />
     <label>Reference code (optional)</label><input id="qRef" placeholder="auto-generated" />
     <div class="divider"></div>
     <div class="sec-title">Questions</div>
@@ -730,7 +732,7 @@ PAGES.dresses = async (c) => {
     <input placeholder="🔍 Search by client name" value="${esc(window._dressSearch || '')}" oninput="window._dressSearch=this.value; liveSearch(this.value,'#dressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
     <div class="grid g2" id="dressList">${list.length ? list.map((d) => `
       <div class="card" data-name="${esc((d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
-        ${d.unread ? `<span class="notif-dot" title="تحديث جديد">${d.unread}</span>` : ''}
+        ${d.unread ? `<span class="notif-dot" title="New update">${d.unread}</span>` : ''}
         ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
         <div class="nm" style="font-weight:600;margin-top:8px">${esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
@@ -765,10 +767,10 @@ window.openDress = (id) => {
   const staff = (window._dressRef && window._dressRef.staff) || [];
   modal(`<h3>${esc(d.customer_name)}</h3>
     <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}" />
-    <label>Phone</label><input id="dPhone_${id}" value="${esc(d.phone || '')}" />
+    <label>Phone</label><input id="dPhone_${id}" type="tel" inputmode="tel" value="${esc(d.phone || '')}" />
     <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}" />
     <label>Notes</label><textarea id="dNote_${id}">${esc(d.note || '')}</textarea>
-    ${state.user.role === 'admin' ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label><input id="dPrice_${id}" type="number" value="${d.price || 0}" />` : ''}
+    ${state.user.role === 'admin' ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label><input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" />` : ''}
     <button class="btn sec" style="margin-top:10px" onclick="openMeasurements(${id})">📐 Measurements</button>
     ${state.user.role === 'admin' ? `<div class="sec-title">Material & profit</div>
       <div class="card" style="box-shadow:none;margin:0 0 8px">
@@ -791,9 +793,9 @@ window.openDress = (id) => {
       ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
       <button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button></div>`).join('')}</div>
     <button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>
-    <div class="sec-title">تحديثات العميلة 💬</div>
-    <div id="dupd_${id}"><div class="hint">بيحمّل…</div></div>
-    <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 ابعت تحديث / صورة للعميلة</button>
+    <div class="sec-title">Client updates 💬</div>
+    <div id="dupd_${id}"><div class="hint">Loading…</div></div>
+    <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 Send an update / photo to the client</button>
     <div class="divider"></div>
     <div class="row">
       <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
@@ -806,9 +808,9 @@ async function loadDressUpdates(id) {
   const box = document.getElementById('dupd_' + id); if (!box) return;
   try {
     const ups = await GET('/api/dresses/' + id + '/updates');
-    box.innerHTML = ups.length ? ups.map(renderUpdate).join('') : '<div class="hint">مفيش تحديثات لسه</div>';
+    box.innerHTML = ups.length ? ups.map(renderUpdate).join('') : '<div class="hint">No updates yet</div>';
     refreshNotifBadge(); // opening the thread marks this dress's notifications read
-  } catch (e) { box.innerHTML = '<div class="hint">تعذّر تحميل التحديثات</div>'; }
+  } catch (e) { box.innerHTML = '<div class="hint">Failed to load updates</div>'; }
 }
 function renderUpdate(u) {
   const studio = ['admin', 'manager', 'staff'].includes(u.author_role);
@@ -818,10 +820,10 @@ function renderUpdate(u) {
     ${u.image ? `<img class="thumb" style="max-width:170px;height:auto;aspect-ratio:auto;border-radius:8px;margin-top:6px" src="/uploads/${esc(u.image)}" onclick="lightbox('/uploads/${esc(u.image)}')"/>` : ''}
   </div>`;
 }
-window.updateClient = (id) => formModal('تحديث للعميلة', [
-  { name: 'body', label: 'الملاحظة', type: 'textarea' },
-  { name: 'image', label: 'صورة (اختياري)', type: 'image' },
-], async (d) => { await POST('/api/dresses/' + id + '/updates', d); toast('اتبعت للعميلة ✅'); closeModal(); refreshDress(id); });
+window.updateClient = (id) => formModal('Update for the client', [
+  { name: 'body', label: 'Note', type: 'textarea' },
+  { name: 'image', label: 'Photo (optional)', type: 'image' },
+], async (d) => { await POST('/api/dresses/' + id + '/updates', d); toast('Sent to the client ✅'); closeModal(); refreshDress(id); });
 window.saveDressDetails = async (id) => {
   const name = document.getElementById('dName_' + id).value.trim();
   if (!name) return toast('Client name is required');
@@ -843,7 +845,7 @@ window.openMeasurements = (id) => {
   let m = {}; try { m = JSON.parse(d.measurements || '{}'); } catch (e) {}
   window._measImg = d.measure_image || null;
   modal(`<h3>Measurements — ${esc(d.customer_name || '')}</h3>
-    <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" step="0.5" value="${m[k] != null ? m[k] : ''}" /></div>`).join('')}
+    <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" inputmode="decimal" step="0.5" value="${m[k] != null ? m[k] : ''}" /></div>`).join('')}
       <div><label>Fit</label><select id="ms_fit"><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
     </div>
     <label>Note</label><textarea id="ms_note">${esc(d.measure_note || '')}</textarea>
@@ -911,7 +913,7 @@ PAGES.purchases = async (c) => {
        <input type="month" value="${f}" onchange="setPurMonth(this.value)" style="width:auto;padding:8px 10px;flex:1"/>
        ${f ? `<button class="btn ghost sm" onclick="setPurMonth('')">Clear</button>` : ''}
      </div>
-    <button class="btn" onclick="newPurchase()">＋ New purchase (فاتورة)</button>
+    <button class="btn" onclick="newPurchase()">＋ New purchase (invoice)</button>
     <div style="margin-top:12px">${list.length ? list.map((inv) => `<div class="card">
       <div class="item" style="cursor:pointer" onclick="openPurchase(${inv.id})">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}"/></div>` : '<div class="av">🧾</div>'}
         <div class="main"><div class="nm">${esc(inv.vendor_name || inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · ${inv.lines ? inv.lines.length : 0} item${(inv.lines && inv.lines.length === 1) ? '' : 's'} · tap to view ›</div></div>
@@ -927,8 +929,8 @@ window.openPurchase = (id) => {
   modal(`<h3>${esc(inv.vendor_name || inv.shop || 'Purchase')}</h3>
     <div class="sub muted">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)} · Total ${money(inv.total)}</div>
     ${inv.note ? `<div class="hint">${esc(inv.note)}</div>` : ''}
-    ${(window._purVendors && window._purVendors.length) ? `<label style="margin-top:8px">المورّد</label>
-      <select id="pv_${id}" onchange="setPurchaseVendor(${id},this.value)" style="width:100%"><option value="">— بدون —</option>${window._purVendors.map((v) => `<option value="${v.id}" ${inv.vendor_id === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>` : ''}
+    ${(window._purVendors && window._purVendors.length) ? `<label style="margin-top:8px">Vendor</label>
+      <select id="pv_${id}" onchange="setPurchaseVendor(${id},this.value)" style="width:100%"><option value="">— none —</option>${window._purVendors.map((v) => `<option value="${v.id}" ${inv.vendor_id === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>` : ''}
     <div class="sec-title">Invoice</div>
     ${inv.image
       ? `<img style="width:100%;max-height:360px;object-fit:contain;background:#faf7ff;border-radius:12px;cursor:zoom-in" src="/uploads/${esc(inv.image)}" onclick="lightbox('/uploads/${esc(inv.image)}','${esc(inv.shop || '')}')"/>
@@ -940,7 +942,7 @@ window.openPurchase = (id) => {
     <div class="divider"></div>
     <button class="btn danger" onclick="delPurchase(${id})">Delete purchase</button>`);
 };
-window.setPurchaseVendor = async (id, vid) => { await PUT('/api/purchases/' + id, { vendor_id: Number(vid) || null }); toast('اتحفظ المورّد ✅'); window._purchases = await GET('/api/purchases'); const inv = window._purchases.find((x) => x.id === id); if (inv) window._purVendors = await GET('/api/vendors'); };
+window.setPurchaseVendor = async (id, vid) => { await PUT('/api/purchases/' + id, { vendor_id: Number(vid) || null }); toast('Vendor saved ✅'); window._purchases = await GET('/api/purchases'); const inv = window._purchases.find((x) => x.id === id); if (inv) window._purVendors = await GET('/api/vendors'); };
 window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purchases/' + id, { image: b64 }); toast('Invoice photo saved'); window._purchases = await GET('/api/purchases'); openPurchase(id); });
 
 /* ============ EXPENSES (entries · analysis · vendors · types) ============ */
@@ -970,10 +972,10 @@ PAGES.expenses = async (c) => {
   } else if (tab === 'vendors') {
     const vs = vendors.slice().sort((a, b) => (b.total || 0) - (a.total || 0));
     inner = `<button class="btn" onclick="addVendor()">＋ Add vendor</button>
-      <div class="hint" style="margin:10px 2px 6px">دوسي على أي مورّد تشوفي تقريره الكامل (مشتريات + مصروفات) وتطبعيه PDF</div>
+      <div class="hint" style="margin:10px 2px 6px">Tap any vendor to see its full report (purchases + expenses) and print a PDF</div>
       <div class="card">${vs.length ? vs.map((v) => `<div class="item" style="cursor:pointer" onclick="openVendorReport(${v.id})">
         <div class="av">🏬</div>
-        <div class="main"><div class="nm">${esc(v.name)}</div><div class="sub">${v.phone ? esc(v.phone) + ' · ' : ''}${v.total ? '🧾 ' + money(v.purchases_total) + ' · 💸 ' + money(v.expenses_total) : 'لسه مفيش حركات'}</div></div>
+        <div class="main"><div class="nm">${esc(v.name)}</div><div class="sub">${v.phone ? esc(v.phone) + ' · ' : ''}${v.total ? '🧾 ' + money(v.purchases_total) + ' · 💸 ' + money(v.expenses_total) : 'No activity yet'}</div></div>
         <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total || 0)}</div>
           <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
@@ -1004,21 +1006,21 @@ window.openVendorReport = async (id) => {
   modal(`<h3>🏬 ${esc(vendor.name)}</h3>
     ${(vendor.phone || vendor.note) ? `<div class="sub muted">${[vendor.phone, vendor.note].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
     <div class="grid g2" style="margin-top:12px">
-      <div class="stat"><div class="n serif" style="color:var(--bad)">${money(totals.grand)}</div><div class="l">إجمالي الصرف</div></div>
-      <div class="stat"><div class="n serif">${purchases.length + expenses.length}</div><div class="l">حركة</div></div>
+      <div class="stat"><div class="n serif" style="color:var(--bad)">${money(totals.grand)}</div><div class="l">Total spent</div></div>
+      <div class="stat"><div class="n serif">${purchases.length + expenses.length}</div><div class="l">transactions</div></div>
     </div>
     <div class="card" style="box-shadow:none;margin:10px 0">
-      ${kv('🧾 مشتريات ماتيريال', money(totals.purchases), 'bad')}
-      ${kv('💸 مصروفات عامة', money(totals.expenses), 'bad')}
+      ${kv('🧾 Material purchases', money(totals.purchases), 'bad')}
+      ${kv('💸 General expenses', money(totals.expenses), 'bad')}
     </div>
-    ${purchases.length ? `<div class="sec-title">فواتير المشتريات</div>${purchases.map((inv) => `<div class="card" style="box-shadow:none;margin:0 0 8px">
+    ${purchases.length ? `<div class="sec-title">Purchase invoices</div>${purchases.map((inv) => `<div class="card" style="box-shadow:none;margin:0 0 8px">
       <div class="item"><div class="av">🧾</div><div class="main"><div class="nm">${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''}</div></div></div>
       ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:12px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
     </div>`).join('')}` : ''}
-    ${expenses.length ? `<div class="sec-title">المصروفات</div><div class="card" style="box-shadow:none;margin:0">${expenses.map((e) => `<div class="item"><div class="av">💸</div><div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div></div>`).join('')}</div>` : ''}
-    ${(!purchases.length && !expenses.length) ? '<div class="hint">لسه مفيش حركات على المورّد ده</div>' : ''}
+    ${expenses.length ? `<div class="sec-title">Expenses</div><div class="card" style="box-shadow:none;margin:0">${expenses.map((e) => `<div class="item"><div class="av">💸</div><div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div></div>`).join('')}</div>` : ''}
+    ${(!purchases.length && !expenses.length) ? '<div class="hint">No activity for this vendor yet</div>' : ''}
     <div class="divider"></div>
-    <button class="btn" onclick="printVendorReport(${id})">🖨 اطبعي التقرير PDF</button>`);
+    <button class="btn" onclick="printVendorReport(${id})">🖨 Print PDF report</button>`);
 };
 window.printVendorReport = async (id) => {
   const rep = (window._vendorRep && window._vendorRep.vendor.id === Number(id)) ? window._vendorRep : await GET('/api/vendors/' + id + '/report');
@@ -1026,10 +1028,10 @@ window.printVendorReport = async (id) => {
   const cur = (window._cfg && window._cfg.currency) || 'EGP';
   const m = (n) => (Number(n || 0)).toLocaleString('en-US') + ' ' + cur;
   const purchaseRows = purchases.map((inv) => `
-    <tr class="grp"><td>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</td><td>فاتورة ماتيريال${inv.note ? ' — ' + esc(inv.note) : ''}</td><td class="amt">${m(inv.total)}</td></tr>
+    <tr class="grp"><td>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</td><td>Material invoice${inv.note ? ' — ' + esc(inv.note) : ''}</td><td class="amt">${m(inv.total)}</td></tr>
     ${inv.lines.map((li) => `<tr class="ln"><td></td><td>${esc(li.dress_name || '—')}${li.item ? ' · ' + esc(li.item) : ''}</td><td class="amt">${m(li.amount)}</td></tr>`).join('')}`).join('');
-  const expenseRows = expenses.map((e) => `<tr><td>${e.date ? dt(e.date) : dt(e.created_at)}</td><td>${esc(e.type || 'مصروف')}${e.note ? ' — ' + esc(e.note) : ''}</td><td class="amt">${m(e.amount)}</td></tr>`).join('');
-  const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>تقرير مورّد — ${esc(vendor.name)}</title>
+  const expenseRows = expenses.map((e) => `<tr><td>${e.date ? dt(e.date) : dt(e.created_at)}</td><td>${esc(e.type || 'Expense')}${e.note ? ' — ' + esc(e.note) : ''}</td><td class="amt">${m(e.amount)}</td></tr>`).join('');
+  const html = `<!doctype html><html dir="ltr"><head><meta charset="utf-8"><title>Vendor report — ${esc(vendor.name)}</title>
   <style>
     html,body{background:#fff}
     body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#14101a;padding:32px;max-width:820px;margin:auto}
@@ -1052,16 +1054,16 @@ window.printVendorReport = async (id) => {
     @media print{body{padding:6px}}
   </style></head><body>
     <div class="head"><div class="brand">DALIA BASSEL</div><div class="sub">Haute Couture · Vendor Statement</div></div>
-    <div class="meta"><div><b>المورّد:</b> ${esc(vendor.name)}</div>${vendor.phone ? `<div><b>تليفون:</b> ${esc(vendor.phone)}</div>` : ''}<div><b>تاريخ التقرير:</b> ${dt(today())}</div></div>
+    <div class="meta"><div><b>Vendor:</b> ${esc(vendor.name)}</div>${vendor.phone ? `<div><b>Phone:</b> ${esc(vendor.phone)}</div>` : ''}<div><b>Report date:</b> ${dt(today())}</div></div>
     <div class="totals">
-      <div class="tbox"><span>${m(totals.grand)}</span><label>إجمالي الصرف</label></div>
-      <div class="tbox"><span>${m(totals.purchases)}</span><label>مشتريات ماتيريال</label></div>
-      <div class="tbox"><span>${m(totals.expenses)}</span><label>مصروفات عامة</label></div>
+      <div class="tbox"><span>${m(totals.grand)}</span><label>Total spent</label></div>
+      <div class="tbox"><span>${m(totals.purchases)}</span><label>Material purchases</label></div>
+      <div class="tbox"><span>${m(totals.expenses)}</span><label>General expenses</label></div>
     </div>
-    ${purchases.length ? `<h3>المشتريات (ماتيريال)</h3><table><thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th></tr></thead><tbody>${purchaseRows}</tbody></table>` : ''}
-    ${expenses.length ? `<h3>المصروفات العامة</h3><table><thead><tr><th>التاريخ</th><th>النوع / البيان</th><th>المبلغ</th></tr></thead><tbody>${expenseRows}</tbody></table>` : ''}
-    ${(!purchases.length && !expenses.length) ? '<p>لا توجد حركات على هذا المورّد.</p>' : ''}
-    <div class="grand">الإجمالي الكلي: ${m(totals.grand)}</div>
+    ${purchases.length ? `<h3>Purchases (materials)</h3><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th></tr></thead><tbody>${purchaseRows}</tbody></table>` : ''}
+    ${expenses.length ? `<h3>General expenses</h3><table><thead><tr><th>Date</th><th>Type / Description</th><th>Amount</th></tr></thead><tbody>${expenseRows}</tbody></table>` : ''}
+    ${(!purchases.length && !expenses.length) ? '<p>No activity for this vendor.</p>' : ''}
+    <div class="grand">Grand total: ${m(totals.grand)}</div>
     <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print()},400)}</scr` + `ipt>
   </body></html>`;
   const w = window.open('', '_blank');
@@ -1078,10 +1080,10 @@ window.newPurchase = async (presetDressId) => {
     (state.user.role === 'admin' ? GET('/api/vendors') : Promise.resolve(window._purVendors || [])),
   ]);
   window._puDresses = dresses; window._puImg = null; window._puPreset = presetDressId || ''; _puLineN = 0;
-  modal(`<h3>New purchase (فاتورة)</h3>
-    ${vendors.length ? `<label>المورّد</label>
-    <select id="pu_vendor" style="width:100%"><option value="">— بدون / محل مؤقت —</option>${vendors.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</select>` : '<input id="pu_vendor" type="hidden" value="" />'}
-    <label>اسم المحل <span class="hint">(لو مش مورّد ثابت)</span></label><input id="pu_shop" placeholder="Shop name" />
+  modal(`<h3>New purchase (invoice)</h3>
+    ${vendors.length ? `<label>Vendor</label>
+    <select id="pu_vendor" style="width:100%"><option value="">— none / one-off shop —</option>${vendors.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</select>` : '<input id="pu_vendor" type="hidden" value="" />'}
+    <label>Shop name <span class="hint">(if not a regular vendor)</span></label><input id="pu_shop" placeholder="Shop name" />
     <label>Invoice date</label><input id="pu_date" type="date" value="${today()}" />
     <label>Note</label><input id="pu_note" />
     <div class="row" style="margin-top:6px"><button class="btn ghost sm" onclick="pickPuImg()">📷 Invoice photo</button><span class="hint" id="puImgLbl">None</span></div>
@@ -1097,7 +1099,7 @@ window.addPuLine = () => {
   const opts = (window._puDresses || []).map((d) => `<option value="${d.id}" ${String(window._puPreset) === String(d.id) ? 'selected' : ''}>${esc(d.customer_name)}</option>`).join('');
   const div = document.createElement('div'); div.className = 'pu-line';
   div.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
-  div.innerHTML = `<select class="pu-dress" style="flex:2;min-width:0">${opts}</select><input class="pu-item" placeholder="Item" style="flex:2;min-width:0"/><input class="pu-amt" type="number" placeholder="Amount" style="flex:1;min-width:0"/><button class="btn-icon" onclick="this.parentElement.remove()">✕</button>`;
+  div.innerHTML = `<select class="pu-dress" style="flex:2;min-width:0">${opts}</select><input class="pu-item" placeholder="Item" style="flex:2;min-width:0"/><input class="pu-amt" type="number" inputmode="decimal" placeholder="Amount" style="flex:1;min-width:0"/><button class="btn-icon" onclick="this.parentElement.remove()">✕</button>`;
   box.appendChild(div);
 };
 window.savePurchase = async () => {
@@ -1204,7 +1206,7 @@ PAGES.staffmember = async (c) => {
         ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
         ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
         ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
-        ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
+        ${kv('− Advances this month', money(sal.advances), 'bad')}
         <div class="divider"></div>
         <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
       </div>
@@ -1226,7 +1228,7 @@ PAGES.staffmember = async (c) => {
         ${st === 'pending' ? `<button class="btn sm ghost" onclick="confirmAbsence(${a.id})">Confirm</button>` : ''}
         <button class="btn-icon" onclick="delAbsence(${a.id})">🗑</button></div>`; }).join('') : empty('No absences recorded')}</div>`;
   } else if (tab === 'advance') {
-    inner = `<button class="btn" onclick="addAdvance(${id})">＋ Add advance (سلفة)</button>
+    inner = `<button class="btn" onclick="addAdvance(${id})">＋ Add advance</button>
       <div class="card" style="margin-top:12px">${advances.length ? advances.map((a) => { const st = a.status || 'approved'; return `<div class="item"><div class="av">💵</div>
         <div class="main"><div class="nm">${money(a.amount)} <span class="badge ${st === 'approved' ? 'ok' : st === 'rejected' ? 'bad' : 'warn'}">${st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'Pending'}</span></div><div class="sub">${a.month ? 'Deduct ' + a.month : 'No month set'}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
         ${st === 'pending' ? `<button class="btn sm ghost" onclick="approveAdvance(${a.id},1)">Approve</button><button class="btn sm danger" onclick="approveAdvance(${a.id},0)">Reject</button>` : `<button class="btn-icon" onclick="delAdvance(${a.id})">🗑</button>`}</div>`; }).join('') : empty('No advances')}</div>`;
@@ -1281,7 +1283,7 @@ window.addAdjustment = (id, type, month) => formModal(type === 'bonus' ? 'Add bo
   { name: 'note', label: 'Note (optional)' },
 ], async (d) => { d.user_id = id; d.type = type; await POST('/api/adjustments', d); toast('Saved'); go('staffmember'); });
 window.delAdjustment = (aid) => confirmDel('Delete this?', async () => { await DEL('/api/adjustments/' + aid); go('staffmember'); });
-window.addAdvance = (id) => formModal('Add advance (سلفة)', [
+window.addAdvance = (id) => formModal('Add advance', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'month', label: 'Deduct from month', type: 'month', value: today().slice(0, 7) },
   { name: 'note', label: 'Note (optional)' },
@@ -1308,11 +1310,11 @@ PAGES.config = async (c) => {
       <button class="btn" style="margin-top:12px" onclick="saveCfg(['academy_name'])">Save</button></div>`;
   } else if (tab === 'salary') {
     inner = `<div class="card">
-      <label>Working days per month</label><input id="cfg_work_days_per_month" type="number" value="${esc(s.work_days_per_month || '30')}" />
+      <label>Working days per month</label><input id="cfg_work_days_per_month" type="number" inputmode="numeric" value="${esc(s.work_days_per_month || '30')}" />
       <label>Check-in time</label><input id="cfg_check_in_time" type="time" value="${esc(s.check_in_time || '09:00')}" />
       <label>Check-out time</label><input id="cfg_check_out_time" type="time" value="${esc(s.check_out_time || '17:00')}" />
-      <label>Late grace (minutes)</label><input id="cfg_late_grace_min" type="number" value="${esc(s.late_grace_min || '15')}" />
-      <label>Overtime multiplier (×)</label><input id="cfg_overtime_mult" type="number" step="0.1" value="${esc(s.overtime_mult || '1.5')}" />
+      <label>Late grace (minutes)</label><input id="cfg_late_grace_min" type="number" inputmode="numeric" value="${esc(s.late_grace_min || '15')}" />
+      <label>Overtime multiplier (×)</label><input id="cfg_overtime_mult" type="number" inputmode="decimal" step="0.1" value="${esc(s.overtime_mult || '1.5')}" />
       <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace deducts at the hourly rate; overtime pays at the multiplier. Each staff's paid weekly off-days are set on their profile.</div>
       <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month','check_in_time','check_out_time','late_grace_min','overtime_mult'])">Save</button></div>`;
   } else {

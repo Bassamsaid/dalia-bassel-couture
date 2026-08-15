@@ -441,10 +441,10 @@ function timeago(s) {
   const t = new Date(String(s).replace(' ', 'T') + 'Z').getTime();
   if (isNaN(t)) return String(s).slice(0, 10);
   const m = Math.floor((Date.now() - t) / 60000);
-  if (m < 1) return 'دلوقتي';
-  if (m < 60) return `من ${m} دقيقة`;
-  const h = Math.floor(m / 60); if (h < 24) return `من ${h} ساعة`;
-  const d = Math.floor(h / 24); if (d < 30) return `من ${d} يوم`;
+  if (m < 1) return 'now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
   return String(s).slice(0, 10);
 }
 const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬' };
@@ -476,7 +476,7 @@ PAGES.notifications = async (c) => {
             <div class="sub">${n.body ? esc(n.body) + ' · ' : ''}${timeago(n.created_at)}</div></div>
           ${n.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1;border-radius:8px" src="/uploads/${esc(n.image)}"/>` : ''}
         </div>`).join('')}</div>`
-      : empty('لسه مفيش إشعارات', '🔔'));
+      : empty('No notifications yet', '🔔'));
 };
 window.openNotif = (page, id) => {
   if (!page) return;
