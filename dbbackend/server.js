@@ -113,11 +113,13 @@ api['PUT /api/profile'] = async (req, res, user) => {
 
 // -- generic guards --
 function requireAdmin(user, res) { if (!user || user.role !== 'admin') { send(res, 403, { error: 'forbidden' }); return false; } return true; }
+// admin OR manager (academy operations: students, payments, rounds, courses, dresses)
+function requireManager(user, res) { if (!user || (user.role !== 'admin' && user.role !== 'manager')) { send(res, 403, { error: 'forbidden' }); return false; } return true; }
 function requireAuth(user, res) { if (!user) { send(res, 401, { error: 'unauthorized' }); return false; } return true; }
 
 // ================= ADMIN: USERS / STUDENTS =================
 api['GET /api/users'] = async (req, res, user, url) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const role = url.searchParams.get('role');
   const round = url.searchParams.get('round_id');
   let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,created_at FROM users WHERE 1=1';
@@ -128,9 +130,10 @@ api['GET /api/users'] = async (req, res, user, url) => {
   send(res, 200, db.prepare(q).all(...args));
 };
 api['POST /api/users'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   if (!b.name) return send(res, 400, { error: 'الاسم مطلوب' });
+  if (user.role === 'manager' && !['trainee', 'customer'].includes(b.role || 'trainee')) return send(res, 403, { error: 'managers can only add students or clients' });
   try {
     const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date)
       VALUES (?,?,?,?,?,?,?,?,?,?)`).run(
@@ -145,10 +148,14 @@ api['POST /api/users'] = async (req, res, user) => {
   } catch (e) { send(res, 400, { error: e.message.includes('UNIQUE') ? 'الإيميل مستخدم بالفعل' : e.message }); }
 };
 api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const cur = db.prepare('SELECT * FROM users WHERE id=?').get(params.id);
   if (!cur) return send(res, 404, { error: 'not found' });
+  if (user.role === 'manager') { // managers may only touch students/clients and never escalate a role
+    if (!['trainee', 'customer'].includes(cur.role)) return send(res, 403, { error: 'forbidden' });
+    if (b.role && !['trainee', 'customer'].includes(b.role)) return send(res, 403, { error: 'cannot change role' });
+  }
   db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=? WHERE id=?`).run(
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
@@ -169,7 +176,7 @@ api['DELETE /api/users/:id'] = async (req, res, user, url, params) => {
 
 // Full financial sheet for all trainees (paid / remaining / totals)
 api['GET /api/finance/sheet'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const rows = db.prepare(`
     SELECT u.id,u.name,u.phone,u.round_id,u.group_id,
       COALESCE(e.total_fee,0) AS total_fee,
@@ -188,14 +195,14 @@ api['GET /api/finance/sheet'] = async (req, res, user) => {
 api['GET /api/payments'] = async (req, res, user, url) => {
   if (!requireAuth(user, res)) return;
   const uid = url.searchParams.get('user_id');
-  if (user.role !== 'admin') {
+  if (user.role !== 'admin' && user.role !== 'manager') {
     return send(res, 200, db.prepare('SELECT * FROM payments WHERE user_id=? ORDER BY paid_at DESC').all(user.id));
   }
   const q = uid ? 'SELECT * FROM payments WHERE user_id=? ORDER BY paid_at DESC' : 'SELECT p.*,u.name user_name FROM payments p JOIN users u ON u.id=p.user_id ORDER BY paid_at DESC';
   send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
 };
 api['POST /api/payments'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   if (!b.user_id) return send(res, 400, { error: 'اختر المتدربة' });
   const img = maybeImage(b.image);
@@ -205,7 +212,7 @@ api['POST /api/payments'] = async (req, res, user) => {
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/payments/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM payments WHERE id=?').run(params.id);
   send(res, 200, { ok: true });
 };
@@ -219,19 +226,19 @@ api['GET /api/reminders'] = async (req, res, user) => {
   send(res, 200, db.prepare('SELECT * FROM reminders WHERE user_id=? ORDER BY done,due_date').all(user.id));
 };
 api['POST /api/reminders'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const r = db.prepare('INSERT INTO reminders (user_id,due_date,amount,note) VALUES (?,?,?,?)').run(b.user_id, b.due_date, b.amount || 0, b.note || null);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/reminders/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   db.prepare('UPDATE reminders SET done=? WHERE id=?').run(b.done ? 1 : 0, params.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/reminders/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM reminders WHERE id=?').run(params.id);
   send(res, 200, { ok: true });
 };
@@ -244,26 +251,26 @@ for (const [name, table] of [['rounds', 'rounds'], ['groups', 'groups']]) {
   };
 }
 api['POST /api/rounds'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const r = db.prepare('INSERT INTO rounds (number,name,description,start_date,active) VALUES (?,?,?,?,?)').run(b.number || null, b.name, b.description || null, b.start_date || null, b.active ?? 1);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/rounds/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req); const c = db.prepare('SELECT * FROM rounds WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
   db.prepare('UPDATE rounds SET number=?,name=?,description=?,start_date=?,active=? WHERE id=?').run(b.number ?? c.number, b.name ?? c.name, b.description ?? c.description, b.start_date ?? c.start_date, b.active ?? c.active, params.id);
   send(res, 200, { ok: true });
 };
-api['DELETE /api/rounds/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM rounds WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/rounds/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM rounds WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 api['POST /api/groups'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const r = db.prepare('INSERT INTO groups (round_id,name,day,time_slot,capacity) VALUES (?,?,?,?,?)').run(b.round_id || null, b.name, b.day || null, b.time_slot || null, b.capacity || 0);
   send(res, 200, { id: r.lastInsertRowid });
 };
-api['DELETE /api/groups/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM groups WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/groups/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM groups WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 // ================= VIDEOS =================
 api['GET /api/videos'] = async (req, res, user) => {
@@ -272,14 +279,14 @@ api['GET /api/videos'] = async (req, res, user) => {
   send(res, 200, db.prepare('SELECT * FROM videos WHERE round_id IS NULL OR round_id=? ORDER BY id DESC').all(user.round_id || -1));
 };
 api['POST /api/videos'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const file = b.file && b.file.startsWith('data:') ? saveImage(b.file, '.mp4') : null;
   const kind = b.kind === 'onsite' ? 'onsite' : 'online';
   const r = db.prepare('INSERT INTO videos (round_id,title,description,url,file,kind) VALUES (?,?,?,?,?,?)').run(b.round_id || null, b.title, b.description || null, b.url || null, file, kind);
   send(res, 200, { id: r.lastInsertRowid });
 };
-api['DELETE /api/videos/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM videos WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/videos/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM videos WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 // ================= HOMEWORK + SUBMISSIONS =================
 api['GET /api/homeworks'] = async (req, res, user) => {
@@ -426,7 +433,7 @@ api['DELETE /api/dalia/:id'] = async (req, res, user, url, params) => { if (!req
 api['GET /api/dresses'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
   let list;
-  if (user.role === 'admin') list = db.prepare('SELECT * FROM dresses ORDER BY id DESC').all();
+  if (['admin', 'manager', 'staff'].includes(user.role)) list = db.prepare('SELECT * FROM dresses ORDER BY id DESC').all();
   else list = db.prepare('SELECT * FROM dresses WHERE customer_user_id=? ORDER BY id DESC').all(user.id);
   list.forEach((d) => {
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
@@ -435,7 +442,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
   send(res, 200, list);
 };
 api['POST /api/dresses'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const cover = maybeImage(b.cover_image);
   const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image) VALUES (?,?,?,?,?,?,?)').run(
@@ -443,7 +450,7 @@ api['POST /api/dresses'] = async (req, res, user) => {
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req); const c = db.prepare('SELECT * FROM dresses WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
   db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=? WHERE id=?').run(
@@ -451,21 +458,21 @@ api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   send(res, 200, { ok: true });
 };
 api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM dresses WHERE id=?').run(params.id);
   db.prepare('DELETE FROM dress_fittings WHERE dress_id=?').run(params.id);
   db.prepare('DELETE FROM dress_images WHERE dress_id=?').run(params.id);
   send(res, 200, { ok: true });
 };
 api['POST /api/dresses/:id/fittings'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const r = db.prepare('INSERT INTO dress_fittings (dress_id,fitting_date,note,done) VALUES (?,?,?,?)').run(params.id, b.fitting_date, b.note || null, b.done ? 1 : 0);
   send(res, 200, { id: r.lastInsertRowid });
 };
-api['DELETE /api/fittings/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dress_fittings WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/fittings/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM dress_fittings WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 api['POST /api/dresses/:id/images'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
   if (!img) return send(res, 400, { error: 'no image' });
@@ -473,7 +480,7 @@ api['POST /api/dresses/:id/images'] = async (req, res, user, url, params) => {
   if (!db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(params.id).cover_image) db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(img, params.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
-api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dress_images WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM dress_images WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 // ================= STAFF HR =================
 api['GET /api/attendance'] = async (req, res, user, url) => {

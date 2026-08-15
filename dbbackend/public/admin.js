@@ -88,8 +88,8 @@ window.markReminder = async (id) => { await PUT('/api/reminders/' + id, { done: 
 PAGES.members = async (c) => {
   const users = await GET('/api/users');
   window._members = users;
-  const roles = ['all', 'admin', 'trainee', 'customer', 'staff'];
-  const lbl = { all: 'All', admin: 'Admins', trainee: 'Students', customer: 'Clients', staff: 'Staff' };
+  const roles = ['all', 'admin', 'manager', 'trainee', 'customer', 'staff'];
+  const lbl = { all: 'All', admin: 'Admins', manager: 'Managers', trainee: 'Students', customer: 'Clients', staff: 'Staff' };
   const f = window._memF || 'all';
   const list = users.filter((u) => f === 'all' || u.role === f);
   c.innerHTML = title('Members', '') +
@@ -102,7 +102,7 @@ PAGES.members = async (c) => {
       <div class="av">${esc(initials(u.name))}</div>
       <div class="main"><div class="nm">${esc(u.name)}</div><div class="sub">${u.email ? esc(u.email) : 'no email'} · joined ${dt(u.created_at)}</div></div>
       <select onchange="setRole(${u.id},this.value)" style="width:auto;padding:6px 8px;font-size:12px" ${u.role === 'admin' ? 'disabled' : ''}>
-        ${['trainee', 'customer', 'staff', 'admin'].map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${lbl[r] || r}</option>`).join('')}
+        ${['trainee', 'customer', 'staff', 'manager', 'admin'].map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${lbl[r] || r}</option>`).join('')}
       </select></div>`).join('') : empty('No members')}</div>`;
 };
 window.memFilter = (r) => { window._memF = r; go('members'); };
@@ -287,7 +287,7 @@ window.delGroup = (id) => confirmDel('Delete group?', async () => { await DEL('/
 
 /* ============ COURSES / VIDEOS ============ */
 PAGES.courses = async (c) => {
-  if (state.user.role !== 'admin') return PAGES.courses_trainee(c);
+  if (state.user.role !== 'admin' && state.user.role !== 'manager') return PAGES.courses_trainee(c);
   const [videos, rounds] = await Promise.all([GET('/api/videos'), GET('/api/rounds')]);
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   window._rounds = rounds;
@@ -518,7 +518,8 @@ window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/a
 
 /* ============ DRESSES ============ */
 PAGES.dresses = async (c) => {
-  if (state.user.role !== 'admin') return PAGES.mydresses(c);
+  if (state.user.role === 'staff') return PAGES.mydresses(c, { title: 'Dresses' }); // staff: read-only view of all dresses
+  if (state.user.role !== 'admin' && state.user.role !== 'manager') return PAGES.mydresses(c); // customer: own only
   const [dresses, customers] = await Promise.all([GET('/api/dresses'), GET('/api/users?role=customer')]);
   window._dressRef = { customers };
   const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
@@ -574,7 +575,8 @@ async function refreshDress(id) { window._dresses = await GET('/api/dresses'); o
 
 /* ============ STAFF HR ============ */
 PAGES.staff = async (c) => {
-  const [staff, att, sal, lv] = await Promise.all([GET('/api/users?role=staff'), GET('/api/attendance'), GET('/api/salaries'), GET('/api/leaves')]);
+  const [allUsers, att, sal, lv] = await Promise.all([GET('/api/users'), GET('/api/attendance'), GET('/api/salaries'), GET('/api/leaves')]);
+  const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   window._staff = staff;
   const tab = window._staffTab || 'people';
   const tabs = [['people', 'Staff'], ['att', 'Attendance'], ['sal', 'Salaries'], ['lv', 'Leaves']];
@@ -582,7 +584,7 @@ PAGES.staff = async (c) => {
   if (tab === 'people') {
     inner = `<button class="btn" onclick="addStaff()">＋ Staff member</button>
       <div class="card" style="margin-top:12px">${staff.length ? staff.map((s) => `<div class="item"><div class="av">${esc(initials(s.name))}</div>
-        <div class="main"><div class="nm">${esc(s.name)}</div><div class="sub">${s.job_title ? esc(s.job_title) + ' · ' : ''}${money(s.base_salary)} ${s.hire_date ? '· since ' + dt(s.hire_date) : ''}</div></div>
+        <div class="main"><div class="nm">${esc(s.name)}${s.role === 'manager' ? ' <span class="badge">Manager</span>' : ''}</div><div class="sub">${s.job_title ? esc(s.job_title) + ' · ' : ''}${money(s.base_salary)} ${s.hire_date ? '· since ' + dt(s.hire_date) : ''}</div></div>
         <button class="btn sm sec" onclick="editStaff(${s.id})">Edit</button></div>`).join('') : empty('No staff yet', '💼')}</div>`;
   } else if (tab === 'att') {
     inner = `<button class="btn sec" onclick="addAtt()">＋ Manual entry</button>
@@ -604,24 +606,26 @@ PAGES.staff = async (c) => {
 window.staffTab = (t) => { window._staffTab = t; go('staff'); };
 window.addStaff = () => formModal('New staff member', [
   { name: 'name', label: 'Name', required: true },
+  { name: 'role', label: 'Role', type: 'select', value: 'staff', options: [{ value: 'staff', label: 'Staff (dresses + attendance)' }, { value: 'manager', label: 'Manager (students, payments, rounds, courses)' }] },
   { name: 'phone', label: 'Phone' },
   { name: 'email', label: 'Email (login)', type: 'email' },
   { name: 'password', label: 'Password' },
   { name: 'job_title', label: 'Job title' },
   { name: 'base_salary', label: 'Base salary', type: 'number' },
   { name: 'hire_date', label: 'Hire date', type: 'date' },
-], async (d) => { d.role = 'staff'; await POST('/api/users', d); toast('Added'); go('staff'); });
+], async (d) => { d.role = d.role === 'manager' ? 'manager' : 'staff'; await POST('/api/users', d); toast('Added'); go('staff'); });
 window.editStaff = (id) => {
   const s = window._staff.find((x) => x.id === id);
   formModal('Edit staff', [
     { name: 'name', label: 'Name', required: true, value: s.name },
+    { name: 'role', label: 'Role', type: 'select', value: s.role, options: [{ value: 'staff', label: 'Staff (dresses + attendance)' }, { value: 'manager', label: 'Manager (students, payments, rounds, courses)' }] },
     { name: 'phone', label: 'Phone', value: s.phone },
     { name: 'email', label: 'Email', type: 'email', value: s.email },
     { name: 'password', label: 'New password (optional)' },
     { name: 'job_title', label: 'Job title', value: s.job_title },
     { name: 'base_salary', label: 'Base salary', type: 'number', value: s.base_salary },
     { name: 'hire_date', label: 'Hire date', type: 'date', value: s.hire_date },
-  ], async (d) => { d.role = 'staff'; await PUT('/api/users/' + id, d); toast('Saved'); go('staff'); });
+  ], async (d) => { d.role = d.role === 'manager' ? 'manager' : 'staff'; await PUT('/api/users/' + id, d); toast('Saved'); go('staff'); });
 };
 window.addAtt = () => formModal('Manual attendance', [
   { name: 'user_id', label: 'Staff', type: 'select', options: window._staff.map((s) => ({ value: s.id, label: s.name })) },
@@ -644,7 +648,7 @@ PAGES.permissions = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🔒'); return; }
   const data = await GET('/api/permissions');
   const hidden = data.hidden || {};
-  const roles = [['trainee', 'Students'], ['staff', 'Staff'], ['customer', 'Clients']];
+  const roles = [['trainee', 'Students'], ['manager', 'Managers'], ['staff', 'Staff'], ['customer', 'Clients']];
   const role = window._permRole || 'trainee';
   const pages = (NAV[role] || []).slice(1); // skip the landing (home) — always visible
   const hiddenForRole = hidden[role] || [];

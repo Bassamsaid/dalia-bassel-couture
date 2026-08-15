@@ -29,7 +29,7 @@ window.saveProfile = async () => {
 PAGES.home = async (c) => {
   const r = state.user.role;
   if (r === 'admin') return PAGES.home_admin(c);
-  if (r === 'staff') return PAGES.home_staff(c);
+  if (r === 'staff' || r === 'manager') return PAGES.home_staff(c);
   return PAGES.home_trainee(c);
 };
 
@@ -239,11 +239,11 @@ window.requestLeave = () => formModal('Request leave', [
   { name: 'reason', label: 'Reason', type: 'textarea' },
 ], async (d) => { await POST('/api/leaves', d); toast('Sent for approval'); go('myleaves'); });
 
-/* ============ CLIENT DRESSES ============ */
-PAGES.mydresses = async (c) => {
+/* ============ CLIENT / STAFF DRESSES (read-only) ============ */
+PAGES.mydresses = async (c, opts = {}) => {
   const dresses = await GET('/api/dresses');
   const stEn = { open: 'In preparation', in_progress: 'In progress', delivered: 'Ready' };
-  c.innerHTML = title('My Dresses', '') +
+  c.innerHTML = title(opts.title || 'My Dresses', '') +
     (dresses.length ? dresses.map((d) => `<div class="card">
       <div class="nm serif" style="font-size:18px">${esc(d.customer_name)} <span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span></div>
       <div class="sub muted">Delivery: ${dt(d.delivery_date)}</div>

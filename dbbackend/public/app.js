@@ -239,8 +239,21 @@ const NAV = {
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
+  manager: [
+    ['home', 'Attendance', '🕒'],
+    ['dresses', 'Dresses', '👗'],
+    ['students', 'Students', '👩‍🎓'],
+    ['finance', 'Payments', '💳'],
+    ['rounds', 'Rounds', '🗓'],
+    ['courses', 'Courses', '🎬'],
+    ['mysalary', 'Salary', '💵'],
+    ['myleaves', 'Leaves', '🌴'],
+    ['dalia', 'Dalia Bassel', '✦'],
+    ['about', 'About', 'ℹ'],
+  ],
   staff: [
     ['home', 'Attendance', '🕒'],
+    ['dresses', 'Dresses', '👗'],
     ['mysalary', 'Salary', '💵'],
     ['myleaves', 'Leaves', '🌴'],
     ['dalia', 'Dalia Bassel', '✦'],
@@ -256,8 +269,9 @@ const NAV = {
 /* bottom bar shows only 2 tabs; the rest live in the side drawer */
 const BOTTOM = {
   admin: [['home', 'Home', '⌂'], ['courses', 'Courses', '🎬'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
+  manager: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['students', 'Students', '👩‍🎓'], ['dalia', 'Dalia', '✦']],
   trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
-  staff: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
+  staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
   customer: [['mydresses', 'My Dresses', '👗'], ['dalia', 'Dalia Bassel', '✦']],
 };
 
@@ -285,7 +299,7 @@ function renderApp() {
   $('#nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.p); });
   go(state.nav[0][0]);
 }
-function roleLabel(r) { return { admin: 'Admin', trainee: 'Student', staff: 'Staff', customer: 'Client' }[r] || r; }
+function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'Student', staff: 'Staff', customer: 'Client' }[r] || r; }
 function openDrawer() {
   const profileItem = `<button class="draw-item ${state.page === 'profile' ? 'active' : ''}" onclick="closeDrawer();go('profile')"><span class="ic">👤</span>My Profile</button>`;
   const items = profileItem + state.nav.map(([k, l, ic]) =>
