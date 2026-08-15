@@ -296,6 +296,29 @@ CREATE TABLE IF NOT EXISTS salary_adjustments (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Expenses: vendors, expense types, and expense entries (for monthly spend analysis)
+CREATE TABLE IF NOT EXISTS vendors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  phone TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS expense_types (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vendor_id INTEGER,
+  type TEXT,
+  amount REAL NOT NULL DEFAULT 0,
+  date TEXT,
+  note TEXT,
+  image TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Dress material purchases: a shop invoice (with photo) whose line items are each linked to a dress
 CREATE TABLE IF NOT EXISTS purchase_invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -338,6 +361,11 @@ try {
   setDefault.run('check_out_time', '17:00');
   setDefault.run('late_grace_min', '15');
   setDefault.run('overtime_mult', '1.5');
+  // default expense types (once, if none)
+  if (db.prepare('SELECT COUNT(*) c FROM expense_types').get().c === 0) {
+    const et = db.prepare('INSERT INTO expense_types (name) VALUES (?)');
+    ['Fabric & materials', 'Rent', 'Utilities', 'Salaries', 'Marketing', 'Supplies', 'Shipping', 'Other'].forEach((n) => et.run(n));
+  }
 } catch (e) { /* ignore */ }
 
 // ---- password helpers (scrypt, no deps) ----

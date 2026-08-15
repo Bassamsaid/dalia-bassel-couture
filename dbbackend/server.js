@@ -888,6 +888,41 @@ api['PUT /api/salary-payments/:id/confirm'] = async (req, res, user, url, params
 };
 api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM salary_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
+// ================= EXPENSES (vendors, types, entries) =================
+api['GET /api/vendors'] = async (req, res, user) => { if (!requireAdmin(user, res)) return; send(res, 200, db.prepare('SELECT * FROM vendors ORDER BY name').all()); };
+api['POST /api/vendors'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.name) return send(res, 400, { error: 'name required' });
+  const r = db.prepare('INSERT INTO vendors (name,phone,note) VALUES (?,?,?)').run(b.name, b.phone || null, b.note || null);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/vendors/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM vendors WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
+api['GET /api/expense-types'] = async (req, res, user) => { if (!requireAdmin(user, res)) return; send(res, 200, db.prepare('SELECT * FROM expense_types ORDER BY name').all()); };
+api['POST /api/expense-types'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.name) return send(res, 400, { error: 'name required' });
+  const r = db.prepare('INSERT INTO expense_types (name) VALUES (?)').run(b.name);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/expense-types/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM expense_types WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
+api['GET /api/expenses'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  send(res, 200, db.prepare('SELECT e.*, (SELECT name FROM vendors WHERE id=e.vendor_id) vendor_name FROM expenses e ORDER BY date DESC, e.id DESC').all());
+};
+api['POST /api/expenses'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.amount) return send(res, 400, { error: 'amount required' });
+  const img = maybeImage(b.image);
+  const r = db.prepare('INSERT INTO expenses (vendor_id,type,amount,date,note,image) VALUES (?,?,?,?,?,?)').run(b.vendor_id || null, b.type || null, b.amount, b.date || null, b.note || null, img);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM expenses WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
 // ---------- router ----------
 const routes = Object.keys(api).map((key) => {
   const [method, pat] = key.split(' ');

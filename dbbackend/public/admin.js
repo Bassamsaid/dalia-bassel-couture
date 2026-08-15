@@ -870,16 +870,29 @@ PAGES.purchases = async (c) => {
   const [invoices, dresses] = await Promise.all([GET('/api/purchases'), GET('/api/dresses')]);
   window._allDressesForPurchase = dresses;
   window._purchases = invoices;
+  const f = window._purMonth || '';
+  const list = f ? invoices.filter((inv) => ((inv.invoice_date || inv.created_at || '').slice(0, 7) === f)) : invoices;
+  const total = list.reduce((a, inv) => a + (inv.total || 0), 0);
+  const items = list.reduce((a, inv) => a + (inv.lines ? inv.lines.length : 0), 0);
   c.innerHTML = title('Purchases', '🧾') +
-    `<button class="btn" onclick="newPurchase()">＋ New purchase (فاتورة)</button>
-    <div style="margin-top:12px">${invoices.length ? invoices.map((inv) => `<div class="card">
+    `<div class="grid g2" style="margin-bottom:10px">
+       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(total)}</div><div class="l">${f || 'All-time'} spent</div></div>
+       <div class="stat"><div class="n serif">${list.length}</div><div class="l">${items} item${items === 1 ? '' : 's'} · invoices</div></div>
+     </div>
+    <div class="row" style="align-items:center;gap:8px;margin-bottom:10px">
+       <input type="month" value="${f}" onchange="setPurMonth(this.value)" style="width:auto;padding:8px 10px;flex:1"/>
+       ${f ? `<button class="btn ghost sm" onclick="setPurMonth('')">Clear</button>` : ''}
+     </div>
+    <button class="btn" onclick="newPurchase()">＋ New purchase (فاتورة)</button>
+    <div style="margin-top:12px">${list.length ? list.map((inv) => `<div class="card">
       <div class="item" style="cursor:pointer" onclick="openPurchase(${inv.id})">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}"/></div>` : '<div class="av">🧾</div>'}
-        <div class="main"><div class="nm">${esc(inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · tap to view ›</div></div>
+        <div class="main"><div class="nm">${esc(inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · ${inv.lines ? inv.lines.length : 0} item${(inv.lines && inv.lines.length === 1) ? '' : 's'} · tap to view ›</div></div>
         <span class="muted" style="font-size:20px">›</span></div>
       ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div>
         <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
-    </div>`).join('') : empty('No purchases yet', '🧾')}</div>`;
+    </div>`).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
 };
+window.setPurMonth = (m) => { window._purMonth = m; go('purchases'); };
 window.openPurchase = (id) => {
   const inv = (window._purchases || []).find((x) => x.id === id);
   if (!inv) return;
@@ -898,6 +911,54 @@ window.openPurchase = (id) => {
     <button class="btn danger" onclick="delPurchase(${id})">Delete purchase</button>`);
 };
 window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purchases/' + id, { image: b64 }); toast('Invoice photo saved'); window._purchases = await GET('/api/purchases'); openPurchase(id); });
+
+/* ============ EXPENSES (entries · analysis · vendors · types) ============ */
+PAGES.expenses = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💸'); return; }
+  const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases')]);
+  window._expRef = { vendors, types };
+  const tab = window._expTab || 'entries';
+  const tabs = [['entries', 'Expenses'], ['analysis', 'Analysis'], ['vendors', 'Vendors'], ['types', 'Types']];
+  let inner = '';
+  if (tab === 'entries') {
+    inner = `<button class="btn" onclick="addExpense()">＋ New expense</button>
+      <div class="card" style="margin-top:12px">${expenses.length ? expenses.map((e) => `<div class="item">
+        ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="/uploads/${esc(e.image)}" onclick="lightbox('/uploads/${esc(e.image)}')"/></div>` : '<div class="av">💸</div>'}
+        <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div>
+        <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty('No expenses yet', '💸')}</div>`;
+  } else if (tab === 'analysis') {
+    const byMonth = {};
+    const addTo = (m, t, amt) => { byMonth[m] = byMonth[m] || { total: 0, types: {} }; byMonth[m].total += amt; byMonth[m].types[t] = (byMonth[m].types[t] || 0) + amt; };
+    expenses.forEach((e) => { const m = (e.date || e.created_at || '').slice(0, 7); if (m) addTo(m, e.type || 'Other', e.amount || 0); });
+    purchases.forEach((p) => { const m = (p.invoice_date || p.created_at || '').slice(0, 7); if (m) addTo(m, 'Dress materials', p.total || 0); });
+    const months = Object.keys(byMonth).sort().reverse();
+    inner = months.length ? months.map((m) => { const d = byMonth[m]; const ts = Object.entries(d.types).sort((a, b) => b[1] - a[1]);
+      return `<div class="card"><div class="item"><div class="main"><div class="nm serif" style="font-size:18px">${m}</div><div class="sub">Total spent</div></div><div class="serif" style="font-size:20px;font-weight:700;color:var(--bad)">${money(d.total)}</div></div>
+        ${ts.map(([t, a]) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(t)}</div></div><div class="sub">${money(a)}</div></div>`).join('')}</div>`;
+    }).join('') : empty('No spending data yet', '📊');
+  } else if (tab === 'vendors') {
+    inner = `<button class="btn" onclick="addVendor()">＋ Add vendor</button>
+      <div class="card" style="margin-top:12px">${vendors.length ? vendors.map((v) => `<div class="item"><div class="av">🏬</div><div class="main"><div class="nm">${esc(v.name)}</div><div class="sub">${v.phone ? esc(v.phone) : ''}${v.note ? ' · ' + esc(v.note) : ''}</div></div><button class="btn-icon" onclick="delVendor(${v.id})">🗑</button></div>`).join('') : empty('No vendors yet — add names here')}</div>`;
+  } else {
+    inner = `<button class="btn" onclick="addExpType()">＋ Add expense type</button>
+      <div class="card" style="margin-top:12px">${types.length ? types.map((t) => `<div class="item"><div class="av">🏷️</div><div class="main"><div class="nm">${esc(t.name)}</div></div><button class="btn-icon" onclick="delExpType(${t.id})">🗑</button></div>`).join('') : empty('No types yet')}</div>`;
+  }
+  c.innerHTML = title('Expenses', '💸') + `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+};
+window.expTab = (t) => { window._expTab = t; go('expenses'); };
+window.addExpense = () => { const { vendors, types } = window._expRef; formModal('New expense', [
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'type', label: 'Type', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
+  { name: 'vendor_id', label: 'Vendor', type: 'select', options: [{ value: '', label: '—' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
+  { name: 'date', label: 'Date', type: 'date', value: today() },
+  { name: 'note', label: 'Note' },
+  { name: 'image', label: 'Invoice photo (optional)', type: 'image' },
+], async (d) => { await POST('/api/expenses', d); toast('Saved'); go('expenses'); }); };
+window.delExpense = (id) => confirmDel('Delete expense?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
+window.addVendor = () => formModal('Add vendor', [{ name: 'name', label: 'Vendor name', required: true }, { name: 'phone', label: 'Phone' }, { name: 'note', label: 'Note' }], async (d) => { await POST('/api/vendors', d); toast('Added'); go('expenses'); });
+window.delVendor = (id) => confirmDel('Delete vendor?', async () => { await DEL('/api/vendors/' + id); go('expenses'); });
+window.addExpType = () => formModal('Add expense type', [{ name: 'name', label: 'Type name', required: true }], async (d) => { await POST('/api/expense-types', d); toast('Added'); go('expenses'); });
+window.delExpType = (id) => confirmDel('Delete type?', async () => { await DEL('/api/expense-types/' + id); go('expenses'); });
 window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); closeModal(); go('purchases'); });
 let _puLineN = 0;
 window.newPurchase = async (presetDressId) => {

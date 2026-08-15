@@ -270,6 +270,7 @@ const NAV = {
     ['dresses', 'Dresses', '👗'],
     ['purchases', 'Purchases', '🧾'],
     ['staff', 'Staff', '💼'],
+    ['expenses', 'Expenses', '💸'],
     ['permissions', 'Permissions', '🔒'],
     ['config', 'Configuration', '⚙'],
     ['about', 'About', 'ℹ'],
