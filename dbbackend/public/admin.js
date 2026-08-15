@@ -394,8 +394,10 @@ PAGES.round = async (c) => {
     const payStatus = (uid) => { const r = payMap[uid]; if (!r || !r.total_fee) return null; if (r.remaining <= 0) return { t: 'Paid', c: 'ok' }; if (r.paid > 0) return { t: 'Partial', c: 'warn' }; return { t: 'Unpaid', c: 'bad' }; };
     const govs = [...new Set(students.map((s) => s.governorate).filter(Boolean))].sort();
     const gf = window._roundGov || 'all';
+    const pf = window._roundPay || 'all';
     let list = students.slice();
     if (gf !== 'all') list = list.filter((s) => (s.governorate || '') === gf);
+    if (pf !== 'all') list = list.filter((s) => { const p = payStatus(s.id); return p && p.t.toLowerCase() === pf; });
     if (window._roundSortGov) list.sort((a, b) => (a.governorate || 'زzz').localeCompare(b.governorate || 'زzz') || a.name.localeCompare(b.name));
     inner = `<button class="btn" onclick="editStudent()">＋ Add student</button>
       <div class="row" style="margin:10px 2px 4px;align-items:center;gap:8px">
@@ -403,6 +405,7 @@ PAGES.round = async (c) => {
         <select onchange="setRoundGov(this.value)" style="width:auto;padding:6px 8px;font-size:12px;margin-inline-start:auto">
           <option value="all">All governorates</option>${govs.map((g) => `<option value="${esc(g)}" ${gf === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
         <button class="btn ${window._roundSortGov ? '' : 'ghost'} sm" onclick="toggleGovSort()">Sort by gov.</button></div>
+      <div class="filters" style="margin:0 2px 6px">${[['all', 'All'], ['paid', 'Paid'], ['partial', 'Partial'], ['unpaid', 'Unpaid']].map(([k, l]) => `<span class="chip ${pf === k ? 'active' : ''}" onclick="setRoundPay('${k}')">${l}</span>`).join('')}</div>
       <div class="card">${list.length ? list.map((u) => { const p = payStatus(u.id); const pr = payMap[u.id]; return `<div class="item" style="cursor:pointer" onclick="viewStudent(${u.id})">
         <div class="av">${esc(initials(u.name))}</div>
         <div class="main"><div class="nm">${esc(u.name)}${p ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
@@ -443,6 +446,7 @@ PAGES.round = async (c) => {
 };
 window.roundTab = (t) => { window._roundTab = t; go('round'); };
 window.setRoundGov = (v) => { window._roundGov = v; go('round'); };
+window.setRoundPay = (v) => { window._roundPay = v; go('round'); };
 window.toggleGovSort = () => { window._roundSortGov = !window._roundSortGov; go('round'); };
 function videoEmbed(v) {
   if (v.file) return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>`;
