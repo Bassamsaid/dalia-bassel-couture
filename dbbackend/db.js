@@ -284,6 +284,19 @@ CREATE TABLE IF NOT EXISTS otps (
   code TEXT NOT NULL,
   expires_at TEXT NOT NULL
 );
+
+-- Salary disbursements: admin sends salary (with transfer screenshot), staff confirms receipt
+CREATE TABLE IF NOT EXISTS salary_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  month TEXT,
+  amount REAL DEFAULT 0,
+  image TEXT,
+  note TEXT,
+  status TEXT DEFAULT 'sent',                 -- sent | confirmed
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  confirmed_at TEXT
+);
 `);
 
 // seed default configuration once

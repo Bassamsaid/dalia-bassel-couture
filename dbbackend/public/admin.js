@@ -830,6 +830,7 @@ PAGES.staffmember = async (c) => {
       <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>`;
   } else if (tab === 'salary') {
     const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
+    const pays = await GET(`/api/salary-payments?user_id=${id}`);
     inner = `<div class="filters"><input type="month" value="${month}" onchange="setSalMonth(this.value)" style="width:auto;padding:8px" /></div>
       <div class="card">
         ${kv('Base salary', money(sal.base))}
@@ -839,7 +840,14 @@ PAGES.staffmember = async (c) => {
         ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
         <div class="divider"></div>
         <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
-      </div>`;
+      </div>
+      <button class="btn" style="margin-top:12px" onclick="sendSalary(${id},${sal.net},'${month}')">＋ Send salary (with transfer)</button>
+      <div class="sec-title">Salary sent</div>
+      <div class="card">${pays.length ? pays.map((p) => `<div class="item">
+        ${p.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/></div>` : '<div class="av">💵</div>'}
+        <div class="main"><div class="nm">${money(p.amount)} · ${esc(p.month || '')}</div><div class="sub">${p.note ? esc(p.note) + ' · ' : ''}Sent ${dt(p.created_at)}</div></div>
+        <span class="badge ${p.status === 'confirmed' ? 'ok' : 'warn'}">${p.status === 'confirmed' ? 'Confirmed ✓' : 'Sent'}</span>
+        <button class="btn-icon" onclick="delSalaryPay(${p.id})">🗑</button></div>`).join('') : empty('No salary sent yet')}</div>`;
   } else if (tab === 'absence') {
     inner = `<button class="btn" onclick="addAbsence(${id})">＋ Add absence</button>
       <div class="card" style="margin-top:12px">${absences.length ? absences.map((a) => `<div class="item"><div class="av">✕</div>
@@ -893,6 +901,13 @@ window.addAdvance = (id) => formModal('Add advance (سلفة)', [
   { name: 'note', label: 'Note (optional)' },
 ], async (d) => { d.user_id = id; await POST('/api/advances', d); toast('Added'); go('staffmember'); });
 window.delAdvance = (aid) => confirmDel('Delete this advance?', async () => { await DEL('/api/advances/' + aid); go('staffmember'); });
+window.sendSalary = (id, net, month) => formModal('Send salary', [
+  { name: 'month', label: 'Month', type: 'month', value: month },
+  { name: 'amount', label: 'Amount', type: 'number', value: net },
+  { name: 'note', label: 'Note (optional)' },
+  { name: 'image', label: 'Transfer screenshot', type: 'image' },
+], async (d) => { d.user_id = id; await POST('/api/salary-payments', d); toast('Salary sent'); go('staffmember'); });
+window.delSalaryPay = (pid) => confirmDel('Delete this salary payment?', async () => { await DEL('/api/salary-payments/' + pid); go('staffmember'); });
 window.approveAdvance = async (aid, ok) => { await PUT('/api/advances/' + aid, { status: ok ? 'approved' : 'rejected' }); toast(ok ? 'Approved' : 'Rejected'); go('staffmember'); };
 
 /* ============ CONFIGURATION (admin settings) ============ */

@@ -752,6 +752,33 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   send(res, 200, { user: u.name, month, base, work_days: wd, daily: Math.round(daily * 100) / 100, absent_days: absDays, absence_deduction: absenceDeduction, advances: advTotal, bonus, net });
 };
 
+// ================= SALARY DISBURSEMENTS (admin sends, staff confirms) =================
+api['GET /api/salary-payments'] = async (req, res, user, url) => {
+  if (!requireStaffish(user, res)) return;
+  const uid = user.role === 'admin' ? url.searchParams.get('user_id') : user.id; // non-admin: own only
+  const q = uid ? 'SELECT s.*,u.name user_name FROM salary_payments s JOIN users u ON u.id=s.user_id WHERE s.user_id=? ORDER BY s.created_at DESC'
+    : 'SELECT s.*,u.name user_name FROM salary_payments s JOIN users u ON u.id=s.user_id ORDER BY s.created_at DESC';
+  send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
+};
+api['POST /api/salary-payments'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.user_id) return send(res, 400, { error: 'staff required' });
+  const img = maybeImage(b.image);
+  const r = db.prepare('INSERT INTO salary_payments (user_id,month,amount,image,note) VALUES (?,?,?,?,?)').run(b.user_id, b.month || null, b.amount || 0, img, b.note || null);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+// staff (owner) confirms receipt; admin may also confirm
+api['PUT /api/salary-payments/:id/confirm'] = async (req, res, user, url, params) => {
+  if (!requireStaffish(user, res)) return;
+  const p = db.prepare('SELECT * FROM salary_payments WHERE id=?').get(params.id);
+  if (!p) return send(res, 404, { error: 'not found' });
+  if (user.role !== 'admin' && p.user_id !== user.id) return send(res, 403, { error: 'forbidden' });
+  db.prepare("UPDATE salary_payments SET status='confirmed', confirmed_at=datetime('now') WHERE id=?").run(params.id);
+  send(res, 200, { ok: true });
+};
+api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM salary_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
 // ---------- router ----------
 const routes = Object.keys(api).map((key) => {
   const [method, pat] = key.split(' ');

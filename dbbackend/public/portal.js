@@ -233,6 +233,7 @@ PAGES.mysalary = async (c) => {
   const month = window._mySalMonth || today().slice(0, 7);
   let sal = null;
   try { sal = await GET(`/api/staff/${state.user.id}/salary?month=${month}`); } catch (e) {}
+  const pays = await GET('/api/salary-payments'); // own
   c.innerHTML = title('My Salary', '') +
     `<div class="filters"><input type="month" value="${month}" onchange="setMySalMonth(this.value)" style="width:auto;padding:8px" /></div>` +
     (sal ? `<div class="card">
@@ -243,9 +244,15 @@ PAGES.mysalary = async (c) => {
       ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
       <div class="divider"></div>
       <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
-    </div>` : empty('No salary info yet', '💵'));
+    </div>` : empty('No salary info yet', '💵')) +
+    `<div class="sec-title">Salary sent to me</div>
+     <div class="card">${pays.length ? pays.map((p) => `<div class="item">
+        ${p.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/></div>` : '<div class="av">💵</div>'}
+        <div class="main"><div class="nm">${money(p.amount)} · ${esc(p.month || '')}</div><div class="sub">${p.note ? esc(p.note) + ' · ' : ''}${dt(p.created_at)}</div></div>
+        ${p.status === 'confirmed' ? '<span class="badge ok">Confirmed ✓</span>' : `<button class="btn sm" onclick="confirmSalary(${p.id})">Confirm received</button>`}</div>`).join('') : empty('No salary sent yet', '💵')}</div>`;
 };
 window.setMySalMonth = (m) => { window._mySalMonth = m; go('mysalary'); };
+window.confirmSalary = async (id) => { await PUT('/api/salary-payments/' + id + '/confirm', {}); toast('Confirmed ✓'); go('mysalary'); };
 
 /* ============ STAFF SELF-SERVICE: report absence / request advance ============ */
 PAGES.myrequests = async (c) => {
