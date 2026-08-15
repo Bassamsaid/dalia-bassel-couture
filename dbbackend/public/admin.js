@@ -1,6 +1,13 @@
 'use strict';
 /* Dalia Bassel Couture — ADMIN pages */
 
+/* Dress measurement fields (key -> Arabic label) */
+const MEASURE_FIELDS = [
+  ['chest', 'د. صدر'], ['dart', 'ط. بنسة'], ['empire', 'ط. إمبير'], ['front_len', 'ط. أمام'],
+  ['waist', 'وسط'], ['shoulder', 'ع. الكتف'], ['back_w', 'ع. الضهر'], ['back_len', 'ط. الخلف'],
+  ['sleeve', 'كم'], ['wrist', 'معصم'], ['arm', 'د. دراع'], ['hip', 'هانش'], ['skirt_len', 'ط. اسكيرت'],
+];
+
 /* Egypt governorates (for student registration) */
 const EG_GOV = ['Cairo', 'Giza', 'Alexandria', 'Qalyubia', 'Dakahlia', 'Sharqia', 'Gharbia', 'Monufia', 'Beheira', 'Kafr El Sheikh', 'Damietta', 'Port Said', 'Ismailia', 'Suez', 'Faiyum', 'Beni Suef', 'Minya', 'Asyut', 'Sohag', 'Qena', 'Luxor', 'Aswan', 'Red Sea', 'New Valley', 'Matrouh', 'North Sinai', 'South Sinai'];
 
@@ -734,6 +741,8 @@ window.openDress = (id) => {
     <label>Phone</label><input id="dPhone_${id}" value="${esc(d.phone || '')}" />
     <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}" />
     <label>Notes</label><textarea id="dNote_${id}">${esc(d.note || '')}</textarea>
+    ${state.user.role === 'admin' ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label><input id="dPrice_${id}" type="number" value="${d.price || 0}" />` : ''}
+    <button class="btn sec" style="margin-top:10px" onclick="openMeasurements(${id})">📐 Measurements</button>
     <div class="sec-title">Status</div>
     <select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <div class="sec-title">Assigned staff</div>
@@ -759,13 +768,70 @@ window.openDress = (id) => {
 window.saveDressDetails = async (id) => {
   const name = document.getElementById('dName_' + id).value.trim();
   if (!name) return toast('Client name is required');
-  await PUT('/api/dresses/' + id, {
+  const body = {
     customer_name: name,
     phone: document.getElementById('dPhone_' + id).value,
     delivery_date: document.getElementById('dDate_' + id).value,
     note: document.getElementById('dNote_' + id).value,
-  });
-  toast('Changes saved'); window._dresses = await GET('/api/dresses'); refreshDress(id);
+  };
+  const priceEl = document.getElementById('dPrice_' + id);
+  if (priceEl) body.price = Number(priceEl.value) || 0;
+  await PUT('/api/dresses/' + id, body);
+  toast('Changes saved'); closeModal(); window._dresses = await GET('/api/dresses'); go('dresses');
+};
+
+/* ---- Dress measurements editor + printable PDF sheet ---- */
+window.openMeasurements = (id) => {
+  const d = window._dresses.find((x) => x.id === id) || {};
+  let m = {}; try { m = JSON.parse(d.measurements || '{}'); } catch (e) {}
+  window._measImg = d.measure_image || null;
+  modal(`<h3>Measurements — ${esc(d.customer_name || '')}</h3>
+    <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" step="0.5" value="${m[k] != null ? m[k] : ''}" /></div>`).join('')}
+      <div><label>Fit</label><select id="ms_fit"><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
+    </div>
+    <label>Note</label><textarea id="ms_note">${esc(d.measure_note || '')}</textarea>
+    <div class="row" style="margin-top:8px"><button class="btn ghost sm" onclick="pickMeasImg()">📷 Reference photo</button><span class="hint" id="msImgLbl">${d.measure_image ? 'Selected ✓' : 'None'}</span></div>
+    <div class="row" style="margin-top:14px"><button class="btn" onclick="saveMeasurements(${id})">Save</button>
+      <button class="btn sec" onclick="printMeasurements(${id})">🖨 PDF</button></div>`);
+};
+window.pickMeasImg = () => pickImage((b64) => { window._measImg = b64; const el = document.getElementById('msImgLbl'); if (el) el.textContent = 'Selected ✓'; });
+window.saveMeasurements = async (id) => {
+  const m = {}; MEASURE_FIELDS.forEach(([k]) => { const v = document.getElementById('ms_' + k).value; if (v !== '') m[k] = Number(v); });
+  m.fit = document.getElementById('ms_fit').value;
+  await PUT('/api/dresses/' + id, { measurements: m, measure_note: document.getElementById('ms_note').value, measure_image: window._measImg });
+  toast('Measurements saved'); window._dresses = await GET('/api/dresses'); closeModal();
+};
+window.printMeasurements = (id) => {
+  const d = window._dresses.find((x) => x.id === id) || {};
+  const vals = {}; MEASURE_FIELDS.forEach(([k]) => { const el = document.getElementById('ms_' + k); vals[k] = el ? el.value : ''; });
+  const fit = (document.getElementById('ms_fit') || {}).value || '';
+  const note = (document.getElementById('ms_note') || {}).value || '';
+  const img = window._measImg;
+  const rows = MEASURE_FIELDS.map(([k, l]) => `<tr><td>${l}</td><td>${vals[k] || '—'}</td></tr>`).join('');
+  const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>Measurements — ${esc(d.customer_name || '')}</title>
+  <style>
+    body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#14101a;padding:32px;max-width:760px;margin:auto}
+    .head{text-align:center;border-bottom:3px solid #7c3aed;padding-bottom:14px;margin-bottom:18px}
+    .brand{font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:3px;color:#7c3aed}
+    .sub{color:#777;font-size:11px;letter-spacing:4px;text-transform:uppercase;margin-top:4px}
+    .meta{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between;margin:0 4px 16px;font-size:14px}
+    table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden}
+    td{border:1px solid #e9e2f7;padding:10px 14px;font-size:15px}
+    td:first-child{background:#f6f2fe;font-weight:700;width:60%;color:#4a2f8f}
+    .note{margin-top:16px;background:#faf7ff;border:1px solid #e9e2f7;border-radius:10px;padding:12px;font-size:14px}
+    .ref{margin-top:18px;text-align:center}.ref img{max-width:320px;border-radius:12px;border:1px solid #e9e2f7}
+    @media print{body{padding:6px}}
+  </style></head><body>
+    <div class="head"><div class="brand">DALIA BASSEL</div><div class="sub">Haute Couture · Measurements Sheet</div></div>
+    <div class="meta"><div><b>Client:</b> ${esc(d.customer_name || '—')}</div><div><b>Delivery:</b> ${d.delivery_date ? dt(d.delivery_date) : '—'}</div><div><b>Fit:</b> ${esc(fit || '—')}</div></div>
+    <table>${rows}</table>
+    ${note ? `<div class="note"><b>Note:</b> ${esc(note)}</div>` : ''}
+    ${img ? `<div class="ref"><div style="font-weight:700;margin-bottom:6px">Reference</div><img src="${img.startsWith('data:') ? img : '/uploads/' + img}"></div>` : ''}
+    <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print()},400)}</scr` + `ipt>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return toast('Allow pop-ups to print');
+  w.document.write(html); w.document.close();
 };
 window.delDressImg = async (imgId, dressId) => { await DEL('/api/dress-images/' + imgId); toast('Photo deleted'); refreshDress(dressId); };
 /* pointer-based drag-reorder for dress photos (works on touch + mouse); first photo = cover */

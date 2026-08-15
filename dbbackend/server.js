@@ -514,6 +514,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
   list.forEach((d) => {
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
     d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY position, id').all(d.id);
+    if (user.role !== 'admin') delete d.price; // price is admin-only
   });
   send(res, 200, list);
 };
@@ -521,16 +522,20 @@ api['POST /api/dresses'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const cover = maybeImage(b.cover_image);
-  const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image,assigned_to) VALUES (?,?,?,?,?,?,?,?)').run(
-    b.customer_name, b.customer_user_id || null, b.phone || null, b.delivery_date || null, b.status || 'open', b.note || null, cover, b.assigned_to || null);
+  const price = user.role === 'admin' ? (b.price || 0) : 0; // only admin sets price
+  const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image,assigned_to,price) VALUES (?,?,?,?,?,?,?,?,?)').run(
+    b.customer_name, b.customer_user_id || null, b.phone || null, b.delivery_date || null, b.status || 'open', b.note || null, cover, b.assigned_to || null, price);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req); const c = db.prepare('SELECT * FROM dresses WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
-  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=? WHERE id=?').run(
-    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, params.id);
+  const price = (user.role === 'admin' && b.price != null) ? b.price : c.price; // only admin edits price
+  const measImg = (b.measure_image && b.measure_image.startsWith('data:')) ? maybeImage(b.measure_image) : (b.measure_image ?? c.measure_image);
+  const meas = b.measurements != null ? (typeof b.measurements === 'string' ? b.measurements : JSON.stringify(b.measurements)) : c.measurements;
+  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=? WHERE id=?').run(
+    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, params.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
