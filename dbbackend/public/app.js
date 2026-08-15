@@ -212,8 +212,7 @@ function renderAuth(mode) {
       <button class="btn" style="margin-top:18px" type="submit">${isReg ? 'Create account' : 'Sign in'}</button>
     </form>
     <p class="hint" style="margin-top:16px">${isReg ? 'Already have an account? ' : "Don't have an account? "}
-      <a href="#" onclick="renderAuth('${isReg ? '' : 'register'}');return false" style="font-weight:700">${isReg ? 'Sign in' : 'Create one'}</a></p>
-    ${isReg ? '' : '<p class="hint"><a href="#" onclick="renderAuth(\'otp\');return false" style="font-weight:700">Student? Sign in with an email code →</a></p>'}`;
+      <a href="#" onclick="renderAuth('${isReg ? '' : 'register'}');return false" style="font-weight:700">${isReg ? 'Sign in' : 'Create one'}</a></p>`;
   }
   document.body.innerHTML = `<div class="auth-wrap"><div class="auth-card">${brand}${inner}</div></div>`;
   const form = $('#authForm');

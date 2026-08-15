@@ -225,12 +225,14 @@ window.editStudent = async (id) => {
     { name: 'name', label: 'Name', required: true, value: u.name },
     { name: 'phone', label: 'Phone', value: u.phone },
     { name: 'governorate', label: 'Governorate', type: 'select', value: u.governorate, options: [{ value: '', label: '—' }, ...EG_GOV.map((g) => ({ value: g, label: g }))] },
-    { name: 'email', label: 'Email (for login code)', type: 'email', value: u.email },
+    { name: 'email', label: 'Email (for login)', type: 'email', value: u.email },
+    { name: 'password', label: id ? 'Reset password (optional)' : 'Login password', type: 'password', placeholder: id ? 'leave blank to keep current' : "or leave blank if she'll register herself" },
     { name: 'round_id', label: 'Round', type: 'select', value: u.round_id, options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'group_id', label: 'Group', type: 'select', value: u.group_id, options: [{ value: '', label: '—' }, ...groups.map((g) => ({ value: g.id, label: g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '') }))] },
     { name: 'total_fee', label: 'Course fee (EGP)', type: 'number', value: fee },
   ], async (d) => {
     d.role = 'trainee';
+    if (!d.password) delete d.password; // don't overwrite with a blank password on edit
     if (id) await PUT('/api/users/' + id, d); else await POST('/api/users', d);
     toast('Saved'); go(state.page);
   });
