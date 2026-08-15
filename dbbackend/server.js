@@ -106,6 +106,34 @@ function maybeImage(val) {
   if (typeof val === 'string' && val.startsWith('data:')) return saveImage(val);
   return val || null;
 }
+
+// ---- notifications ----
+// Drop a notification for one recipient. o = {type,title,body,link_page,link_id,image,actor_name}
+function notify(userId, o = {}) {
+  if (!userId) return;
+  try {
+    db.prepare('INSERT INTO notifications (user_id,type,title,body,link_page,link_id,image,actor_name) VALUES (?,?,?,?,?,?,?,?)')
+      .run(Number(userId), o.type || null, o.title || null, o.body || null, o.link_page || null, o.link_id || null, o.image || null, o.actor_name || null);
+  } catch (e) { /* never let a notification failure break the main action */ }
+}
+// Notify every active user in the given role(s), skipping the actor.
+function notifyRoles(roles, o = {}, exceptId) {
+  const rs = Array.isArray(roles) ? roles : [roles];
+  if (!rs.length) return;
+  const ph = rs.map(() => '?').join(',');
+  try {
+    db.prepare(`SELECT id FROM users WHERE active=1 AND role IN (${ph})`).all(...rs)
+      .forEach((u) => { if (u.id !== exceptId) notify(u.id, o); });
+  } catch (e) {}
+}
+// Notify every active user (used for new Feed/Highlight drops), skipping the actor.
+function notifyAll(o = {}, exceptId) {
+  try {
+    db.prepare('SELECT id FROM users WHERE active=1').all()
+      .forEach((u) => { if (u.id !== exceptId) notify(u.id, o); });
+  } catch (e) {}
+}
+function money0(n) { return (Number(n) || 0).toLocaleString('en-US') + ' EGP'; }
 // ---- time / weekday helpers (payroll) ----
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 function hm2min(s) { if (!s) return 0; const p = String(s).split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); }
@@ -222,6 +250,8 @@ api['POST /api/users'] = async (req, res, user) => {
     if (b.role !== 'staff' && (b.total_fee != null || b.round_id)) {
       db.prepare('INSERT INTO enrollments (user_id,round_id,total_fee) VALUES (?,?,?)').run(uid, b.round_id || null, b.total_fee || 0);
     }
+    const roleWord = { trainee: 'طالبة', customer: 'عميلة', staff: 'موظفة', manager: 'مانجر' }[b.role || 'trainee'] || 'عضو';
+    notifyRoles('admin', { type: 'user', title: `${roleWord} جديدة: ${b.name}`, body: `${user.name} ضافت ${roleWord} جديدة`, link_page: b.role === 'trainee' ? 'students' : 'members', actor_name: user.name }, user.id);
     send(res, 200, { id: uid });
   } catch (e) { send(res, 400, { error: e.message.includes('UNIQUE') ? 'الإيميل مستخدم بالفعل' : e.message }); }
 };
@@ -287,6 +317,9 @@ api['POST /api/payments'] = async (req, res, user) => {
   const method = b.method === 'cash' ? 'cash' : 'transfer';
   const r = db.prepare('INSERT INTO payments (user_id,amount,kind,method,image,note,paid_at) VALUES (?,?,?,?,?,?,COALESCE(?,datetime(\'now\')))').run(
     b.user_id, b.amount || 0, b.kind || 'installment', method, img, b.note || null, b.paid_at || null);
+  const payer = db.prepare('SELECT name FROM users WHERE id=?').get(b.user_id);
+  notifyRoles('admin', { type: 'payment', title: `دفعة جديدة: ${money0(b.amount)}`, body: `${user.name} سجّلت دفعة لـ ${payer ? payer.name : ''}`, link_page: 'finance', actor_name: user.name }, user.id);
+  notify(b.user_id, { type: 'payment', title: `اتسجّلت دفعة ${money0(b.amount)} 💳`, body: 'شكراً! تقدري تشوفي حسابك', link_page: 'mypay', actor_name: user.name });
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/payments/:id'] = async (req, res, user, url, params) => {
@@ -333,6 +366,7 @@ api['POST /api/rounds'] = async (req, res, user) => {
   const b = await readBody(req);
   const kind = b.kind === 'online' ? 'online' : 'onsite';
   const r = db.prepare('INSERT INTO rounds (number,name,description,start_date,active,kind) VALUES (?,?,?,?,?,?)').run(b.number || null, b.name, b.description || null, b.start_date || null, b.active ?? 1, kind);
+  notifyRoles('admin', { type: 'course', title: `راوند جديد: ${b.name || ''}`, body: `${user.name} ضافت راوند جديد`, link_page: 'rounds', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/rounds/:id'] = async (req, res, user, url, params) => {
@@ -363,6 +397,7 @@ api['POST /api/videos'] = async (req, res, user) => {
   const file = b.file && b.file.startsWith('data:') ? saveImage(b.file, '.mp4') : null;
   const kind = b.kind === 'onsite' ? 'onsite' : 'online';
   const r = db.prepare('INSERT INTO videos (round_id,title,description,url,file,kind) VALUES (?,?,?,?,?,?)').run(b.round_id || null, b.title, b.description || null, b.url || null, file, kind);
+  notifyRoles('admin', { type: 'course', title: `درس/فيديو جديد: ${b.title || ''}`, body: `${user.name} ضافت محتوى جديد للكورس`, link_page: 'courses', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/videos/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM videos WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
@@ -504,6 +539,7 @@ api['POST /api/dalia'] = async (req, res, user) => {
   const b = await readBody(req);
   const img = maybeImage(b.image);
   const r = db.prepare('INSERT INTO dalia_posts (title,subtitle,body,image,table_data,template) VALUES (?,?,?,?,?,?)').run(b.title || null, b.subtitle || null, b.body || null, img, b.table_data ? JSON.stringify(b.table_data) : null, b.template || 'below');
+  notifyAll({ type: 'feed', title: '✦ منشور جديد من داليا باسل', body: b.title || b.subtitle || 'شوفي آخر التحديثات', link_page: 'dalia', link_id: r.lastInsertRowid, image: img, actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/dalia/:id'] = async (req, res, user, url, params) => {
@@ -526,6 +562,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
   list.forEach((d) => {
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
     d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY position, id').all(d.id);
+    d.unread = db.prepare("SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0 AND link_page='dress' AND link_id=?").get(user.id, d.id).c;
     if (user.role === 'admin') {
       d.material_cost = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM purchase_lines WHERE dress_id=?').get(d.id).s;
       d.profit = (d.price || 0) - d.material_cost;
@@ -540,7 +577,11 @@ api['POST /api/dresses'] = async (req, res, user) => {
   const price = user.role === 'admin' ? (b.price || 0) : 0; // only admin sets price
   const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image,assigned_to,price) VALUES (?,?,?,?,?,?,?,?,?)').run(
     b.customer_name, b.customer_user_id || null, b.phone || null, b.delivery_date || null, b.status || 'open', b.note || null, cover, b.assigned_to || null, price);
-  send(res, 200, { id: r.lastInsertRowid });
+  const did = r.lastInsertRowid;
+  notifyRoles('admin', { type: 'dress', title: `فستان جديد: ${b.customer_name}`, body: `${user.name} ضافت حجز فستان جديد`, link_page: 'dress', link_id: did, actor_name: user.name }, user.id);
+  if (b.assigned_to) notify(b.assigned_to, { type: 'assign', title: `اتساب لك فستان: ${b.customer_name}`, body: `${user.name} عيّنتك على فستان جديد`, link_page: 'dress', link_id: did, actor_name: user.name });
+  if (b.customer_user_id) notify(b.customer_user_id, { type: 'dress', title: 'اتسجّل لك فستان جديد 👗', body: 'تقدري تتابعي التحديثات من هنا', link_page: 'dress', link_id: did, actor_name: user.name });
+  send(res, 200, { id: did });
 };
 api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
@@ -551,6 +592,21 @@ api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   const meas = b.measurements != null ? (typeof b.measurements === 'string' ? b.measurements : JSON.stringify(b.measurements)) : c.measurements;
   db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=? WHERE id=?').run(
     b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, params.id);
+  // --- notifications on status / assignment changes ---
+  const did = Number(params.id);
+  const stLabel = { open: 'جديد', in_progress: 'قيد التنفيذ', delivered: 'تم التسليم' };
+  const statusChanged = b.status != null && b.status !== c.status;
+  const assignChanged = b.assigned_to != null && String(b.assigned_to || '') !== String(c.assigned_to || '');
+  if (statusChanged) {
+    const st = stLabel[b.status] || b.status;
+    if (c.assigned_to) notify(c.assigned_to, { type: 'dress', title: `فستان ${c.customer_name}: ${st}`, body: `${user.name} غيّرت حالة الفستان`, link_page: 'dress', link_id: did, actor_name: user.name });
+    if (c.customer_user_id) notify(c.customer_user_id, { type: 'dress', title: `فستانك دلوقتي: ${st}`, body: 'اتغيّرت حالة فستانك', link_page: 'dress', link_id: did, actor_name: user.name });
+    if (user.role === 'manager') notifyRoles('admin', { type: 'dress', title: `${user.name} غيّرت حالة فستان ${c.customer_name} لـ ${st}`, link_page: 'dress', link_id: did, actor_name: user.name }, user.id);
+  }
+  if (assignChanged && b.assigned_to) {
+    notify(b.assigned_to, { type: 'assign', title: `اتساب لك فستان: ${c.customer_name}`, body: `${user.name} عيّنتك على الفستان ده`, link_page: 'dress', link_id: did, actor_name: user.name });
+    if (user.role === 'manager') notifyRoles('admin', { type: 'assign', title: `${user.name} سابت فستان ${c.customer_name} لموظفة`, link_page: 'dress', link_id: did, actor_name: user.name }, user.id);
+  }
   send(res, 200, { ok: true });
 };
 api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
@@ -658,12 +714,15 @@ api['POST /api/leaves'] = async (req, res, user) => {
   const b = await readBody(req);
   const uid = user.role === 'admin' ? b.user_id : user.id;
   const r = db.prepare('INSERT INTO leaves (user_id,from_date,to_date,type,reason,status) VALUES (?,?,?,?,?,?)').run(uid, b.from_date, b.to_date, b.type || 'annual', b.reason || null, user.role === 'admin' ? (b.status || 'approved') : 'pending');
+  if (user.role !== 'admin') notifyRoles('admin', { type: 'leave', title: `طلب إجازة من ${user.name}`, body: `${b.from_date} → ${b.to_date}`, link_page: 'staff', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/leaves/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
+  const lv = db.prepare('SELECT * FROM leaves WHERE id=?').get(params.id);
   db.prepare('UPDATE leaves SET status=? WHERE id=?').run(b.status, params.id);
+  if (lv) notify(lv.user_id, { type: 'leave', title: `طلب الإجازة ${b.status === 'approved' ? 'اتقبل ✅' : 'اترفض ❌'}`, body: `${lv.from_date} → ${lv.to_date}`, link_page: 'myrequests', actor_name: user.name });
   send(res, 200, { ok: true });
 };
 
@@ -725,11 +784,14 @@ api['POST /api/absences'] = async (req, res, user) => {
   if (!uid || !b.date) return send(res, 400, { error: 'date required' });
   const status = user.role === 'admin' ? 'confirmed' : 'pending';
   const r = db.prepare('INSERT INTO absences (user_id,date,reason,status) VALUES (?,?,?,?)').run(uid, b.date, b.reason || null, status);
+  if (user.role !== 'admin') notifyRoles('admin', { type: 'absence', title: `${user.name} سجّلت غياب`, body: `${b.date}${b.reason ? ' · ' + b.reason : ''}`, link_page: 'staff', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/absences/:id/confirm'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
+  const ab = db.prepare('SELECT * FROM absences WHERE id=?').get(params.id);
   db.prepare("UPDATE absences SET status='confirmed' WHERE id=?").run(params.id);
+  if (ab) notify(ab.user_id, { type: 'absence', title: 'اتأكد الغياب', body: `${ab.date}`, link_page: 'myrequests', actor_name: user.name });
   send(res, 200, { ok: true });
 };
 api['DELETE /api/absences/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM absences WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
@@ -748,6 +810,7 @@ api['POST /api/adjustments'] = async (req, res, user) => {
   if (!b.user_id || !b.amount) return send(res, 400, { error: 'staff and amount required' });
   const type = b.type === 'deduction' ? 'deduction' : 'bonus';
   const r = db.prepare('INSERT INTO salary_adjustments (user_id,month,amount,type,note) VALUES (?,?,?,?,?)').run(b.user_id, b.month || null, b.amount, type, b.note || null);
+  notify(b.user_id, { type: 'salary', title: type === 'bonus' ? `مكافأة ${money0(b.amount)} 🎉` : `خصم ${money0(b.amount)}`, body: b.note || '', link_page: 'mysalary', actor_name: user.name });
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/adjustments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM salary_adjustments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
@@ -768,12 +831,16 @@ api['POST /api/advances'] = async (req, res, user) => {
   const status = user.role === 'admin' ? (b.status || 'approved') : 'pending';
   const month = user.role === 'admin' ? (b.month || null) : new Date().toISOString().slice(0, 7);
   const r = db.prepare('INSERT INTO advances (user_id,amount,month,note,status) VALUES (?,?,?,?,?)').run(uid, b.amount, month, b.note || null, status);
+  if (user.role !== 'admin') notifyRoles('admin', { type: 'advance', title: `طلب سلفة من ${user.name}`, body: money0(b.amount), link_page: 'staff', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/advances/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
-  db.prepare('UPDATE advances SET status=? WHERE id=?').run(b.status === 'approved' ? 'approved' : 'rejected', params.id);
+  const adv = db.prepare('SELECT * FROM advances WHERE id=?').get(params.id);
+  const st = b.status === 'approved' ? 'approved' : 'rejected';
+  db.prepare('UPDATE advances SET status=? WHERE id=?').run(st, params.id);
+  if (adv) notify(adv.user_id, { type: 'advance', title: `طلب السلفة ${st === 'approved' ? 'اتقبل ✅' : 'اترفض ❌'}`, body: money0(adv.amount), link_page: 'myrequests', actor_name: user.name });
   send(res, 200, { ok: true });
 };
 api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM advances WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
@@ -875,6 +942,7 @@ api['POST /api/salary-payments'] = async (req, res, user) => {
   if (!b.user_id) return send(res, 400, { error: 'staff required' });
   const img = maybeImage(b.image);
   const r = db.prepare('INSERT INTO salary_payments (user_id,month,amount,image,note) VALUES (?,?,?,?,?)').run(b.user_id, b.month || null, b.amount || 0, img, b.note || null);
+  notify(b.user_id, { type: 'salary', title: `وصلك راتب ${money0(b.amount)} 💵`, body: 'ادخلي شاشة الراتب واقبلي الاستلام', link_page: 'mysalary', actor_name: user.name });
   send(res, 200, { id: r.lastInsertRowid });
 };
 // staff (owner) confirms receipt; admin may also confirm
@@ -884,6 +952,7 @@ api['PUT /api/salary-payments/:id/confirm'] = async (req, res, user, url, params
   if (!p) return send(res, 404, { error: 'not found' });
   if (user.role !== 'admin' && p.user_id !== user.id) return send(res, 403, { error: 'forbidden' });
   db.prepare("UPDATE salary_payments SET status='confirmed', confirmed_at=datetime('now') WHERE id=?").run(params.id);
+  if (user.role !== 'admin') notifyRoles('admin', { type: 'salary', title: `${user.name} أكّدت استلام الراتب ✅`, body: money0(p.amount), link_page: 'staff', actor_name: user.name }, user.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM salary_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
@@ -922,6 +991,64 @@ api['POST /api/expenses'] = async (req, res, user) => {
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM expenses WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
+// ================= NOTIFICATIONS =================
+api['GET /api/notifications'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const items = db.prepare('SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 80').all(user.id);
+  const unread = db.prepare('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0').get(user.id).c;
+  send(res, 200, { items, unread });
+};
+// lightweight badge poll
+api['GET /api/notifications/count'] = async (req, res, user) => {
+  if (!user) return send(res, 200, { unread: 0 });
+  send(res, 200, { unread: db.prepare('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0').get(user.id).c });
+};
+api['POST /api/notifications/read-all'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  db.prepare('UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0').run(user.id);
+  send(res, 200, { ok: true });
+};
+api['POST /api/notifications/:id/read'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  db.prepare('UPDATE notifications SET is_read=1 WHERE id=? AND user_id=?').run(params.id, user.id);
+  send(res, 200, { ok: true });
+};
+
+// ================= DRESS UPDATE THREAD (two-way notes/photos) =================
+function dressAccessible(user, d) {
+  if (!d) return false;
+  if (['admin', 'manager', 'staff'].includes(user.role)) return true;
+  return d.customer_user_id === user.id; // clients: only their own dress
+}
+api['GET /api/dresses/:id/updates'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  const d = db.prepare('SELECT * FROM dresses WHERE id=?').get(params.id);
+  if (!dressAccessible(user, d)) return send(res, 403, { error: 'forbidden' });
+  // opening the thread clears the red dot for this viewer
+  db.prepare("UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0 AND link_page='dress' AND link_id=?").run(user.id, Number(params.id));
+  send(res, 200, db.prepare('SELECT * FROM dress_updates WHERE dress_id=? ORDER BY id').all(params.id));
+};
+api['POST /api/dresses/:id/updates'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  const d = db.prepare('SELECT * FROM dresses WHERE id=?').get(params.id);
+  if (!dressAccessible(user, d)) return send(res, 403, { error: 'forbidden' });
+  const b = await readBody(req);
+  const img = maybeImage(b.image);
+  if (!b.body && !img) return send(res, 400, { error: 'اكتبي ملاحظة أو أضيفي صورة' });
+  const r = db.prepare('INSERT INTO dress_updates (dress_id,author_id,author_name,author_role,body,image) VALUES (?,?,?,?,?,?)')
+    .run(params.id, user.id, user.name, user.role, b.body || null, img);
+  const preview = (b.body || '📷 صورة جديدة').slice(0, 90);
+  if (user.role === 'customer') {
+    // client -> studio: red dot on the dress for every admin/manager
+    notifyRoles(['admin', 'manager'], { type: 'dress', title: `العميلة ${d.customer_name} بعتت ملاحظة`, body: preview, link_page: 'dress', link_id: Number(params.id), actor_name: user.name }, user.id);
+  } else {
+    // studio (admin/manager/staff) -> client, and keep admins in the loop for manager/staff posts
+    notify(d.customer_user_id, { type: 'dress', title: `تحديث على فستان ${d.customer_name}`, body: preview, link_page: 'dress', link_id: Number(params.id), image: img, actor_name: user.name });
+    if (user.role !== 'admin') notifyRoles('admin', { type: 'dress', title: `${user.name} حدّثت فستان ${d.customer_name}`, body: preview, link_page: 'dress', link_id: Number(params.id), actor_name: user.name }, user.id);
+  }
+  send(res, 200, { id: r.lastInsertRowid });
+};
 
 // ---------- router ----------
 const routes = Object.keys(api).map((key) => {

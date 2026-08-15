@@ -291,11 +291,21 @@ PAGES.mydresses = async (c, opts = {}) => {
   const list = mine ? dresses.filter((d) => d.assigned_to === state.user.id) : dresses;
   const chips = isStaff ? `<div class="filters"><span class="chip ${!mine ? 'active' : ''}" onclick="myDressTab(0)">All dresses</span><span class="chip ${mine ? 'active' : ''}" onclick="myDressTab(1)">Assigned to me</span></div>` : '';
   c.innerHTML = title(opts.title || 'My Dresses', '') + chips +
-    (list.length ? list.map((d) => `<div class="card">
+    (list.length ? list.map((d) => `<div class="card" id="dress_${d.id}" style="position:relative">
+      ${d.unread ? `<span class="notif-dot">${d.unread}</span>` : ''}
       <div class="nm serif" style="font-size:18px">${esc(d.customer_name)} <span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span></div>
       <div class="sub muted">Delivery: ${dt(d.delivery_date)}${isStaff ? ' · ' + (d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned') : ''}</div>
       ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
       ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
+      <div class="sec-title">التحديثات 💬</div>
+      <div id="dupd_${d.id}"><div class="hint">بيحمّل…</div></div>
+      <button class="btn sec sm" style="margin-top:8px" onclick="sendDressNote(${d.id})">📝 ابعتي ملاحظة على الفستان</button>
     </div>`).join('') : empty(mine ? 'No dresses assigned to you' : 'No bookings yet', '👗'));
+  list.forEach((d) => loadDressUpdates(d.id));
+  if (window._openDressAfter) { const oid = window._openDressAfter; window._openDressAfter = null; setTimeout(() => { const el = document.getElementById('dress_' + oid); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80); }
 };
 window.myDressTab = (v) => { window._myDressMine = v; go(state.page); };
+window.sendDressNote = (id) => formModal('ملاحظة على الفستان', [
+  { name: 'body', label: 'الملاحظة', type: 'textarea' },
+  { name: 'image', label: 'صورة (اختياري)', type: 'image' },
+], async (d) => { await POST('/api/dresses/' + id + '/updates', d); toast('اتبعت ✅'); closeModal(); go(state.page); });

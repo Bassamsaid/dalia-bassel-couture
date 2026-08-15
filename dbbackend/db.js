@@ -319,6 +319,35 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Notifications: one row per recipient. link_page/link_id tell the app where to jump on tap.
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  type TEXT,
+  title TEXT,
+  body TEXT,
+  link_page TEXT,
+  link_id INTEGER,
+  image TEXT,
+  actor_name TEXT,
+  is_read INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(user_id, is_read);
+
+-- Dress update thread: two-way notes/photos between the studio (admin/manager) and the client
+CREATE TABLE IF NOT EXISTS dress_updates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dress_id INTEGER NOT NULL,
+  author_id INTEGER,
+  author_name TEXT,
+  author_role TEXT,
+  body TEXT,
+  image TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dressupd ON dress_updates(dress_id);
+
 -- Dress material purchases: a shop invoice (with photo) whose line items are each linked to a dress
 CREATE TABLE IF NOT EXISTS purchase_invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

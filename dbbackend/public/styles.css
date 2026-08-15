@@ -222,8 +222,27 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
   letter-spacing:.5px;box-shadow:var(--shadow-sm)}
 
 /* ===== Side drawer ===== */
-.profile-btn{margin-inline-start:auto;display:flex;align-items:center;gap:8px;background:none;border:none;
+.profile-btn{margin-inline-start:6px;display:flex;align-items:center;gap:8px;background:none;border:none;
   cursor:pointer;padding:4px;font:inherit}
+/* ===== Notifications ===== */
+.bell-btn{position:relative;margin-inline-start:auto;flex:0 0 auto;width:38px;height:38px;border:none;background:var(--soft);
+  color:var(--purple-d);border-radius:50%;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;
+  justify-content:center;transition:transform .15s}
+.bell-btn:active{transform:scale(.88)}
+.bell-badge{position:absolute;top:-3px;inset-inline-end:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;
+  background:var(--bad);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fff}
+.notif-dot{position:absolute;top:8px;inset-inline-end:8px;z-index:2;min-width:20px;height:20px;padding:0 5px;border-radius:10px;
+  background:var(--bad);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(210,75,98,.5);border:2px solid #fff}
+.item.notif{padding-inline:12px;border-radius:10px;cursor:pointer}
+.item.notif-unread{background:var(--soft)}
+.item.notif-unread .main .nm::after{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--bad);margin-inline-start:6px;vertical-align:middle}
+.upd{padding:8px 11px;border-radius:12px;margin:6px 0;max-width:90%;font-size:13px}
+.upd-studio{background:var(--soft);margin-inline-end:auto;border-bottom-inline-start-radius:3px}
+.upd-client{background:#eaf6ee;margin-inline-start:auto;border-bottom-inline-end-radius:3px}
+.upd-h{font-size:11px;font-weight:700;color:var(--muted);margin-bottom:2px}
+.upd-b{color:var(--ink);white-space:pre-wrap;line-height:1.45}
 .profile-btn .who{text-align:end;font-size:12px;color:var(--muted);line-height:1.35}
 .profile-btn .pav{width:34px;height:34px;border-radius:50%;background:var(--grad);color:#fff;display:flex;
   align-items:center;justify-content:center;font-weight:700;font-size:13px;font-family:var(--serif)}

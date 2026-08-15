@@ -335,6 +335,7 @@ function renderApp() {
         <button class="back-btn" id="backBtn" onclick="goBack()" aria-label="Back" style="display:none">‹</button>
         <div class="logo" onclick="openDrawer()" style="cursor:pointer">DB</div>
         <h1>Dalia Bassel</h1>
+        <button class="bell-btn" onclick="go('notifications')" aria-label="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span></button>
         <button class="profile-btn" onclick="openDrawer()">
           <span class="who">${esc(u.name)}<br><span class="muted">${roleLabel(u.role)}</span></span>
           <span class="pav">${esc(initials(u.name))}</span>
@@ -361,6 +362,7 @@ function renderApp() {
     }
   } catch (e) {}
   go(start);
+  startNotifPoll();
 }
 function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'Student', staff: 'Staff', customer: 'Client' }[r] || r; }
 function openDrawer() {
@@ -432,4 +434,59 @@ function title(t, icon) { return `<div class="page-title">${icon || ''} ${esc(t)
 function empty(msg, em = '—') { return `<div class="empty"><div class="em">${em}</div>${esc(msg)}</div>`; }
 
 const PAGES = {};
+
+/* ---------- notifications ---------- */
+function timeago(s) {
+  if (!s) return '';
+  const t = new Date(String(s).replace(' ', 'T') + 'Z').getTime();
+  if (isNaN(t)) return String(s).slice(0, 10);
+  const m = Math.floor((Date.now() - t) / 60000);
+  if (m < 1) return 'دلوقتي';
+  if (m < 60) return `من ${m} دقيقة`;
+  const h = Math.floor(m / 60); if (h < 24) return `من ${h} ساعة`;
+  const d = Math.floor(h / 24); if (d < 30) return `من ${d} يوم`;
+  return String(s).slice(0, 10);
+}
+const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬' };
+async function refreshNotifBadge() {
+  try {
+    const { unread } = await GET('/api/notifications/count');
+    const b = document.getElementById('bellBadge');
+    if (b) { if (unread > 0) { b.textContent = unread > 99 ? '99+' : unread; b.style.display = ''; } else { b.style.display = 'none'; } }
+  } catch (e) {}
+}
+window.refreshNotifBadge = refreshNotifBadge;
+let _notifTimer = null;
+function startNotifPoll() {
+  refreshNotifBadge();
+  clearInterval(_notifTimer);
+  _notifTimer = setInterval(() => { if (document.visibilityState !== 'hidden') refreshNotifBadge(); }, 30000);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshNotifBadge(); });
+
+PAGES.notifications = async (c) => {
+  const { items, unread } = await GET('/api/notifications');
+  if (unread > 0) { try { await POST('/api/notifications/read-all'); } catch (e) {} refreshNotifBadge(); }
+  c.innerHTML = title('Notifications', '🔔') +
+    (items.length
+      ? `<div class="card" style="margin-top:6px;padding:4px 0">${items.map((n) => `
+        <div class="item notif ${n.is_read ? '' : 'notif-unread'}" onclick="openNotif('${n.link_page || ''}',${n.link_id || 'null'})">
+          <div class="av">${NOTIF_ICON[n.type] || '🔔'}</div>
+          <div class="main"><div class="nm">${esc(n.title || '')}</div>
+            <div class="sub">${n.body ? esc(n.body) + ' · ' : ''}${timeago(n.created_at)}</div></div>
+          ${n.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1;border-radius:8px" src="/uploads/${esc(n.image)}"/>` : ''}
+        </div>`).join('')}</div>`
+      : empty('لسه مفيش إشعارات', '🔔'));
+};
+window.openNotif = (page, id) => {
+  if (!page) return;
+  if (page === 'dress') {
+    window._openDressAfter = id;
+    go(['admin', 'manager'].includes(state.user.role) ? 'dresses' : (state.user.role === 'staff' ? 'dresses' : 'mydresses'));
+    return;
+  }
+  const target = PAGES[page] ? page : 'notifications';
+  go(target);
+};
+
 boot();

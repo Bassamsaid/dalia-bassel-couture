@@ -729,7 +729,8 @@ PAGES.dresses = async (c) => {
       <span class="hint">${list.length} dress(es)</span></div>
     <input placeholder="🔍 Search by client name" value="${esc(window._dressSearch || '')}" oninput="window._dressSearch=this.value; liveSearch(this.value,'#dressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
     <div class="grid g2" id="dressList">${list.length ? list.map((d) => `
-      <div class="card" data-name="${esc((d.customer_name || '').toLowerCase())}" style="margin:0">
+      <div class="card" data-name="${esc((d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
+        ${d.unread ? `<span class="notif-dot" title="تحديث جديد">${d.unread}</span>` : ''}
         ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
         <div class="nm" style="font-weight:600;margin-top:8px">${esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
@@ -737,6 +738,7 @@ PAGES.dresses = async (c) => {
         <button class="btn sec sm" style="margin-top:8px" onclick="openDress(${d.id})">Details</button>
       </div>`).join('') : empty('No dresses match this filter', '👗')}</div>`;
   if (window._dressSearch) liveSearch(window._dressSearch, '#dressList');
+  if (window._openDressAfter) { const oid = window._openDressAfter; window._openDressAfter = null; if (dresses.some((x) => x.id === oid)) setTimeout(() => openDress(oid), 30); }
 };
 window.dressFilter = (k, v) => {
   const f = window._dressF || { status: 'all', month: '', assigned: false };
@@ -789,13 +791,37 @@ window.openDress = (id) => {
       ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
       <button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button></div>`).join('')}</div>
     <button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>
+    <div class="sec-title">تحديثات العميلة 💬</div>
+    <div id="dupd_${id}"><div class="hint">بيحمّل…</div></div>
+    <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 ابعت تحديث / صورة للعميلة</button>
     <div class="divider"></div>
     <div class="row">
       <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
       <button class="btn danger" onclick="delDress(${id})">Delete booking</button>
     </div>`);
   wireDressPhotos(id);
+  loadDressUpdates(id);
 };
+async function loadDressUpdates(id) {
+  const box = document.getElementById('dupd_' + id); if (!box) return;
+  try {
+    const ups = await GET('/api/dresses/' + id + '/updates');
+    box.innerHTML = ups.length ? ups.map(renderUpdate).join('') : '<div class="hint">مفيش تحديثات لسه</div>';
+    refreshNotifBadge(); // opening the thread marks this dress's notifications read
+  } catch (e) { box.innerHTML = '<div class="hint">تعذّر تحميل التحديثات</div>'; }
+}
+function renderUpdate(u) {
+  const studio = ['admin', 'manager', 'staff'].includes(u.author_role);
+  return `<div class="upd ${studio ? 'upd-studio' : 'upd-client'}">
+    <div class="upd-h">${esc(u.author_name || '')} · <span class="muted">${timeago(u.created_at)}</span></div>
+    ${u.body ? `<div class="upd-b">${esc(u.body)}</div>` : ''}
+    ${u.image ? `<img class="thumb" style="max-width:170px;height:auto;aspect-ratio:auto;border-radius:8px;margin-top:6px" src="/uploads/${esc(u.image)}" onclick="lightbox('/uploads/${esc(u.image)}')"/>` : ''}
+  </div>`;
+}
+window.updateClient = (id) => formModal('تحديث للعميلة', [
+  { name: 'body', label: 'الملاحظة', type: 'textarea' },
+  { name: 'image', label: 'صورة (اختياري)', type: 'image' },
+], async (d) => { await POST('/api/dresses/' + id + '/updates', d); toast('اتبعت للعميلة ✅'); closeModal(); refreshDress(id); });
 window.saveDressDetails = async (id) => {
   const name = document.getElementById('dName_' + id).value.trim();
   if (!name) return toast('Client name is required');
