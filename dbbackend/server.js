@@ -513,7 +513,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
   else list = db.prepare(base + ' WHERE d.customer_user_id=? ORDER BY d.id DESC').all(user.id);
   list.forEach((d) => {
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
-    d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY id').all(d.id);
+    d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY position, id').all(d.id);
   });
   send(res, 200, list);
 };
@@ -552,11 +552,36 @@ api['POST /api/dresses/:id/images'] = async (req, res, user, url, params) => {
   const b = await readBody(req);
   const img = maybeImage(b.image);
   if (!img) return send(res, 400, { error: 'no image' });
-  const r = db.prepare('INSERT INTO dress_images (dress_id,image,caption) VALUES (?,?,?)').run(params.id, img, b.caption || null);
+  const pos = db.prepare('SELECT COALESCE(MAX(position),-1)+1 p FROM dress_images WHERE dress_id=?').get(params.id).p;
+  const r = db.prepare('INSERT INTO dress_images (dress_id,image,caption,position) VALUES (?,?,?,?)').run(params.id, img, b.caption || null, pos);
   if (!db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(params.id).cover_image) db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(img, params.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
-api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM dress_images WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+// reorder photos; first in the order becomes the cover shown outside
+api['PUT /api/dresses/:id/image-order'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req);
+  const order = Array.isArray(b.order) ? b.order : [];
+  order.forEach((imgId, i) => db.prepare('UPDATE dress_images SET position=? WHERE id=? AND dress_id=?').run(i, imgId, params.id));
+  if (order.length) {
+    const first = db.prepare('SELECT image FROM dress_images WHERE id=? AND dress_id=?').get(order[0], params.id);
+    if (first) db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(first.image, params.id);
+  }
+  send(res, 200, { ok: true });
+};
+api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const img = db.prepare('SELECT * FROM dress_images WHERE id=?').get(params.id);
+  db.prepare('DELETE FROM dress_images WHERE id=?').run(params.id);
+  if (img) { // if the deleted photo was the cover, promote the next one (or clear)
+    const dr = db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(img.dress_id);
+    if (dr && dr.cover_image === img.image) {
+      const next = db.prepare('SELECT image FROM dress_images WHERE dress_id=? ORDER BY position,id LIMIT 1').get(img.dress_id);
+      db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(next ? next.image : null, img.dress_id);
+    }
+  }
+  send(res, 200, { ok: true });
+};
 
 // ================= STAFF HR =================
 api['GET /api/attendance'] = async (req, res, user, url) => {

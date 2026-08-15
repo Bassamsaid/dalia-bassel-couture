@@ -166,6 +166,14 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .wstep{animation:rise .22s ease both}
 .wnav{display:flex;gap:10px;margin-top:18px}
 .wnav .btn{margin-top:0}
+/* dress photo tiles (drag to reorder, delete) */
+.dphotos{display:flex;gap:8px;flex-wrap:wrap}
+.dphoto{position:relative;width:96px;touch-action:none;cursor:grab;border-radius:12px;overflow:hidden}
+.dphoto:active{cursor:grabbing}
+.dphoto .thumb{width:96px;border-radius:12px;display:block}
+.dphoto-del{position:absolute;top:5px;right:5px;width:22px;height:22px;border:none;border-radius:50%;
+  background:rgba(20,14,26,.6);color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.cover-badge{position:absolute;bottom:5px;left:5px;background:var(--grad);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:7px;letter-spacing:.3px}
 .lightbox{position:fixed;inset:0;background:rgba(20,14,26,.94);z-index:80;display:flex;align-items:center;
   justify-content:center;padding:14px;flex-direction:column;gap:10px;animation:fadeIn .2s both}
 .lightbox img{max-width:100%;max-height:82vh;border-radius:10px;object-fit:contain}

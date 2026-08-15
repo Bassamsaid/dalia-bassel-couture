@@ -156,13 +156,15 @@ PAGES.students = async (c) => {
        <span class="chip ${filter === 'all' ? 'active' : ''}" onclick="stFilter('all')">All (${users.length})</span>
        ${rounds.map((r) => `<span class="chip ${filter == r.id ? 'active' : ''}" onclick="stFilter(${r.id})">${esc(r.name)}</span>`).join('')}
      </div>
-     <div class="card">${list.length ? list.map((u) => `
-       <div class="item" style="cursor:pointer" onclick="viewStudent(${u.id})">
+     <input placeholder="🔍 Search student by name" value="${esc(window._stSearch || '')}" oninput="window._stSearch=this.value; liveSearch(this.value,'#studentsList')" style="width:100%;padding:9px 12px;margin:12px 0 8px" />
+     <div class="card" id="studentsList">${list.length ? list.map((u) => `
+       <div class="item" data-name="${esc((u.name || '').toLowerCase())}" style="cursor:pointer" onclick="viewStudent(${u.id})">
          <div class="av">${esc(initials(u.name))}</div>
          <div class="main"><div class="nm">${esc(u.name)}</div>
            <div class="sub">${u.phone ? esc(u.phone) + ' · ' : ''}${rMap[u.round_id] ? esc(rMap[u.round_id]) : 'No round'}${gMap[u.group_id] ? ' · ' + esc(gMap[u.group_id]) : ''}</div></div>
          <span class="muted" style="font-size:20px">›</span>
        </div>`).join('') : empty('No students yet')}</div>`;
+  if (window._stSearch) liveSearch(window._stSearch, '#studentsList');
 };
 window.viewStudent = async (id) => {
   const { rounds, groups } = window._students;
@@ -406,7 +408,8 @@ PAGES.round = async (c) => {
           <option value="all">All governorates</option>${govs.map((g) => `<option value="${esc(g)}" ${gf === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
         <button class="btn ${window._roundSortGov ? '' : 'ghost'} sm" onclick="toggleGovSort()">Sort by gov.</button></div>
       <div class="filters" style="margin:0 2px 6px">${[['all', 'All'], ['paid', 'Paid'], ['partial', 'Partial'], ['unpaid', 'Unpaid']].map(([k, l]) => `<span class="chip ${pf === k ? 'active' : ''}" onclick="setRoundPay('${k}')">${l}</span>`).join('')}</div>
-      <div class="card">${list.length ? list.map((u) => { const p = payStatus(u.id); const pr = payMap[u.id]; return `<div class="item" style="cursor:pointer" onclick="viewStudent(${u.id})">
+      <input placeholder="🔍 Search student by name" value="${esc(window._roundSearch || '')}" oninput="window._roundSearch=this.value; liveSearch(this.value,'#roundStudentsList')" style="width:100%;padding:9px 12px;margin:0 0 8px" />
+      <div class="card" id="roundStudentsList">${list.length ? list.map((u) => { const p = payStatus(u.id); const pr = payMap[u.id]; return `<div class="item" data-name="${esc((u.name || '').toLowerCase())}" style="cursor:pointer" onclick="viewStudent(${u.id})">
         <div class="av">${esc(initials(u.name))}</div>
         <div class="main"><div class="nm">${esc(u.name)}${p ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
           <div class="sub">${u.governorate ? esc(u.governorate) + ' · ' : ''}${u.phone ? esc(u.phone) : 'no phone'}</div></div>
@@ -443,8 +446,9 @@ PAGES.round = async (c) => {
   c.innerHTML = title(round.name, '') +
     `<div class="sub muted" style="margin:-8px 2px 10px">${round.kind === 'online' ? 'Online Course' : 'In‑person'}${round.start_date ? ' · Starts ' + dt(round.start_date) : ''}</div>
     <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="roundTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+  if (window._roundSearch) liveSearch(window._roundSearch, '#roundStudentsList');
 };
-window.roundTab = (t) => { window._roundTab = t; go('round'); };
+window.roundTab = (t) => { window._roundTab = t; window._roundSearch = ''; go('round'); };
 window.setRoundGov = (v) => { window._roundGov = v; go('round'); };
 window.setRoundPay = (v) => { window._roundPay = v; go('round'); };
 window.toggleGovSort = () => { window._roundSortGov = !window._roundSortGov; go('round'); };
@@ -691,14 +695,16 @@ PAGES.dresses = async (c) => {
       <input type="month" value="${f.month}" onchange="dressFilter('month',this.value)" style="width:auto;padding:8px" />
       ${f.month ? `<button class="btn ghost sm" onclick="dressFilter('month','')">Clear month</button>` : ''}
       <span class="hint">${list.length} dress(es)</span></div>
-    <div class="grid g2">${list.length ? list.map((d) => `
-      <div class="card" style="margin:0">
+    <input placeholder="🔍 Search by client name" value="${esc(window._dressSearch || '')}" oninput="window._dressSearch=this.value; liveSearch(this.value,'#dressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
+    <div class="grid g2" id="dressList">${list.length ? list.map((d) => `
+      <div class="card" data-name="${esc((d.customer_name || '').toLowerCase())}" style="margin:0">
         ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
         <div class="nm" style="font-weight:600;margin-top:8px">${esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
         <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'} · ${d.fittings.length} fittings</div>
         <button class="btn sec sm" style="margin-top:8px" onclick="openDress(${d.id})">Details</button>
       </div>`).join('') : empty('No dresses match this filter', '👗')}</div>`;
+  if (window._dressSearch) liveSearch(window._dressSearch, '#dressList');
 };
 window.dressFilter = (k, v) => {
   const f = window._dressF || { status: 'all', month: '', assigned: false };
@@ -737,12 +743,44 @@ window.openDress = (id) => {
       <div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div>
       <button class="btn-icon" onclick="delFitting(${f.id},${id})">🗑</button></div>`).join('') : '<div class="hint">No fittings scheduled</div>'}
     <button class="btn ghost sm" style="margin-top:8px" onclick="addFitting(${id})">＋ Fitting date</button>
-    <div class="sec-title">Dress photos</div>
-    <div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>
+    <div class="sec-title">Dress photos ${d.images.length > 1 ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
+    <div class="dphotos" id="dphotos_${id}">${d.images.map((im, i) => `<div class="dphoto" data-id="${im.id}">
+      <img class="thumb" style="aspect-ratio:3/4;pointer-events:none" src="/uploads/${esc(im.image)}" />
+      ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
+      <button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button></div>`).join('')}</div>
     <button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>
     <div class="divider"></div>
     <button class="btn danger" onclick="delDress(${id})">Delete booking</button>`);
+  wireDressPhotos(id);
 };
+window.delDressImg = async (imgId, dressId) => { await DEL('/api/dress-images/' + imgId); toast('Photo deleted'); refreshDress(dressId); };
+/* pointer-based drag-reorder for dress photos (works on touch + mouse); first photo = cover */
+function wireDressPhotos(dressId) {
+  const box = document.getElementById('dphotos_' + dressId);
+  if (!box) return;
+  let drag = null;
+  box.querySelectorAll('.dphoto').forEach((el) => {
+    el.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.dphoto-del')) return;
+      drag = el; try { el.setPointerCapture(e.pointerId); } catch (_) {} el.style.opacity = '.45';
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const over = (document.elementFromPoint(e.clientX, e.clientY) || {}).closest ? document.elementFromPoint(e.clientX, e.clientY).closest('.dphoto') : null;
+      if (over && over !== drag && over.parentElement === box) {
+        const r = over.getBoundingClientRect();
+        box.insertBefore(drag, (e.clientY < r.top + r.height / 2 || e.clientX < r.left + r.width / 2) ? over : over.nextSibling);
+      }
+    });
+    el.addEventListener('pointerup', async () => {
+      if (!drag) return;
+      drag.style.opacity = ''; drag = null;
+      const order = [...box.querySelectorAll('.dphoto')].map((x) => Number(x.dataset.id));
+      await PUT('/api/dresses/' + dressId + '/image-order', { order });
+      refreshDress(dressId);
+    });
+  });
+}
 window.addFitting = (id) => formModal('Fitting date', [
   { name: 'fitting_date', label: 'Date', type: 'date', required: true, value: today() },
   { name: 'note', label: 'Note' },

@@ -395,6 +395,13 @@ window.addEventListener('popstate', () => {
   if (state.stack.length) { const prev = state.stack.pop(); go(prev, { _back: true }); }
 });
 
+/* live name search: hides rows whose [data-name] doesn't contain the query (no re-render, keeps focus) */
+window.liveSearch = (q, sel) => {
+  const box = document.querySelector(sel); if (!box) return;
+  const t = (q || '').trim().toLowerCase();
+  box.querySelectorAll('[data-name]').forEach((el) => { el.style.display = el.dataset.name.includes(t) ? '' : 'none'; });
+};
+
 function title(t, icon) { return `<div class="page-title">${icon || ''} ${esc(t)}</div>`; }
 function empty(msg, em = '—') { return `<div class="empty"><div class="em">${em}</div>${esc(msg)}</div>`; }
 

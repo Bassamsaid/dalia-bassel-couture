@@ -336,5 +336,6 @@ try { db.exec("ALTER TABLE rounds ADD COLUMN kind TEXT DEFAULT 'onsite'"); } cat
 try { db.exec("ALTER TABLE advances ADD COLUMN status TEXT DEFAULT 'approved'"); } catch (e) { /* column exists */ } // pending | approved | rejected
 try { db.exec('ALTER TABLE dresses ADD COLUMN assigned_to INTEGER'); } catch (e) { /* column exists */ } // staff responsible for the dress
 try { db.exec('ALTER TABLE users ADD COLUMN governorate TEXT'); } catch (e) { /* column exists */ } // student governorate (Egypt)
+try { db.exec('ALTER TABLE dress_images ADD COLUMN position INTEGER DEFAULT 0'); } catch (e) { /* column exists */ } // photo order (first = cover)
 
 module.exports = { db, hashPassword, verifyPassword };
