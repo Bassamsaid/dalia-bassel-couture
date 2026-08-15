@@ -730,8 +730,10 @@ window.openDress = (id) => {
   const d = window._dresses.find((x) => x.id === id);
   const staff = (window._dressRef && window._dressRef.staff) || [];
   modal(`<h3>${esc(d.customer_name)}</h3>
-    <div class="sub muted">${d.phone ? esc(d.phone) + ' · ' : ''}Delivery ${dt(d.delivery_date)}</div>
-    ${d.note ? `<div class="hint">${esc(d.note)}</div>` : ''}
+    <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}" />
+    <label>Phone</label><input id="dPhone_${id}" value="${esc(d.phone || '')}" />
+    <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}" />
+    <label>Notes</label><textarea id="dNote_${id}">${esc(d.note || '')}</textarea>
     <div class="sec-title">Status</div>
     <select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <div class="sec-title">Assigned staff</div>
@@ -748,8 +750,22 @@ window.openDress = (id) => {
       <button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button></div>`).join('')}</div>
     <button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>
     <div class="divider"></div>
-    <button class="btn danger" onclick="delDress(${id})">Delete booking</button>`);
+    <div class="row">
+      <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
+      <button class="btn danger" onclick="delDress(${id})">Delete booking</button>
+    </div>`);
   wireDressPhotos(id);
+};
+window.saveDressDetails = async (id) => {
+  const name = document.getElementById('dName_' + id).value.trim();
+  if (!name) return toast('Client name is required');
+  await PUT('/api/dresses/' + id, {
+    customer_name: name,
+    phone: document.getElementById('dPhone_' + id).value,
+    delivery_date: document.getElementById('dDate_' + id).value,
+    note: document.getElementById('dNote_' + id).value,
+  });
+  toast('Changes saved'); window._dresses = await GET('/api/dresses'); refreshDress(id);
 };
 window.delDressImg = async (imgId, dressId) => { await DEL('/api/dress-images/' + imgId); toast('Photo deleted'); refreshDress(dressId); };
 /* pointer-based drag-reorder for dress photos (works on touch + mouse); first photo = cover */
