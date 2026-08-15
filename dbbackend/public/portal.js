@@ -241,6 +241,8 @@ PAGES.mysalary = async (c) => {
       ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
       ${kv('Absent days', sal.absent_days + ' day(s)')}
       ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+      ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
+      ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
       ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
       ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
       ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}

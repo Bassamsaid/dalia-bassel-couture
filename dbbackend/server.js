@@ -106,6 +106,10 @@ function maybeImage(val) {
   if (typeof val === 'string' && val.startsWith('data:')) return saveImage(val);
   return val || null;
 }
+// ---- time / weekday helpers (payroll) ----
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+function hm2min(s) { if (!s) return 0; const p = String(s).split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); }
+function weekdayOf(dateStr) { const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00Z'); return WEEKDAYS[d.getUTCDay()]; }
 
 // ---------- API ----------
 const api = {};
@@ -196,7 +200,7 @@ api['GET /api/users'] = async (req, res, user, url) => {
   if (!requireManager(user, res)) return;
   const role = url.searchParams.get('role');
   const round = url.searchParams.get('round_id');
-  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,created_at FROM users WHERE 1=1';
+  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,off_days,created_at FROM users WHERE 1=1';
   const args = [];
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
@@ -209,11 +213,11 @@ api['POST /api/users'] = async (req, res, user) => {
   if (!b.name) return send(res, 400, { error: 'الاسم مطلوب' });
   if (user.role === 'manager' && !['trainee', 'customer'].includes(b.role || 'trainee')) return send(res, 403, { error: 'managers can only add students or clients' });
   try {
-    const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date,governorate)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(
+    const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date,governorate,off_days)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       b.name, b.email || null, b.phone || null, hashPassword(b.password || crypto.randomBytes(9).toString('hex')),
       b.role || 'trainee', b.round_id || null, b.group_id || null,
-      b.job_title || null, b.base_salary || 0, b.hire_date || null, b.governorate || null);
+      b.job_title || null, b.base_salary || 0, b.hire_date || null, b.governorate || null, b.off_days || null);
     const uid = r.lastInsertRowid;
     if (b.role !== 'staff' && (b.total_fee != null || b.round_id)) {
       db.prepare('INSERT INTO enrollments (user_id,round_id,total_fee) VALUES (?,?,?)').run(uid, b.round_id || null, b.total_fee || 0);
@@ -230,10 +234,10 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
     if (!['trainee', 'customer'].includes(cur.role)) return send(res, 403, { error: 'forbidden' });
     if (b.role && !['trainee', 'customer'].includes(b.role)) return send(res, 403, { error: 'cannot change role' });
   }
-  db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=? WHERE id=?`).run(
+  db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,off_days=? WHERE id=?`).run(
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
-    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, params.id);
+    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.off_days ?? cur.off_days, params.id);
   if (b.password) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(b.password), params.id);
   if (b.total_fee != null) {
     const en = db.prepare('SELECT id FROM enrollments WHERE user_id=?').get(params.id);
@@ -771,18 +775,46 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   if (!requireAuth(user, res)) return;
   if (user.role !== 'admin' && user.id !== Number(params.id)) return send(res, 403, { error: 'forbidden' });
   const month = url.searchParams.get('month') || new Date().toISOString().slice(0, 7);
-  const u = db.prepare('SELECT id,name,base_salary FROM users WHERE id=?').get(params.id);
+  const u = db.prepare('SELECT id,name,base_salary,off_days FROM users WHERE id=?').get(params.id);
   if (!u) return send(res, 404, { error: 'not found' });
-  const wd = Number((db.prepare("SELECT value FROM settings WHERE key='work_days_per_month'").get() || {}).value) || 30;
+  const cfg = {}; db.prepare('SELECT key,value FROM settings').all().forEach((r) => { cfg[r.key] = r.value; });
+  const wd = Number(cfg.work_days_per_month) || 30;
   const base = Number(u.base_salary) || 0;
   const daily = wd ? base / wd : 0;
-  const absDays = db.prepare("SELECT COUNT(*) c FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").get(params.id, month).c;
+  const inMin = hm2min(cfg.check_in_time || '09:00');
+  const outMin = hm2min(cfg.check_out_time || '17:00');
+  const grace = Number(cfg.late_grace_min) || 0;
+  const otMult = Number(cfg.overtime_mult) || 1.5;
+  const workHours = Math.max(1, (outMin - inMin) / 60);
+  const hourly = daily / workHours;
+  const off = new Set((u.off_days || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+
+  // confirmed absences (skip the staff's paid weekly off-days)
+  const absRows = db.prepare("SELECT date FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").all(params.id, month);
+  const absDays = absRows.filter((a) => !off.has(weekdayOf(a.date))).length;
+
+  // lateness + overtime from attendance (skip off-days; grace period on lateness)
+  let lateMin = 0, otMin = 0;
+  db.prepare('SELECT date,check_in,check_out FROM attendance WHERE user_id=? AND substr(date,1,7)=?').all(params.id, month).forEach((a) => {
+    if (off.has(weekdayOf(a.date))) return;
+    if (a.check_in) { const late = hm2min(a.check_in) - inMin; if (late > grace) lateMin += (late - grace); }
+    if (a.check_out) { const ot = hm2min(a.check_out) - outMin; if (ot > 0) otMin += ot; }
+  });
+
   const advTotal = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=? AND (status IS NULL OR status='approved')").get(params.id, month).s;
   const bonus = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='bonus'").get(params.id, month).s;
   const deductions = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='deduction'").get(params.id, month).s;
-  const absenceDeduction = Math.round(daily * absDays * 100) / 100;
-  const net = Math.round((base + bonus - absenceDeduction - advTotal - deductions) * 100) / 100;
-  send(res, 200, { user: u.name, month, base, work_days: wd, daily: Math.round(daily * 100) / 100, absent_days: absDays, absence_deduction: absenceDeduction, advances: advTotal, bonus, deductions, net });
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const absenceDeduction = r2(daily * absDays);
+  const lateDeduction = r2((lateMin / 60) * hourly);
+  const overtimePay = r2((otMin / 60) * otMult * hourly);
+  const net = r2(base + bonus + overtimePay - absenceDeduction - lateDeduction - advTotal - deductions);
+  send(res, 200, {
+    user: u.name, month, base, work_days: wd, daily: r2(daily), hourly: r2(hourly), work_hours: workHours,
+    absent_days: absDays, absence_deduction: absenceDeduction,
+    late_minutes: lateMin, late_deduction: lateDeduction, overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
+    bonus, deductions, advances: advTotal, net,
+  });
 };
 
 // ================= DRESS MATERIAL PURCHASES (invoices + dress-linked lines) =================

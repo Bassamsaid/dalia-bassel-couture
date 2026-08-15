@@ -1,6 +1,9 @@
 'use strict';
 /* Dalia Bassel Couture — ADMIN pages */
 
+/* weekday chips for paid off-days (Egypt week: Sat first) */
+const WEEKDAYS_LABELS = [['saturday', 'Sat'], ['sunday', 'Sun'], ['monday', 'Mon'], ['tuesday', 'Tue'], ['wednesday', 'Wed'], ['thursday', 'Thu'], ['friday', 'Fri']];
+
 /* Dress measurement fields (key -> Arabic label) */
 const MEASURE_FIELDS = [
   ['chest', 'د. صدر'], ['dart', 'ط. بنسة'], ['empire', 'ط. إمبير'], ['front_len', 'ط. أمام'],
@@ -956,10 +959,14 @@ PAGES.staffmember = async (c) => {
   const tabs = [['overview', 'Overview'], ['salary', 'Salary'], ['absence', 'Absences'], ['advance', 'Advances'], ['att', 'Attendance']];
   let inner = '';
   if (tab === 'overview') {
+    const offSet = new Set((s.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
     inner = `<div class="card">
       ${kv('Role', roleLabel(s.role))}${kv('Job title', s.job_title || '—')}${kv('Base salary', money(s.base_salary))}
       ${kv('Phone', s.phone || '—')}${kv('Email', s.email || '—')}${kv('Hired', s.hire_date ? dt(s.hire_date) : '—')}
-      <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>`;
+      <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>
+      <div class="sec-title">Paid weekly off-days</div>
+      <div class="hint" style="margin:0 2px 6px">Tap the day(s) off — not counted as absence or lateness, and paid.</div>
+      <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${offSet.has(k) ? 'active' : ''}" onclick="toggleOffDay(${id},'${k}')">${l}</span>`).join('')}</div>`;
   } else if (tab === 'salary') {
     const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
     const [pays, adjustments] = await Promise.all([GET(`/api/salary-payments?user_id=${id}`), GET(`/api/adjustments?user_id=${id}`)]);
@@ -969,6 +976,10 @@ PAGES.staffmember = async (c) => {
         ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
         ${kv('Absent days', sal.absent_days + ' day(s)')}
         ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+        ${kv('Late (beyond grace)', (sal.late_minutes || 0) + ' min')}
+        ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
+        ${kv('Overtime', (sal.overtime_minutes || 0) + ' min ×' + (sal.overtime_mult || 1.5))}
+        ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
         ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
         ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
         ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
@@ -1035,6 +1046,13 @@ window.addAbsence = (id) => formModal('Add absence', [
 ], async (d) => { d.user_id = id; await POST('/api/absences', d); toast('Added'); go('staffmember'); });
 window.delAbsence = (aid) => confirmDel('Delete this absence?', async () => { await DEL('/api/absences/' + aid); go('staffmember'); });
 window.confirmAbsence = async (aid) => { await PUT('/api/absences/' + aid + '/confirm', {}); toast('Confirmed'); go('staffmember'); };
+window.toggleOffDay = async (id, day) => {
+  const s = (window._staff || []).find((x) => x.id === id) || {};
+  const set = new Set((s.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
+  set.has(day) ? set.delete(day) : set.add(day);
+  await PUT('/api/users/' + id, { off_days: [...set].join(',') });
+  toast('Saved'); go('staffmember');
+};
 window.addAdjustment = (id, type, month) => formModal(type === 'bonus' ? 'Add bonus' : 'Add deduction', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'month', label: 'Month', type: 'month', value: month },
@@ -1067,9 +1085,14 @@ PAGES.config = async (c) => {
     inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
       <button class="btn" style="margin-top:12px" onclick="saveCfg(['academy_name'])">Save</button></div>`;
   } else if (tab === 'salary') {
-    inner = `<div class="card"><label>Working days per month</label><input id="cfg_work_days_per_month" type="number" value="${esc(s.work_days_per_month || '30')}" />
-      <div class="hint" style="margin-top:6px">Used to compute salaries: daily rate = base ÷ this number, and each absent day deducts one daily rate.</div>
-      <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month'])">Save</button></div>`;
+    inner = `<div class="card">
+      <label>Working days per month</label><input id="cfg_work_days_per_month" type="number" value="${esc(s.work_days_per_month || '30')}" />
+      <label>Check-in time</label><input id="cfg_check_in_time" type="time" value="${esc(s.check_in_time || '09:00')}" />
+      <label>Check-out time</label><input id="cfg_check_out_time" type="time" value="${esc(s.check_out_time || '17:00')}" />
+      <label>Late grace (minutes)</label><input id="cfg_late_grace_min" type="number" value="${esc(s.late_grace_min || '15')}" />
+      <label>Overtime multiplier (×)</label><input id="cfg_overtime_mult" type="number" step="0.1" value="${esc(s.overtime_mult || '1.5')}" />
+      <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace deducts at the hourly rate; overtime pays at the multiplier. Each staff's paid weekly off-days are set on their profile.</div>
+      <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month','check_in_time','check_out_time','late_grace_min','overtime_mult'])">Save</button></div>`;
   } else {
     inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
       <div class="hint" style="margin-top:6px">Shown next to all amounts across the app.</div>

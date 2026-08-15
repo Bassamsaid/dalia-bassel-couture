@@ -328,15 +328,16 @@ CREATE TABLE IF NOT EXISTS salary_payments (
 );
 `);
 
-// seed default configuration once
+// seed default configuration (only fills keys that don't exist yet)
 try {
-  const has = db.prepare('SELECT COUNT(*) c FROM settings').get().c;
-  if (!has) {
-    const s = db.prepare('INSERT INTO settings (key,value) VALUES (?,?)');
-    s.run('academy_name', 'Dalia Bassel Couture');
-    s.run('currency', 'EGP');
-    s.run('work_days_per_month', '30');
-  }
+  const setDefault = db.prepare('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)');
+  setDefault.run('academy_name', 'Dalia Bassel Couture');
+  setDefault.run('currency', 'EGP');
+  setDefault.run('work_days_per_month', '30');
+  setDefault.run('check_in_time', '09:00');
+  setDefault.run('check_out_time', '17:00');
+  setDefault.run('late_grace_min', '15');
+  setDefault.run('overtime_mult', '1.5');
 } catch (e) { /* ignore */ }
 
 // ---- password helpers (scrypt, no deps) ----
@@ -384,5 +385,6 @@ try { db.exec('ALTER TABLE dresses ADD COLUMN measurements TEXT'); } catch (e) {
 try { db.exec('ALTER TABLE dresses ADD COLUMN measure_note TEXT'); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE dresses ADD COLUMN measure_image TEXT'); } catch (e) { /* column exists */ }           // reference photo
 try { db.exec("ALTER TABLE absences ADD COLUMN status TEXT DEFAULT 'confirmed'"); } catch (e) { /* column exists */ } // pending | confirmed (admin approves)
+try { db.exec('ALTER TABLE users ADD COLUMN off_days TEXT'); } catch (e) { /* column exists */ } // paid weekly off-days (comma weekday names)
 
 module.exports = { db, hashPassword, verifyPassword };
