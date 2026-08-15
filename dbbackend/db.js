@@ -252,7 +252,43 @@ CREATE TABLE IF NOT EXISTS role_perms (
   visible INTEGER NOT NULL DEFAULT 1,
   PRIMARY KEY (role, page)
 );
+
+-- Admin configuration (simple key/value store)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+-- Staff absences (each row = one absent day, deducted from salary)
+CREATE TABLE IF NOT EXISTS absences (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Staff advances (سلف): an amount given to a staff member, deducted from a chosen month's salary
+CREATE TABLE IF NOT EXISTS advances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  month TEXT,                                 -- YYYY-MM the deduction applies to
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
+
+// seed default configuration once
+try {
+  const has = db.prepare('SELECT COUNT(*) c FROM settings').get().c;
+  if (!has) {
+    const s = db.prepare('INSERT INTO settings (key,value) VALUES (?,?)');
+    s.run('academy_name', 'Dalia Bassel Couture');
+    s.run('currency', 'EGP');
+    s.run('work_days_per_month', '30');
+  }
+} catch (e) { /* ignore */ }
 
 // ---- password helpers (scrypt, no deps) ----
 function hashPassword(pw) {

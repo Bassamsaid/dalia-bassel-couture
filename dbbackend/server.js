@@ -575,6 +575,71 @@ api['GET /api/my-permissions'] = async (req, res, user) => {
   send(res, 200, { hidden: rows.map((r) => r.page) });
 };
 
+// ================= CONFIGURATION (settings) =================
+api['GET /api/settings'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const rows = db.prepare('SELECT key,value FROM settings').all();
+  const out = {}; rows.forEach((r) => { out[r.key] = r.value; });
+  send(res, 200, out);
+};
+api['PUT /api/settings'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const up = db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
+  Object.entries(b || {}).forEach(([k, v]) => up.run(k, v == null ? '' : String(v)));
+  send(res, 200, { ok: true });
+};
+
+// ================= STAFF HR: ABSENCES / ADVANCES / SALARY =================
+api['GET /api/absences'] = async (req, res, user, url) => {
+  if (!requireAdmin(user, res)) return;
+  const uid = url.searchParams.get('user_id');
+  const q = uid ? 'SELECT a.*,u.name user_name FROM absences a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY date DESC'
+    : 'SELECT a.*,u.name user_name FROM absences a JOIN users u ON u.id=a.user_id ORDER BY date DESC';
+  send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
+};
+api['POST /api/absences'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.user_id || !b.date) return send(res, 400, { error: 'staff and date required' });
+  const r = db.prepare('INSERT INTO absences (user_id,date,reason) VALUES (?,?,?)').run(b.user_id, b.date, b.reason || null);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/absences/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM absences WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
+api['GET /api/advances'] = async (req, res, user, url) => {
+  if (!requireAdmin(user, res)) return;
+  const uid = url.searchParams.get('user_id');
+  const q = uid ? 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY created_at DESC'
+    : 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id ORDER BY created_at DESC';
+  send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
+};
+api['POST /api/advances'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.user_id || !b.amount) return send(res, 400, { error: 'staff and amount required' });
+  const r = db.prepare('INSERT INTO advances (user_id,amount,month,note) VALUES (?,?,?,?)').run(b.user_id, b.amount, b.month || null, b.note || null);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM advances WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+
+// Auto salary breakdown for a staff member in a given month (YYYY-MM)
+api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const month = url.searchParams.get('month') || new Date().toISOString().slice(0, 7);
+  const u = db.prepare('SELECT id,name,base_salary FROM users WHERE id=?').get(params.id);
+  if (!u) return send(res, 404, { error: 'not found' });
+  const wd = Number((db.prepare("SELECT value FROM settings WHERE key='work_days_per_month'").get() || {}).value) || 30;
+  const base = Number(u.base_salary) || 0;
+  const daily = wd ? base / wd : 0;
+  const absDays = db.prepare("SELECT COUNT(*) c FROM absences WHERE user_id=? AND substr(date,1,7)=?").get(params.id, month).c;
+  const advTotal = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=?").get(params.id, month).s;
+  const bonus = Number(url.searchParams.get('bonus')) || 0;
+  const absenceDeduction = Math.round(daily * absDays * 100) / 100;
+  const net = Math.round((base + bonus - absenceDeduction - advTotal) * 100) / 100;
+  send(res, 200, { user: u.name, month, base, work_days: wd, daily: Math.round(daily * 100) / 100, absent_days: absDays, absence_deduction: absenceDeduction, advances: advTotal, bonus, net });
+};
+
 // ---------- router ----------
 const routes = Object.keys(api).map((key) => {
   const [method, pat] = key.split(' ');

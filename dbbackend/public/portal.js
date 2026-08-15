@@ -84,16 +84,13 @@ window.doCheckMy = async () => { const r = await POST('/api/attendance/check'); 
 
 /* ============ STUDENT COURSES (videos, read-only) ============ */
 PAGES.courses_trainee = async (c) => {
+  // server already scopes videos to the student's round (+ global); no type tabs for students
   const videos = await GET('/api/videos');
-  const tab = window._courseTab === 'onsite' ? 'onsite' : 'online';
-  const tabs = [['online', 'Online Course'], ['onsite', 'In‑person']];
-  const list = videos.filter((v) => (v.kind || 'online') === tab);
-  c.innerHTML = title('Courses', '') +
-    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="courseTab('${k}')">${l}</span>`).join('')}</div>` +
-    (list.length ? list.map((v) => `<div class="card">
+  c.innerHTML = title('My Course', '') +
+    (videos.length ? videos.map((v) => `<div class="card">
       <div class="nm" style="font-weight:600">${esc(v.title)}</div>
       ${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
-      ${videoEmbed(v)}</div>`).join('') : empty(tab === 'onsite' ? 'No in‑person videos yet' : 'No online videos yet', '🎬'));
+      ${videoEmbed(v)}</div>`).join('') : empty('No videos in your course yet', '🎬'));
 };
 
 /* ============ STUDENT TASKS ============ */

@@ -5,7 +5,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const root = () => $('#root');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const money = (n) => (Number(n || 0)).toLocaleString('en-US') + ' EGP';
+const money = (n) => (Number(n || 0)).toLocaleString('en-US') + ' ' + ((window._cfg && window._cfg.currency) || 'EGP');
 const dt = (s) => s ? String(s).slice(0, 10) : '—';
 const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -156,6 +156,9 @@ async function loadPerms() {
   try { const r = await GET('/api/my-permissions'); state.hidden = new Set(r.hidden || []); }
   catch (e) { state.hidden = new Set(); }
 }
+async function loadConfig() {
+  try { window._cfg = await GET('/api/settings'); } catch (e) { window._cfg = window._cfg || {}; }
+}
 function isHidden(page) {
   if (!state.user || state.user.role === 'admin') return false;
   const first = (NAV[state.user.role] || [])[0];
@@ -167,7 +170,7 @@ function isHidden(page) {
 async function boot() {
   try {
     const { user } = await GET('/api/me');
-    if (user) { state.user = user; await loadPerms(); renderApp(); }
+    if (user) { state.user = user; await loadPerms(); await loadConfig(); renderApp(); }
     else renderAuth();
   } catch (e) { renderAuth(); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -204,7 +207,7 @@ function renderAuth(mode) {
       if (isReg) await POST('/api/register', { name: fd.get('name'), email: fd.get('email'), password: fd.get('password'), role: fd.get('role') });
       else await POST('/api/login', { email: fd.get('email'), password: fd.get('password') });
       state.user = (await GET('/api/me')).user;
-      await loadPerms();
+      await loadPerms(); await loadConfig();
       renderApp();
     } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.classList.remove('hidden'); }
   };
@@ -227,6 +230,7 @@ const NAV = {
     ['dresses', 'Dresses', '👗'],
     ['staff', 'Staff', '💼'],
     ['permissions', 'Permissions', '🔒'],
+    ['config', 'Configuration', '⚙'],
     ['about', 'About', 'ℹ'],
   ],
   trainee: [

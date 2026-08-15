@@ -660,35 +660,71 @@ async function refreshDress(id) { window._dresses = await GET('/api/dresses'); o
 
 /* ============ STAFF HR ============ */
 PAGES.staff = async (c) => {
-  const [allUsers, att, sal, lv] = await Promise.all([GET('/api/users'), GET('/api/attendance'), GET('/api/salaries'), GET('/api/leaves')]);
+  const allUsers = await GET('/api/users');
   const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   window._staff = staff;
-  const tab = window._staffTab || 'people';
-  const tabs = [['people', 'Staff'], ['att', 'Attendance'], ['sal', 'Salaries'], ['lv', 'Leaves']];
-  let inner = '';
-  if (tab === 'people') {
-    inner = `<button class="btn" onclick="addStaff()">＋ Staff member</button>
-      <div class="card" style="margin-top:12px">${staff.length ? staff.map((s) => `<div class="item"><div class="av">${esc(initials(s.name))}</div>
-        <div class="main"><div class="nm">${esc(s.name)}${s.role === 'manager' ? ' <span class="badge">Manager</span>' : ''}</div><div class="sub">${s.job_title ? esc(s.job_title) + ' · ' : ''}${money(s.base_salary)} ${s.hire_date ? '· since ' + dt(s.hire_date) : ''}</div></div>
-        <button class="btn sm sec" onclick="editStaff(${s.id})">Edit</button></div>`).join('') : empty('No staff yet', '💼')}</div>`;
-  } else if (tab === 'att') {
-    inner = `<button class="btn sec" onclick="addAtt()">＋ Manual entry</button>
-      <div class="card" style="margin-top:12px"><div class="tbl-wrap"><table><thead><tr><th>Staff</th><th>Day</th><th>In</th><th>Out</th></tr></thead>
-      <tbody>${att.length ? att.map((a) => `<tr><td>${esc(a.user_name)}</td><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
-  } else if (tab === 'sal') {
-    inner = `<button class="btn" onclick="addSalary()">＋ Salary</button>
-      <div class="card" style="margin-top:12px"><div class="tbl-wrap"><table><thead><tr><th>Staff</th><th>Month</th><th>Base</th><th>Bonus</th><th>Deduct</th><th>Net</th><th></th></tr></thead>
-      <tbody>${sal.length ? sal.map((s) => `<tr><td>${esc(s.user_name)}</td><td>${esc(s.month)}</td><td>${money(s.base)}</td><td>${money(s.bonus)}</td><td>${money(s.deduction)}</td><td>${money(s.net)}</td>
-        <td>${s.paid ? '<span class="badge ok">Paid</span>' : `<button class="btn sm ghost" onclick="paySalary(${s.id})">Pay</button>`}</td></tr>`).join('') : '<tr><td colspan="7" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
-  } else {
-    inner = `<div class="card">${lv.length ? lv.map((l) => `<div class="item"><div class="av">🌴</div>
-      <div class="main"><div class="nm">${esc(l.user_name)}</div><div class="sub">${dt(l.from_date)} → ${dt(l.to_date)} · ${leaveEn(l.type)}${l.reason ? ' · ' + esc(l.reason) : ''}</div></div>
-      ${l.status === 'pending' ? `<button class="btn sm ghost" onclick="setLeave(${l.id},'approved')">Approve</button><button class="btn sm danger" onclick="setLeave(${l.id},'rejected')">Reject</button>` : `<span class="badge ${l.status === 'approved' ? 'ok' : 'bad'}">${l.status === 'approved' ? 'Approved' : 'Rejected'}</span>`}</div>`).join('') : empty('No leaves', '🌴')}</div>`;
-  }
   c.innerHTML = title('Staff', '') +
-    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="staffTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+    `<button class="btn" onclick="addStaff()">＋ Staff member</button>
+    <div class="card" style="margin-top:12px">${staff.length ? staff.map((s) => `<div class="item" style="cursor:pointer" onclick="openStaff(${s.id})">
+      <div class="av">${esc(initials(s.name))}</div>
+      <div class="main"><div class="nm">${esc(s.name)}${s.role === 'manager' ? ' <span class="badge">Manager</span>' : ''}</div>
+        <div class="sub">${s.job_title ? esc(s.job_title) + ' · ' : ''}${money(s.base_salary)}${s.hire_date ? ' · since ' + dt(s.hire_date) : ''}</div></div>
+      <span class="muted" style="font-size:20px">›</span></div>`).join('') : empty('No staff yet', '💼')}</div>`;
 };
-window.staffTab = (t) => { window._staffTab = t; go('staff'); };
+window.openStaff = (id) => { window._staffId = id; window._staffTab2 = 'overview'; go('staffmember'); };
+window.staffTab2 = (t) => { window._staffTab2 = t; go('staffmember'); };
+window.setSalMonth = (m) => { window._salMonth = m; go('staffmember'); };
+function kv(label, val, cls) { return `<div class="item"><div class="main"><div class="sub">${esc(label)}</div><div class="nm" ${cls ? `style="color:var(--${cls})"` : ''}>${val}</div></div></div>`; }
+
+/* per-staff detail: overview / salary (auto) / absences / advances / attendance */
+PAGES.staffmember = async (c) => {
+  const id = window._staffId;
+  if (!id) return go('staff');
+  const [allUsers, attendance, absences, advances] = await Promise.all([
+    GET('/api/users'), GET('/api/attendance?user_id=' + id), GET('/api/absences?user_id=' + id), GET('/api/advances?user_id=' + id),
+  ]);
+  const s = allUsers.find((u) => u.id === id) || {};
+  window._staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
+  const month = window._salMonth || today().slice(0, 7);
+  const tab = window._staffTab2 || 'overview';
+  const tabs = [['overview', 'Overview'], ['salary', 'Salary'], ['absence', 'Absences'], ['advance', 'Advances'], ['att', 'Attendance']];
+  let inner = '';
+  if (tab === 'overview') {
+    inner = `<div class="card">
+      ${kv('Role', roleLabel(s.role))}${kv('Job title', s.job_title || '—')}${kv('Base salary', money(s.base_salary))}
+      ${kv('Phone', s.phone || '—')}${kv('Email', s.email || '—')}${kv('Hired', s.hire_date ? dt(s.hire_date) : '—')}
+      <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>`;
+  } else if (tab === 'salary') {
+    const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
+    inner = `<div class="filters"><input type="month" value="${month}" onchange="setSalMonth(this.value)" style="width:auto;padding:8px" /></div>
+      <div class="card">
+        ${kv('Base salary', money(sal.base))}
+        ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
+        ${kv('Absent days', sal.absent_days + ' day(s)')}
+        ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+        ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
+        <div class="divider"></div>
+        <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
+      </div>`;
+  } else if (tab === 'absence') {
+    inner = `<button class="btn" onclick="addAbsence(${id})">＋ Add absence</button>
+      <div class="card" style="margin-top:12px">${absences.length ? absences.map((a) => `<div class="item"><div class="av">✕</div>
+        <div class="main"><div class="nm">${dt(a.date)}</div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div>
+        <button class="btn-icon" onclick="delAbsence(${a.id})">🗑</button></div>`).join('') : empty('No absences recorded')}</div>`;
+  } else if (tab === 'advance') {
+    inner = `<button class="btn" onclick="addAdvance(${id})">＋ Add advance (سلفة)</button>
+      <div class="card" style="margin-top:12px">${advances.length ? advances.map((a) => `<div class="item"><div class="av">💵</div>
+        <div class="main"><div class="nm">${money(a.amount)}</div><div class="sub">${a.month ? 'Deducted from ' + a.month : 'No month set'}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
+        <button class="btn-icon" onclick="delAdvance(${a.id})">🗑</button></div>`).join('') : empty('No advances')}</div>`;
+  } else {
+    inner = `<div class="hint" style="margin-bottom:8px">Staff check themselves in/out from their account.</div>
+      <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>${attendance.length ? attendance.map((a) => `<tr><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="3" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+  }
+  c.innerHTML = title(s.name || 'Staff', '') +
+    `<div class="sub muted" style="margin:-8px 2px 10px">${roleLabel(s.role)}${s.job_title ? ' · ' + esc(s.job_title) : ''}</div>
+    <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="staffTab2('${k}')">${l}</span>`).join('')}</div>` + inner;
+};
 window.addStaff = () => formModal('New staff member', [
   { name: 'name', label: 'Name', required: true },
   { name: 'role', label: 'Role', type: 'select', value: 'staff', options: [{ value: 'staff', label: 'Staff (dresses + attendance)' }, { value: 'manager', label: 'Manager (students, payments, rounds, courses)' }] },
@@ -710,23 +746,50 @@ window.editStaff = (id) => {
     { name: 'job_title', label: 'Job title', value: s.job_title },
     { name: 'base_salary', label: 'Base salary', type: 'number', value: s.base_salary },
     { name: 'hire_date', label: 'Hire date', type: 'date', value: s.hire_date },
-  ], async (d) => { d.role = d.role === 'manager' ? 'manager' : 'staff'; await PUT('/api/users/' + id, d); toast('Saved'); go('staff'); });
+  ], async (d) => { d.role = d.role === 'manager' ? 'manager' : 'staff'; await PUT('/api/users/' + id, d); toast('Saved'); go(state.page); });
 };
-window.addAtt = () => formModal('Manual attendance', [
-  { name: 'user_id', label: 'Staff', type: 'select', options: window._staff.map((s) => ({ value: s.id, label: s.name })) },
-  { name: 'date', label: 'Day', type: 'date', value: today() },
-  { name: 'check_in', label: 'In', type: 'time' },
-  { name: 'check_out', label: 'Out', type: 'time' },
-], async (d) => { await POST('/api/attendance', d); toast('Saved'); go('staff'); });
-window.addSalary = () => formModal('Monthly salary', [
-  { name: 'user_id', label: 'Staff', type: 'select', options: window._staff.map((s) => ({ value: s.id, label: s.name })) },
-  { name: 'month', label: 'Month', type: 'month', value: today().slice(0, 7) },
-  { name: 'base', label: 'Base', type: 'number' },
-  { name: 'bonus', label: 'Bonus', type: 'number' },
-  { name: 'deduction', label: 'Deduction', type: 'number' },
-], async (d) => { await POST('/api/salaries', d); toast('Saved'); go('staff'); });
-window.paySalary = async (id) => { await PUT('/api/salaries/' + id, { paid: 1 }); toast('Paid'); go('staff'); };
-window.setLeave = async (id, st) => { await PUT('/api/leaves/' + id, { status: st }); go('staff'); };
+window.addAbsence = (id) => formModal('Add absence', [
+  { name: 'date', label: 'Date', type: 'date', required: true, value: today() },
+  { name: 'reason', label: 'Reason (optional)' },
+], async (d) => { d.user_id = id; await POST('/api/absences', d); toast('Added'); go('staffmember'); });
+window.delAbsence = (aid) => confirmDel('Delete this absence?', async () => { await DEL('/api/absences/' + aid); go('staffmember'); });
+window.addAdvance = (id) => formModal('Add advance (سلفة)', [
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'month', label: 'Deduct from month', type: 'month', value: today().slice(0, 7) },
+  { name: 'note', label: 'Note (optional)' },
+], async (d) => { d.user_id = id; await POST('/api/advances', d); toast('Added'); go('staffmember'); });
+window.delAdvance = (aid) => confirmDel('Delete this advance?', async () => { await DEL('/api/advances/' + aid); go('staffmember'); });
+
+/* ============ CONFIGURATION (admin settings) ============ */
+PAGES.config = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
+  const s = await GET('/api/settings');
+  const tab = window._cfgTab || 'academy';
+  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['payment', 'Payment']];
+  let inner = '';
+  if (tab === 'academy') {
+    inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
+      <button class="btn" style="margin-top:12px" onclick="saveCfg(['academy_name'])">Save</button></div>`;
+  } else if (tab === 'salary') {
+    inner = `<div class="card"><label>Working days per month</label><input id="cfg_work_days_per_month" type="number" value="${esc(s.work_days_per_month || '30')}" />
+      <div class="hint" style="margin-top:6px">Used to compute salaries: daily rate = base ÷ this number, and each absent day deducts one daily rate.</div>
+      <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month'])">Save</button></div>`;
+  } else {
+    inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
+      <div class="hint" style="margin-top:6px">Shown next to all amounts across the app.</div>
+      <button class="btn" style="margin-top:12px" onclick="saveCfg(['currency'])">Save</button></div>`;
+  }
+  c.innerHTML = title('Configuration', '⚙') +
+    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="cfgTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+};
+window.cfgTab = (t) => { window._cfgTab = t; go('config'); };
+window.saveCfg = async (keys) => {
+  const body = {};
+  keys.forEach((k) => { const el = document.getElementById('cfg_' + k); if (el) body[k] = el.value; });
+  await PUT('/api/settings', body);
+  await loadConfig();
+  toast('Saved'); go('config');
+};
 
 /* ============ PERMISSIONS (per-role section visibility) ============ */
 PAGES.permissions = async (c) => {

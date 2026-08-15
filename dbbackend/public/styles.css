@@ -1,5 +1,5 @@
 :root{
-  --bg:#f6f4fb; --card:#ffffff; --ink:#221826; --muted:#79708c;
+  --bg:#f6f4fb; --card:#ffffff; --ink:#14101a; --muted:#6b6478;
   --purple:#8b5cf6; --purple-d:#7c3aed; --pink:#e24a8b; --pink-d:#d63384;
   --soft:#eee9fb; --soft2:#f7edf6; --tint:#f1ecfc;
   --line:#e9e4f2; --ok:#3f8f66; --warn:#c08a2a; --bad:#d24b62;
@@ -13,7 +13,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0}
 body{font-family:var(--sans);background:var(--bg);color:var(--ink);
-  direction:ltr;line-height:1.55;font-size:15px;-webkit-font-smoothing:antialiased;letter-spacing:.2px}
+  direction:ltr;line-height:1.5;font-size:14px;font-weight:500;-webkit-font-smoothing:antialiased;letter-spacing:.1px}
 a{color:var(--purple-d);text-decoration:none}
 img{max-width:100%}
 .hidden{display:none!important}
