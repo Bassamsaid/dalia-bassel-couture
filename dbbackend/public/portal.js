@@ -228,32 +228,48 @@ PAGES.home_staff = async (c) => {
 };
 window.doCheck = async () => { const r = await POST('/api/attendance/check'); toast(r.action === 'in' ? 'Checked in' : r.action === 'out' ? 'Checked out' : 'Done'); go('home'); };
 
-/* ============ STAFF SALARY ============ */
+/* ============ STAFF SALARY (own, auto-computed) ============ */
 PAGES.mysalary = async (c) => {
-  const sal = await GET('/api/salaries');
-  const total = sal.filter((s) => s.paid).reduce((a, s) => a + s.net, 0);
-  c.innerHTML = title('My Salary', '') + `
-    <div class="grid g2"><div class="stat"><div class="n">${money(state.user.base_salary)}</div><div class="l">Base</div></div>
-      <div class="stat"><div class="n">${money(total)}</div><div class="l">Received</div></div></div>
-    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Month</th><th>Base</th><th>Bonus</th><th>Deduct</th><th>Net</th><th></th></tr></thead>
-      <tbody>${sal.length ? sal.map((s) => `<tr><td>${esc(s.month)}</td><td>${money(s.base)}</td><td>${money(s.bonus)}</td><td>${money(s.deduction)}</td><td>${money(s.net)}</td><td>${s.paid ? '<span class="badge ok">Paid</span>' : '<span class="badge warn">Pending</span>'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+  const month = window._mySalMonth || today().slice(0, 7);
+  let sal = null;
+  try { sal = await GET(`/api/staff/${state.user.id}/salary?month=${month}`); } catch (e) {}
+  c.innerHTML = title('My Salary', '') +
+    `<div class="filters"><input type="month" value="${month}" onchange="setMySalMonth(this.value)" style="width:auto;padding:8px" /></div>` +
+    (sal ? `<div class="card">
+      ${kv('Base salary', money(sal.base))}
+      ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
+      ${kv('Absent days', sal.absent_days + ' day(s)')}
+      ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+      ${kv('− Advances (سلف) this month', money(sal.advances), 'bad')}
+      <div class="divider"></div>
+      <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
+    </div>` : empty('No salary info yet', '💵'));
 };
+window.setMySalMonth = (m) => { window._mySalMonth = m; go('mysalary'); };
 
-/* ============ STAFF LEAVES ============ */
-PAGES.myleaves = async (c) => {
-  const lv = await GET('/api/leaves');
-  c.innerHTML = title('My Leaves', '') +
-    `<button class="btn" onclick="requestLeave()">＋ Request leave</button>
-    <div class="card" style="margin-top:12px">${lv.length ? lv.map((l) => `<div class="item"><div class="av">🌴</div>
-      <div class="main"><div class="nm">${dt(l.from_date)} → ${dt(l.to_date)}</div><div class="sub">${leaveEn(l.type)}${l.reason ? ' · ' + esc(l.reason) : ''}</div></div>
-      <span class="badge ${l.status === 'approved' ? 'ok' : l.status === 'rejected' ? 'bad' : 'warn'}">${l.status === 'approved' ? 'Approved' : l.status === 'rejected' ? 'Rejected' : 'Pending'}</span></div>`).join('') : empty('No leaves yet', '🌴')}</div>`;
+/* ============ STAFF SELF-SERVICE: report absence / request advance ============ */
+PAGES.myrequests = async (c) => {
+  const [absences, advances] = await Promise.all([GET('/api/absences'), GET('/api/advances')]);
+  const stBadge = (s) => `<span class="badge ${s === 'approved' ? 'ok' : s === 'rejected' ? 'bad' : 'warn'}">${s === 'approved' ? 'Approved' : s === 'rejected' ? 'Rejected' : 'Pending'}</span>`;
+  c.innerHTML = title('Absences & Advances', '') + `
+    <div class="row"><button class="btn" onclick="reportAbsence()">＋ Report absence</button>
+      <button class="btn sec" onclick="requestAdvance()">＋ Request advance (سلفة)</button></div>
+    <div class="sec-title">My absences</div>
+    <div class="card">${absences.length ? absences.map((a) => `<div class="item"><div class="av">✕</div>
+      <div class="main"><div class="nm">${dt(a.date)}</div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div></div>`).join('') : empty('No absences')}</div>
+    <div class="sec-title">My advances (سلف)</div>
+    <div class="card">${advances.length ? advances.map((a) => `<div class="item"><div class="av">💵</div>
+      <div class="main"><div class="nm">${money(a.amount)}</div><div class="sub">${a.month ? 'Deduct ' + a.month : ''}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
+      ${stBadge(a.status || 'approved')}</div>`).join('') : empty('No advances')}</div>`;
 };
-window.requestLeave = () => formModal('Request leave', [
-  { name: 'from_date', label: 'From', type: 'date', required: true, value: today() },
-  { name: 'to_date', label: 'To', type: 'date', required: true, value: today() },
-  { name: 'type', label: 'Type', type: 'select', options: [{ value: 'annual', label: 'Annual' }, { value: 'sick', label: 'Sick' }, { value: 'unpaid', label: 'Unpaid' }] },
-  { name: 'reason', label: 'Reason', type: 'textarea' },
-], async (d) => { await POST('/api/leaves', d); toast('Sent for approval'); go('myleaves'); });
+window.reportAbsence = () => formModal('Report absence', [
+  { name: 'date', label: 'Date', type: 'date', required: true, value: today() },
+  { name: 'reason', label: 'Reason (optional)' },
+], async (d) => { await POST('/api/absences', d); toast('Reported'); go('myrequests'); });
+window.requestAdvance = () => formModal('Request advance (سلفة)', [
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'note', label: 'Note (optional)' },
+], async (d) => { await POST('/api/advances', d); toast('Request sent'); go('myrequests'); });
 
 /* ============ CLIENT / STAFF DRESSES (read-only) ============ */
 PAGES.mydresses = async (c, opts = {}) => {

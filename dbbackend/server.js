@@ -187,6 +187,8 @@ api['PUT /api/profile'] = async (req, res, user) => {
 function requireAdmin(user, res) { if (!user || user.role !== 'admin') { send(res, 403, { error: 'forbidden' }); return false; } return true; }
 // admin OR manager (academy operations: students, payments, rounds, courses, dresses)
 function requireManager(user, res) { if (!user || (user.role !== 'admin' && user.role !== 'manager')) { send(res, 403, { error: 'forbidden' }); return false; } return true; }
+// admin, manager, or staff (employees — for self HR: own absences/advances)
+function requireStaffish(user, res) { if (!user || !['admin', 'manager', 'staff'].includes(user.role)) { send(res, 403, { error: 'forbidden' }); return false; } return true; }
 function requireAuth(user, res) { if (!user) { send(res, 401, { error: 'unauthorized' }); return false; } return true; }
 
 // ================= ADMIN: USERS / STUDENTS =================
@@ -664,40 +666,52 @@ api['PUT /api/settings'] = async (req, res, user) => {
 
 // ================= STAFF HR: ABSENCES / ADVANCES / SALARY =================
 api['GET /api/absences'] = async (req, res, user, url) => {
-  if (!requireAdmin(user, res)) return;
-  const uid = url.searchParams.get('user_id');
+  if (!requireStaffish(user, res)) return;
+  const uid = user.role === 'admin' ? url.searchParams.get('user_id') : user.id; // non-admin: own only
   const q = uid ? 'SELECT a.*,u.name user_name FROM absences a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY date DESC'
     : 'SELECT a.*,u.name user_name FROM absences a JOIN users u ON u.id=a.user_id ORDER BY date DESC';
   send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
 };
 api['POST /api/absences'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireStaffish(user, res)) return;
   const b = await readBody(req);
-  if (!b.user_id || !b.date) return send(res, 400, { error: 'staff and date required' });
-  const r = db.prepare('INSERT INTO absences (user_id,date,reason) VALUES (?,?,?)').run(b.user_id, b.date, b.reason || null);
+  const uid = user.role === 'admin' ? b.user_id : user.id; // staff report their own absence
+  if (!uid || !b.date) return send(res, 400, { error: 'date required' });
+  const r = db.prepare('INSERT INTO absences (user_id,date,reason) VALUES (?,?,?)').run(uid, b.date, b.reason || null);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/absences/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM absences WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 api['GET /api/advances'] = async (req, res, user, url) => {
-  if (!requireAdmin(user, res)) return;
-  const uid = url.searchParams.get('user_id');
+  if (!requireStaffish(user, res)) return;
+  const uid = user.role === 'admin' ? url.searchParams.get('user_id') : user.id; // non-admin: own only
   const q = uid ? 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY created_at DESC'
     : 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id ORDER BY created_at DESC';
   send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
 };
 api['POST /api/advances'] = async (req, res, user) => {
+  if (!requireStaffish(user, res)) return;
+  const b = await readBody(req);
+  const uid = user.role === 'admin' ? b.user_id : user.id;
+  if (!uid || !b.amount) return send(res, 400, { error: 'amount required' });
+  // admin creates approved advances; staff request pending ones (deduct from current month once approved)
+  const status = user.role === 'admin' ? (b.status || 'approved') : 'pending';
+  const month = user.role === 'admin' ? (b.month || null) : new Date().toISOString().slice(0, 7);
+  const r = db.prepare('INSERT INTO advances (user_id,amount,month,note,status) VALUES (?,?,?,?,?)').run(uid, b.amount, month, b.note || null, status);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['PUT /api/advances/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
-  if (!b.user_id || !b.amount) return send(res, 400, { error: 'staff and amount required' });
-  const r = db.prepare('INSERT INTO advances (user_id,amount,month,note) VALUES (?,?,?,?)').run(b.user_id, b.amount, b.month || null, b.note || null);
-  send(res, 200, { id: r.lastInsertRowid });
+  db.prepare('UPDATE advances SET status=? WHERE id=?').run(b.status === 'approved' ? 'approved' : 'rejected', params.id);
+  send(res, 200, { ok: true });
 };
 api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM advances WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
-// Auto salary breakdown for a staff member in a given month (YYYY-MM)
+// Auto salary breakdown for a staff member in a given month (YYYY-MM). Admin, or the staff themselves.
 api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireAuth(user, res)) return;
+  if (user.role !== 'admin' && user.id !== Number(params.id)) return send(res, 403, { error: 'forbidden' });
   const month = url.searchParams.get('month') || new Date().toISOString().slice(0, 7);
   const u = db.prepare('SELECT id,name,base_salary FROM users WHERE id=?').get(params.id);
   if (!u) return send(res, 404, { error: 'not found' });
@@ -705,7 +719,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const base = Number(u.base_salary) || 0;
   const daily = wd ? base / wd : 0;
   const absDays = db.prepare("SELECT COUNT(*) c FROM absences WHERE user_id=? AND substr(date,1,7)=?").get(params.id, month).c;
-  const advTotal = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=?").get(params.id, month).s;
+  const advTotal = db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=? AND (status IS NULL OR status='approved')").get(params.id, month).s;
   const bonus = Number(url.searchParams.get('bonus')) || 0;
   const absenceDeduction = Math.round(daily * absDays * 100) / 100;
   const net = Math.round((base + bonus - absenceDeduction - advTotal) * 100) / 100;

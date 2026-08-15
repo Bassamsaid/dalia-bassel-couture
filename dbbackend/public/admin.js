@@ -743,9 +743,9 @@ PAGES.staffmember = async (c) => {
         <button class="btn-icon" onclick="delAbsence(${a.id})">🗑</button></div>`).join('') : empty('No absences recorded')}</div>`;
   } else if (tab === 'advance') {
     inner = `<button class="btn" onclick="addAdvance(${id})">＋ Add advance (سلفة)</button>
-      <div class="card" style="margin-top:12px">${advances.length ? advances.map((a) => `<div class="item"><div class="av">💵</div>
-        <div class="main"><div class="nm">${money(a.amount)}</div><div class="sub">${a.month ? 'Deducted from ' + a.month : 'No month set'}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
-        <button class="btn-icon" onclick="delAdvance(${a.id})">🗑</button></div>`).join('') : empty('No advances')}</div>`;
+      <div class="card" style="margin-top:12px">${advances.length ? advances.map((a) => { const st = a.status || 'approved'; return `<div class="item"><div class="av">💵</div>
+        <div class="main"><div class="nm">${money(a.amount)} <span class="badge ${st === 'approved' ? 'ok' : st === 'rejected' ? 'bad' : 'warn'}">${st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'Pending'}</span></div><div class="sub">${a.month ? 'Deduct ' + a.month : 'No month set'}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
+        ${st === 'pending' ? `<button class="btn sm ghost" onclick="approveAdvance(${a.id},1)">Approve</button><button class="btn sm danger" onclick="approveAdvance(${a.id},0)">Reject</button>` : `<button class="btn-icon" onclick="delAdvance(${a.id})">🗑</button>`}</div>`; }).join('') : empty('No advances')}</div>`;
   } else {
     inner = `<div class="hint" style="margin-bottom:8px">Staff check themselves in/out from their account.</div>
       <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead>
@@ -789,6 +789,7 @@ window.addAdvance = (id) => formModal('Add advance (سلفة)', [
   { name: 'note', label: 'Note (optional)' },
 ], async (d) => { d.user_id = id; await POST('/api/advances', d); toast('Added'); go('staffmember'); });
 window.delAdvance = (aid) => confirmDel('Delete this advance?', async () => { await DEL('/api/advances/' + aid); go('staffmember'); });
+window.approveAdvance = async (aid, ok) => { await PUT('/api/advances/' + aid, { status: ok ? 'approved' : 'rejected' }); toast(ok ? 'Approved' : 'Rejected'); go('staffmember'); };
 
 /* ============ CONFIGURATION (admin settings) ============ */
 PAGES.config = async (c) => {
