@@ -629,6 +629,7 @@ window.saveAbout = async () => { await PUT('/api/about', { title: $('#abT').valu
 /* ============ DALIA POSTS ============ */
 PAGES.dalia = async (c) => {
   const posts = await GET('/api/dalia');
+  window._daliaPosts = posts;
   const admin = state.user.role === 'admin';
   c.innerHTML = title('Dalia Bassel', '') +
     `<div class="feed-hero"><div class="fn">Dalia Bassel</div><div class="fs">Haute Couture · News & Highlights</div></div>` +
@@ -644,7 +645,7 @@ function renderDaliaPost(p, admin) {
   const txt = p.body ? `<div class="txt">${esc(p.body)}</div>` : '';
   let tbl = ''; try { const t = p.table_data && JSON.parse(p.table_data); if (t && t.rows) tbl = renderMiniTable(t); } catch (e) {}
   const date = `<div class="date">${dt(p.created_at)}</div>`;
-  const del = admin ? `<button class="btn danger sm" style="margin-top:12px" onclick="delDalia(${p.id})">Delete</button>` : '';
+  const del = admin ? `<div class="row" style="margin-top:12px"><button class="btn sec sm" onclick="editDalia(${p.id})">Edit / add photo</button><button class="btn danger sm" onclick="delDalia(${p.id})">Delete</button></div>` : '';
   if (tpl === 'hero') {
     return `<div class="feed-post fp-hero">${img ? `<div class="hero-img" style="background-image:url('${img}')" onclick="lightbox('${img}','${cap}')"><div class="hero-ov">${heads}</div></div>` : `<div class="body">${heads}</div>`}<div class="body">${date}${txt}${tbl}${del}</div></div>`;
   }
@@ -660,26 +661,28 @@ function renderMiniTable(t) {
   return `<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr>${(t.cols || []).map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${(t.rows || []).map((r) => `<tr>${r.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
-window.addDalia = () => {
-  modal(`<h3>New post</h3>
+window.addDalia = () => daliaForm(null);
+window.editDalia = (id) => daliaForm((window._daliaPosts || []).find((x) => x.id === id) || null);
+function daliaForm(p) {
+  p = p || {};
+  window._dImg = p.image || null; window._dEditId = p.id || null;
+  const tpls = [['below', '🖼️ Image on top · text below'], ['side', '↔️ Image beside text'], ['hero', '✨ Big image · title on it'], ['text', '📝 Text only (info block)']];
+  modal(`<h3>${p.id ? 'Edit post' : 'New post'}</h3>
     <label>Template</label>
-    <select id="dTpl">
-      <option value="below">🖼️ Image on top · text below</option>
-      <option value="side">↔️ Image beside text</option>
-      <option value="hero">✨ Big image · title on it</option>
-      <option value="text">📝 Text only (info block)</option>
-    </select>
-    <label>Title</label><input id="dT" placeholder="Heading" />
-    <label>Subtitle</label><input id="dSub" placeholder="Second heading (optional)" />
-    <label>Text / description</label><textarea id="dB" placeholder="Write about the dress, the collection, or Dalia..."></textarea>
-    <div class="row"><button class="btn ghost sm" onclick="dPic()">📷 Photo</button><span class="hint" id="dH">optional</span></div>
-    <button class="btn" style="margin-top:14px" onclick="saveDalia()">Publish</button>`);
-  window._dImg = null;
-};
+    <select id="dTpl">${tpls.map(([k, l]) => `<option value="${k}" ${(p.template || 'below') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <label>Title</label><input id="dT" value="${esc(p.title || '')}" placeholder="Heading" />
+    <label>Subtitle</label><input id="dSub" value="${esc(p.subtitle || '')}" placeholder="Second heading (optional)" />
+    <label>Text / description</label><textarea id="dB" placeholder="Write about the dress, the collection, or Dalia...">${esc(p.body || '')}</textarea>
+    <div class="row"><button class="btn ghost sm" onclick="dPic()">📷 Photo</button><span class="hint" id="dH">${p.image ? 'Selected ✓' : 'optional'}</span></div>
+    ${p.image ? `<img class="thumb" style="width:90px;aspect-ratio:3/4;margin-top:8px" src="/uploads/${esc(p.image)}"/>` : ''}
+    <button class="btn" style="margin-top:14px" onclick="saveDalia()">${p.id ? 'Save' : 'Publish'}</button>`);
+}
 window.dPic = () => pickImage((b) => { window._dImg = b; $('#dH').textContent = 'Selected ✓'; });
 window.saveDalia = async () => {
-  await POST('/api/dalia', { template: $('#dTpl').value, title: $('#dT').value, subtitle: $('#dSub').value, body: $('#dB').value, image: window._dImg });
-  closeModal(); toast('Published'); go('dalia');
+  const body = { template: $('#dTpl').value, title: $('#dT').value, subtitle: $('#dSub').value, body: $('#dB').value, image: window._dImg };
+  if (window._dEditId) await PUT('/api/dalia/' + window._dEditId, body);
+  else await POST('/api/dalia', body);
+  closeModal(); toast('Saved'); go('dalia');
 };
 window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/api/dalia/' + id); go('dalia'); });
 
