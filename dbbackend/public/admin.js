@@ -867,6 +867,7 @@ window.printMeasurements = (id) => {
   const rows = MEASURE_FIELDS.map(([k, l]) => `<tr><td>${l}</td><td>${vals[k] || '—'}</td></tr>`).join('');
   const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>Measurements — ${esc(d.customer_name || '')}</title>
   <style>
+    html,body{background:#fff}
     body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#14101a;padding:32px;max-width:760px;margin:auto}
     .head{text-align:center;border-bottom:3px solid #7c3aed;padding-bottom:14px;margin-bottom:18px}
     .brand{font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:3px;color:#7c3aed}
@@ -893,9 +894,10 @@ window.printMeasurements = (id) => {
 
 /* ============ DRESS MATERIAL PURCHASES (invoices with dress-linked items) ============ */
 PAGES.purchases = async (c) => {
-  const [invoices, dresses] = await Promise.all([GET('/api/purchases'), GET('/api/dresses')]);
+  const [invoices, dresses, vendors] = await Promise.all([GET('/api/purchases'), GET('/api/dresses'), (state.user.role === 'admin' ? GET('/api/vendors') : Promise.resolve([]))]);
   window._allDressesForPurchase = dresses;
   window._purchases = invoices;
+  window._purVendors = vendors;
   const f = window._purMonth || '';
   const list = f ? invoices.filter((inv) => ((inv.invoice_date || inv.created_at || '').slice(0, 7) === f)) : invoices;
   const total = list.reduce((a, inv) => a + (inv.total || 0), 0);
@@ -912,7 +914,7 @@ PAGES.purchases = async (c) => {
     <button class="btn" onclick="newPurchase()">＋ New purchase (فاتورة)</button>
     <div style="margin-top:12px">${list.length ? list.map((inv) => `<div class="card">
       <div class="item" style="cursor:pointer" onclick="openPurchase(${inv.id})">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}"/></div>` : '<div class="av">🧾</div>'}
-        <div class="main"><div class="nm">${esc(inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · ${inv.lines ? inv.lines.length : 0} item${(inv.lines && inv.lines.length === 1) ? '' : 's'} · tap to view ›</div></div>
+        <div class="main"><div class="nm">${esc(inv.vendor_name || inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · ${inv.lines ? inv.lines.length : 0} item${(inv.lines && inv.lines.length === 1) ? '' : 's'} · tap to view ›</div></div>
         <span class="muted" style="font-size:20px">›</span></div>
       ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div>
         <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
@@ -922,9 +924,11 @@ window.setPurMonth = (m) => { window._purMonth = m; go('purchases'); };
 window.openPurchase = (id) => {
   const inv = (window._purchases || []).find((x) => x.id === id);
   if (!inv) return;
-  modal(`<h3>${esc(inv.shop || 'Purchase')}</h3>
+  modal(`<h3>${esc(inv.vendor_name || inv.shop || 'Purchase')}</h3>
     <div class="sub muted">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)} · Total ${money(inv.total)}</div>
     ${inv.note ? `<div class="hint">${esc(inv.note)}</div>` : ''}
+    ${(window._purVendors && window._purVendors.length) ? `<label style="margin-top:8px">المورّد</label>
+      <select id="pv_${id}" onchange="setPurchaseVendor(${id},this.value)" style="width:100%"><option value="">— بدون —</option>${window._purVendors.map((v) => `<option value="${v.id}" ${inv.vendor_id === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>` : ''}
     <div class="sec-title">Invoice</div>
     ${inv.image
       ? `<img style="width:100%;max-height:360px;object-fit:contain;background:#faf7ff;border-radius:12px;cursor:zoom-in" src="/uploads/${esc(inv.image)}" onclick="lightbox('/uploads/${esc(inv.image)}','${esc(inv.shop || '')}')"/>
@@ -936,6 +940,7 @@ window.openPurchase = (id) => {
     <div class="divider"></div>
     <button class="btn danger" onclick="delPurchase(${id})">Delete purchase</button>`);
 };
+window.setPurchaseVendor = async (id, vid) => { await PUT('/api/purchases/' + id, { vendor_id: Number(vid) || null }); toast('اتحفظ المورّد ✅'); window._purchases = await GET('/api/purchases'); const inv = window._purchases.find((x) => x.id === id); if (inv) window._purVendors = await GET('/api/vendors'); };
 window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purchases/' + id, { image: b64 }); toast('Invoice photo saved'); window._purchases = await GET('/api/purchases'); openPurchase(id); });
 
 /* ============ EXPENSES (entries · analysis · vendors · types) ============ */
@@ -963,8 +968,16 @@ PAGES.expenses = async (c) => {
         ${ts.map(([t, a]) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(t)}</div></div><div class="sub">${money(a)}</div></div>`).join('')}</div>`;
     }).join('') : empty('No spending data yet', '📊');
   } else if (tab === 'vendors') {
+    const vs = vendors.slice().sort((a, b) => (b.total || 0) - (a.total || 0));
     inner = `<button class="btn" onclick="addVendor()">＋ Add vendor</button>
-      <div class="card" style="margin-top:12px">${vendors.length ? vendors.map((v) => `<div class="item"><div class="av">🏬</div><div class="main"><div class="nm">${esc(v.name)}</div><div class="sub">${v.phone ? esc(v.phone) : ''}${v.note ? ' · ' + esc(v.note) : ''}</div></div><button class="btn-icon" onclick="delVendor(${v.id})">🗑</button></div>`).join('') : empty('No vendors yet — add names here')}</div>`;
+      <div class="hint" style="margin:10px 2px 6px">دوسي على أي مورّد تشوفي تقريره الكامل (مشتريات + مصروفات) وتطبعيه PDF</div>
+      <div class="card">${vs.length ? vs.map((v) => `<div class="item" style="cursor:pointer" onclick="openVendorReport(${v.id})">
+        <div class="av">🏬</div>
+        <div class="main"><div class="nm">${esc(v.name)}</div><div class="sub">${v.phone ? esc(v.phone) + ' · ' : ''}${v.total ? '🧾 ' + money(v.purchases_total) + ' · 💸 ' + money(v.expenses_total) : 'لسه مفيش حركات'}</div></div>
+        <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total || 0)}</div>
+          <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
+      </div>`).join('') : empty('No vendors yet — add names here')}</div>`;
   } else {
     inner = `<button class="btn" onclick="addExpType()">＋ Add expense type</button>
       <div class="card" style="margin-top:12px">${types.length ? types.map((t) => `<div class="item"><div class="av">🏷️</div><div class="main"><div class="nm">${esc(t.name)}</div></div><button class="btn-icon" onclick="delExpType(${t.id})">🗑</button></div>`).join('') : empty('No types yet')}</div>`;
@@ -983,15 +996,92 @@ window.addExpense = () => { const { vendors, types } = window._expRef; formModal
 window.delExpense = (id) => confirmDel('Delete expense?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
 window.addVendor = () => formModal('Add vendor', [{ name: 'name', label: 'Vendor name', required: true }, { name: 'phone', label: 'Phone' }, { name: 'note', label: 'Note' }], async (d) => { await POST('/api/vendors', d); toast('Added'); go('expenses'); });
 window.delVendor = (id) => confirmDel('Delete vendor?', async () => { await DEL('/api/vendors/' + id); go('expenses'); });
+/* ---- Vendor report: unified spend (material purchases + general expenses) + printable PDF ---- */
+window.openVendorReport = async (id) => {
+  const rep = await GET('/api/vendors/' + id + '/report');
+  window._vendorRep = rep;
+  const { vendor, purchases, expenses, totals } = rep;
+  modal(`<h3>🏬 ${esc(vendor.name)}</h3>
+    ${(vendor.phone || vendor.note) ? `<div class="sub muted">${[vendor.phone, vendor.note].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+    <div class="grid g2" style="margin-top:12px">
+      <div class="stat"><div class="n serif" style="color:var(--bad)">${money(totals.grand)}</div><div class="l">إجمالي الصرف</div></div>
+      <div class="stat"><div class="n serif">${purchases.length + expenses.length}</div><div class="l">حركة</div></div>
+    </div>
+    <div class="card" style="box-shadow:none;margin:10px 0">
+      ${kv('🧾 مشتريات ماتيريال', money(totals.purchases), 'bad')}
+      ${kv('💸 مصروفات عامة', money(totals.expenses), 'bad')}
+    </div>
+    ${purchases.length ? `<div class="sec-title">فواتير المشتريات</div>${purchases.map((inv) => `<div class="card" style="box-shadow:none;margin:0 0 8px">
+      <div class="item"><div class="av">🧾</div><div class="main"><div class="nm">${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''}</div></div></div>
+      ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:12px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
+    </div>`).join('')}` : ''}
+    ${expenses.length ? `<div class="sec-title">المصروفات</div><div class="card" style="box-shadow:none;margin:0">${expenses.map((e) => `<div class="item"><div class="av">💸</div><div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div></div>`).join('')}</div>` : ''}
+    ${(!purchases.length && !expenses.length) ? '<div class="hint">لسه مفيش حركات على المورّد ده</div>' : ''}
+    <div class="divider"></div>
+    <button class="btn" onclick="printVendorReport(${id})">🖨 اطبعي التقرير PDF</button>`);
+};
+window.printVendorReport = async (id) => {
+  const rep = (window._vendorRep && window._vendorRep.vendor.id === Number(id)) ? window._vendorRep : await GET('/api/vendors/' + id + '/report');
+  const { vendor, purchases, expenses, totals } = rep;
+  const cur = (window._cfg && window._cfg.currency) || 'EGP';
+  const m = (n) => (Number(n || 0)).toLocaleString('en-US') + ' ' + cur;
+  const purchaseRows = purchases.map((inv) => `
+    <tr class="grp"><td>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</td><td>فاتورة ماتيريال${inv.note ? ' — ' + esc(inv.note) : ''}</td><td class="amt">${m(inv.total)}</td></tr>
+    ${inv.lines.map((li) => `<tr class="ln"><td></td><td>${esc(li.dress_name || '—')}${li.item ? ' · ' + esc(li.item) : ''}</td><td class="amt">${m(li.amount)}</td></tr>`).join('')}`).join('');
+  const expenseRows = expenses.map((e) => `<tr><td>${e.date ? dt(e.date) : dt(e.created_at)}</td><td>${esc(e.type || 'مصروف')}${e.note ? ' — ' + esc(e.note) : ''}</td><td class="amt">${m(e.amount)}</td></tr>`).join('');
+  const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>تقرير مورّد — ${esc(vendor.name)}</title>
+  <style>
+    html,body{background:#fff}
+    body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#14101a;padding:32px;max-width:820px;margin:auto}
+    .head{text-align:center;border-bottom:3px solid #7c3aed;padding-bottom:14px;margin-bottom:18px}
+    .brand{font-family:Georgia,'Times New Roman',serif;font-size:28px;font-weight:700;letter-spacing:3px;color:#7c3aed}
+    .sub{color:#777;font-size:11px;letter-spacing:4px;text-transform:uppercase;margin-top:4px}
+    .meta{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between;margin:0 4px 16px;font-size:14px}
+    .totals{display:flex;gap:12px;margin:0 0 18px}
+    .tbox{flex:1;background:#faf7ff;border:1px solid #e9e2f7;border-radius:12px;padding:12px;text-align:center}
+    .tbox span{display:block;font-size:20px;font-weight:800;color:#7c3aed;font-family:Georgia,serif}
+    .tbox label{font-size:11px;color:#777;letter-spacing:1px}
+    h3{margin:18px 0 8px;color:#4a2f8f}
+    table{width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;font-size:14px}
+    th{background:#4a2f8f;color:#fff;padding:9px 12px;text-align:start;font-size:12px}
+    td{border:1px solid #e9e2f7;padding:8px 12px}
+    td.amt{text-align:end;white-space:nowrap;font-weight:700}
+    tr.grp td{background:#f6f2fe;font-weight:700}
+    tr.ln td{color:#555;font-size:13px}
+    .grand{margin-top:18px;text-align:end;font-size:18px;font-weight:800;color:#7c3aed;border-top:2px solid #7c3aed;padding-top:10px}
+    @media print{body{padding:6px}}
+  </style></head><body>
+    <div class="head"><div class="brand">DALIA BASSEL</div><div class="sub">Haute Couture · Vendor Statement</div></div>
+    <div class="meta"><div><b>المورّد:</b> ${esc(vendor.name)}</div>${vendor.phone ? `<div><b>تليفون:</b> ${esc(vendor.phone)}</div>` : ''}<div><b>تاريخ التقرير:</b> ${dt(today())}</div></div>
+    <div class="totals">
+      <div class="tbox"><span>${m(totals.grand)}</span><label>إجمالي الصرف</label></div>
+      <div class="tbox"><span>${m(totals.purchases)}</span><label>مشتريات ماتيريال</label></div>
+      <div class="tbox"><span>${m(totals.expenses)}</span><label>مصروفات عامة</label></div>
+    </div>
+    ${purchases.length ? `<h3>المشتريات (ماتيريال)</h3><table><thead><tr><th>التاريخ</th><th>البيان</th><th>المبلغ</th></tr></thead><tbody>${purchaseRows}</tbody></table>` : ''}
+    ${expenses.length ? `<h3>المصروفات العامة</h3><table><thead><tr><th>التاريخ</th><th>النوع / البيان</th><th>المبلغ</th></tr></thead><tbody>${expenseRows}</tbody></table>` : ''}
+    ${(!purchases.length && !expenses.length) ? '<p>لا توجد حركات على هذا المورّد.</p>' : ''}
+    <div class="grand">الإجمالي الكلي: ${m(totals.grand)}</div>
+    <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print()},400)}</scr` + `ipt>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) return toast('Allow pop-ups to print');
+  w.document.write(html); w.document.close();
+};
 window.addExpType = () => formModal('Add expense type', [{ name: 'name', label: 'Type name', required: true }], async (d) => { await POST('/api/expense-types', d); toast('Added'); go('expenses'); });
 window.delExpType = (id) => confirmDel('Delete type?', async () => { await DEL('/api/expense-types/' + id); go('expenses'); });
 window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); closeModal(); go('purchases'); });
 let _puLineN = 0;
 window.newPurchase = async (presetDressId) => {
-  const dresses = window._allDressesForPurchase || await GET('/api/dresses');
+  const [dresses, vendors] = await Promise.all([
+    window._allDressesForPurchase ? Promise.resolve(window._allDressesForPurchase) : GET('/api/dresses'),
+    (state.user.role === 'admin' ? GET('/api/vendors') : Promise.resolve(window._purVendors || [])),
+  ]);
   window._puDresses = dresses; window._puImg = null; window._puPreset = presetDressId || ''; _puLineN = 0;
   modal(`<h3>New purchase (فاتورة)</h3>
-    <label>Shop</label><input id="pu_shop" placeholder="Shop name" />
+    ${vendors.length ? `<label>المورّد</label>
+    <select id="pu_vendor" style="width:100%"><option value="">— بدون / محل مؤقت —</option>${vendors.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</select>` : '<input id="pu_vendor" type="hidden" value="" />'}
+    <label>اسم المحل <span class="hint">(لو مش مورّد ثابت)</span></label><input id="pu_shop" placeholder="Shop name" />
     <label>Invoice date</label><input id="pu_date" type="date" value="${today()}" />
     <label>Note</label><input id="pu_note" />
     <div class="row" style="margin-top:6px"><button class="btn ghost sm" onclick="pickPuImg()">📷 Invoice photo</button><span class="hint" id="puImgLbl">None</span></div>
@@ -1013,7 +1103,11 @@ window.addPuLine = () => {
 window.savePurchase = async () => {
   const lines = [...document.querySelectorAll('.pu-line')].map((l) => ({ dress_id: Number(l.querySelector('.pu-dress').value) || null, item: l.querySelector('.pu-item').value, amount: Number(l.querySelector('.pu-amt').value) || 0 })).filter((x) => x.dress_id && x.amount > 0);
   if (!lines.length) return toast('Add at least one item (dress + amount)');
-  await POST('/api/purchases', { shop: document.getElementById('pu_shop').value, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines });
+  const vSel = document.getElementById('pu_vendor');
+  const vendorId = Number(vSel.value) || null;
+  const vendorName = vendorId ? vSel.selectedOptions[0].textContent : '';
+  const shop = document.getElementById('pu_shop').value.trim() || vendorName;
+  await POST('/api/purchases', { vendor_id: vendorId, shop, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines });
   toast('Purchase saved'); closeModal(); go('purchases');
 };
 window.delDressImg = async (imgId, dressId) => { await DEL('/api/dress-images/' + imgId); toast('Photo deleted'); refreshDress(dressId); };

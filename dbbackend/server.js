@@ -895,7 +895,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
 // ================= DRESS MATERIAL PURCHASES (invoices + dress-linked lines) =================
 api['GET /api/purchases'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
-  const invs = db.prepare('SELECT * FROM purchase_invoices ORDER BY id DESC').all();
+  const invs = db.prepare('SELECT pi.*, (SELECT name FROM vendors WHERE id=pi.vendor_id) vendor_name FROM purchase_invoices pi ORDER BY pi.id DESC').all();
   invs.forEach((inv) => {
     inv.lines = db.prepare('SELECT l.*, (SELECT customer_name FROM dresses WHERE id=l.dress_id) dress_name FROM purchase_lines l WHERE l.invoice_id=?').all(inv.id);
     inv.total = inv.lines.reduce((a, x) => a + (x.amount || 0), 0);
@@ -906,7 +906,7 @@ api['POST /api/purchases'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
-  const r = db.prepare('INSERT INTO purchase_invoices (shop,image,note,invoice_date,created_by) VALUES (?,?,?,?,?)').run(b.shop || null, img, b.note || null, b.invoice_date || null, user.id);
+  const r = db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by) VALUES (?,?,?,?,?,?)').run(b.shop || null, b.vendor_id || null, img, b.note || null, b.invoice_date || null, user.id);
   const invId = r.lastInsertRowid;
   (Array.isArray(b.lines) ? b.lines : []).forEach((li) => {
     if (li && (li.dress_id || li.amount)) db.prepare('INSERT INTO purchase_lines (invoice_id,dress_id,item,amount) VALUES (?,?,?,?)').run(invId, li.dress_id || null, li.item || null, li.amount || 0);
@@ -918,7 +918,7 @@ api['PUT /api/purchases/:id'] = async (req, res, user, url, params) => {
   const b = await readBody(req); const c = db.prepare('SELECT * FROM purchase_invoices WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
   const img = (b.image && b.image.startsWith('data:')) ? maybeImage(b.image) : (b.image ?? c.image);
-  db.prepare('UPDATE purchase_invoices SET shop=?,note=?,invoice_date=?,image=? WHERE id=?').run(b.shop ?? c.shop, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
+  db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=? WHERE id=?').run(b.shop ?? c.shop, b.vendor_id ?? c.vendor_id, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/purchases/:id'] = async (req, res, user, url, params) => {
@@ -958,7 +958,32 @@ api['PUT /api/salary-payments/:id/confirm'] = async (req, res, user, url, params
 api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM salary_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 // ================= EXPENSES (vendors, types, entries) =================
-api['GET /api/vendors'] = async (req, res, user) => { if (!requireAdmin(user, res)) return; send(res, 200, db.prepare('SELECT * FROM vendors ORDER BY name').all()); };
+// Each vendor carries its unified spend = material purchases + general expenses.
+api['GET /api/vendors'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const rows = db.prepare('SELECT * FROM vendors ORDER BY name').all();
+  rows.forEach((v) => {
+    v.purchases_total = db.prepare('SELECT COALESCE(SUM(l.amount),0) s FROM purchase_lines l JOIN purchase_invoices pi ON pi.id=l.invoice_id WHERE pi.vendor_id=?').get(v.id).s;
+    v.expenses_total = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM expenses WHERE vendor_id=?').get(v.id).s;
+    v.total = v.purchases_total + v.expenses_total;
+  });
+  send(res, 200, rows);
+};
+// Full per-vendor report: every material invoice + every expense from that vendor, with totals.
+api['GET /api/vendors/:id/report'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const vendor = db.prepare('SELECT * FROM vendors WHERE id=?').get(params.id);
+  if (!vendor) return send(res, 404, { error: 'not found' });
+  const purchases = db.prepare('SELECT * FROM purchase_invoices WHERE vendor_id=? ORDER BY COALESCE(invoice_date,created_at) DESC, id DESC').all(params.id);
+  purchases.forEach((inv) => {
+    inv.lines = db.prepare('SELECT l.*, (SELECT customer_name FROM dresses WHERE id=l.dress_id) dress_name FROM purchase_lines l WHERE l.invoice_id=?').all(inv.id);
+    inv.total = inv.lines.reduce((a, x) => a + (x.amount || 0), 0);
+  });
+  const expenses = db.prepare('SELECT * FROM expenses WHERE vendor_id=? ORDER BY COALESCE(date,created_at) DESC, id DESC').all(params.id);
+  const pTotal = purchases.reduce((a, p) => a + p.total, 0);
+  const eTotal = expenses.reduce((a, e) => a + (e.amount || 0), 0);
+  send(res, 200, { vendor, purchases, expenses, totals: { purchases: pTotal, expenses: eTotal, grand: pTotal + eTotal } });
+};
 api['POST /api/vendors'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
