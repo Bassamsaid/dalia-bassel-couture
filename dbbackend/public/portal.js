@@ -275,11 +275,16 @@ window.requestAdvance = () => formModal('Request advance (سلفة)', [
 PAGES.mydresses = async (c, opts = {}) => {
   const dresses = await GET('/api/dresses');
   const stEn = { open: 'In preparation', in_progress: 'In progress', delivered: 'Ready' };
-  c.innerHTML = title(opts.title || 'My Dresses', '') +
-    (dresses.length ? dresses.map((d) => `<div class="card">
+  const isStaff = ['staff', 'manager'].includes(state.user.role);
+  const mine = isStaff && window._myDressMine;
+  const list = mine ? dresses.filter((d) => d.assigned_to === state.user.id) : dresses;
+  const chips = isStaff ? `<div class="filters"><span class="chip ${!mine ? 'active' : ''}" onclick="myDressTab(0)">All dresses</span><span class="chip ${mine ? 'active' : ''}" onclick="myDressTab(1)">Assigned to me</span></div>` : '';
+  c.innerHTML = title(opts.title || 'My Dresses', '') + chips +
+    (list.length ? list.map((d) => `<div class="card">
       <div class="nm serif" style="font-size:18px">${esc(d.customer_name)} <span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span></div>
-      <div class="sub muted">Delivery: ${dt(d.delivery_date)}</div>
+      <div class="sub muted">Delivery: ${dt(d.delivery_date)}${isStaff ? ' · ' + (d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned') : ''}</div>
       ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
       ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
-    </div>`).join('') : empty('No bookings yet', '👗'));
+    </div>`).join('') : empty(mine ? 'No dresses assigned to you' : 'No bookings yet', '👗'));
 };
+window.myDressTab = (v) => { window._myDressMine = v; go(state.page); };

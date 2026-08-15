@@ -635,29 +635,60 @@ window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/a
 PAGES.dresses = async (c) => {
   if (state.user.role === 'staff') return PAGES.mydresses(c, { title: 'Dresses' }); // staff: read-only view of all dresses
   if (state.user.role !== 'admin' && state.user.role !== 'manager') return PAGES.mydresses(c); // customer: own only
-  const [dresses, customers] = await Promise.all([GET('/api/dresses'), GET('/api/users?role=customer')]);
-  window._dressRef = { customers };
+  const [dresses, customers, allUsers] = await Promise.all([GET('/api/dresses'), GET('/api/users?role=customer'), GET('/api/users')]);
+  const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
+  window._dressRef = { customers, staff };
+  window._dresses = dresses;
   const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
   const stCls = { open: 'warn', in_progress: '', delivered: 'ok' };
+  const f = window._dressF || { status: 'all', month: '', assigned: false };
+  let list = dresses.slice();
+  if (f.status !== 'all') list = list.filter((d) => d.status === f.status);
+  if (f.assigned) list = list.filter((d) => d.assigned_to);
+  if (f.month) list = list.filter((d) => (d.delivery_date || '').slice(0, 7) === f.month);
+  // sort: soonest UPCOMING delivery first, then past (most recent first), no-date last
+  const tday = today();
+  list.sort((a, b) => {
+    const A = a.delivery_date || '', B = b.delivery_date || '';
+    if (!A && !B) return 0; if (!A) return 1; if (!B) return -1;
+    const au = A >= tday, bu = B >= tday;
+    if (au && bu) return A < B ? -1 : 1;
+    if (au) return -1; if (bu) return 1;
+    return A > B ? -1 : 1;
+  });
+  const statuses = [['all', 'All'], ['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']];
   c.innerHTML = title('Dresses', '') +
     `<button class="btn" onclick="addDress()">＋ Book a dress</button>
-    <div class="grid g2" style="margin-top:12px">${dresses.length ? dresses.map((d) => `
+    <div class="filters" style="margin-top:12px">${statuses.map(([k, l]) => `<span class="chip ${f.status === k && !f.assigned ? 'active' : ''}" onclick="dressFilter('status','${k}')">${l}</span>`).join('')}
+      <span class="chip ${f.assigned ? 'active' : ''}" onclick="dressFilter('assigned','x')">👤 Assigned</span></div>
+    <div class="row" style="margin:0 0 12px;align-items:center;gap:8px">
+      <input type="month" value="${f.month}" onchange="dressFilter('month',this.value)" style="width:auto;padding:8px" />
+      ${f.month ? `<button class="btn ghost sm" onclick="dressFilter('month','')">Clear month</button>` : ''}
+      <span class="hint">${list.length} dress(es)</span></div>
+    <div class="grid g2">${list.length ? list.map((d) => `
       <div class="card" style="margin:0">
         ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
         <div class="nm" style="font-weight:600;margin-top:8px">${esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
-        <div class="sub muted" style="font-size:12px">${d.fittings.length} fittings · ${d.images.length} photos</div>
+        <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'} · ${d.fittings.length} fittings</div>
         <button class="btn sec sm" style="margin-top:8px" onclick="openDress(${d.id})">Details</button>
-      </div>`).join('') : empty('No dresses yet', '👗')}</div>`;
-  window._dresses = dresses;
+      </div>`).join('') : empty('No dresses match this filter', '👗')}</div>`;
+};
+window.dressFilter = (k, v) => {
+  const f = window._dressF || { status: 'all', month: '', assigned: false };
+  if (k === 'assigned') f.assigned = !f.assigned;
+  else if (k === 'status') { f.status = v; f.assigned = false; }
+  else f[k] = v;
+  window._dressF = f; go('dresses');
 };
 window.addDress = () => {
-  const { customers } = window._dressRef;
+  const { customers, staff } = window._dressRef;
   formModal('Book a dress', [
     { name: 'customer_name', label: 'Client name', required: true },
     { name: 'phone', label: 'Phone' },
     { name: 'delivery_date', label: 'Delivery date', type: 'date' },
     { name: 'status', label: 'Status', type: 'select', options: [{ value: 'open', label: 'New' }, { value: 'in_progress', label: 'In progress' }, { value: 'delivered', label: 'Delivered' }] },
+    { name: 'assigned_to', label: 'Assign to (staff)', type: 'select', options: [{ value: '', label: '— unassigned —' }, ...(staff || []).map((s) => ({ value: s.id, label: s.name + (s.role === 'manager' ? ' (Manager)' : '') }))] },
     { name: 'customer_user_id', label: 'Link to client account (optional)', type: 'select', options: [{ value: '', label: '—' }, ...customers.map((u) => ({ value: u.id, label: u.name + (u.email ? ' · ' + u.email : '') }))] },
     { name: 'note', label: 'Notes', type: 'textarea' },
     { name: 'cover_image', label: 'Dress photo', type: 'image' },
@@ -665,9 +696,16 @@ window.addDress = () => {
 };
 window.openDress = (id) => {
   const d = window._dresses.find((x) => x.id === id);
+  const staff = (window._dressRef && window._dressRef.staff) || [];
   modal(`<h3>${esc(d.customer_name)}</h3>
     <div class="sub muted">${d.phone ? esc(d.phone) + ' · ' : ''}Delivery ${dt(d.delivery_date)}</div>
     ${d.note ? `<div class="hint">${esc(d.note)}</div>` : ''}
+    <div class="sec-title">Status</div>
+    <div class="row"><select id="statSel_${id}" style="flex:2">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <button class="btn sm" onclick="saveDressStatus(${id})">Save</button></div>
+    <div class="sec-title">Assigned staff</div>
+    <div class="row"><select id="assignSel_${id}" style="flex:2"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+      <button class="btn sm" onclick="saveAssign(${id})">Save</button></div>
     <div class="sec-title">Fittings</div>
     ${d.fittings.length ? d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div>
       <div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div>
@@ -687,6 +725,8 @@ window.delFitting = async (fid, id) => { await DEL('/api/fittings/' + fid); refr
 window.addDressImg = (id) => pickImages(async (b64) => { await POST(`/api/dresses/${id}/images`, { image: b64 }); toast('Photo added'); refreshDress(id); });
 window.delDress = (id) => confirmDel('Delete dress booking?', async () => { await DEL('/api/dresses/' + id); closeModal(); go('dresses'); });
 async function refreshDress(id) { window._dresses = await GET('/api/dresses'); openDress(id); }
+window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); await refreshDress(id); };
+window.saveDressStatus = async (id) => { await PUT('/api/dresses/' + id, { status: document.getElementById('statSel_' + id).value }); toast('Saved'); await refreshDress(id); };
 
 /* ============ STAFF HR ============ */
 PAGES.staff = async (c) => {

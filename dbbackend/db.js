@@ -334,5 +334,6 @@ try { db.exec("ALTER TABLE videos ADD COLUMN kind TEXT DEFAULT 'online'"); } cat
 try { db.exec("ALTER TABLE payments ADD COLUMN method TEXT DEFAULT 'transfer'"); } catch (e) { /* column exists */ } // transfer | cash
 try { db.exec("ALTER TABLE rounds ADD COLUMN kind TEXT DEFAULT 'onsite'"); } catch (e) { /* column exists */ } // online | onsite (in-person)
 try { db.exec("ALTER TABLE advances ADD COLUMN status TEXT DEFAULT 'approved'"); } catch (e) { /* column exists */ } // pending | approved | rejected
+try { db.exec('ALTER TABLE dresses ADD COLUMN assigned_to INTEGER'); } catch (e) { /* column exists */ } // staff responsible for the dress
 
 module.exports = { db, hashPassword, verifyPassword };

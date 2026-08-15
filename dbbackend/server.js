@@ -508,8 +508,9 @@ api['DELETE /api/dalia/:id'] = async (req, res, user, url, params) => { if (!req
 api['GET /api/dresses'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
   let list;
-  if (['admin', 'manager', 'staff'].includes(user.role)) list = db.prepare('SELECT * FROM dresses ORDER BY id DESC').all();
-  else list = db.prepare('SELECT * FROM dresses WHERE customer_user_id=? ORDER BY id DESC').all(user.id);
+  const base = 'SELECT d.*, u.name assignee_name FROM dresses d LEFT JOIN users u ON u.id=d.assigned_to';
+  if (['admin', 'manager', 'staff'].includes(user.role)) list = db.prepare(base + ' ORDER BY d.id DESC').all();
+  else list = db.prepare(base + ' WHERE d.customer_user_id=? ORDER BY d.id DESC').all(user.id);
   list.forEach((d) => {
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
     d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY id').all(d.id);
@@ -520,16 +521,16 @@ api['POST /api/dresses'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const cover = maybeImage(b.cover_image);
-  const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image) VALUES (?,?,?,?,?,?,?)').run(
-    b.customer_name, b.customer_user_id || null, b.phone || null, b.delivery_date || null, b.status || 'open', b.note || null, cover);
+  const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image,assigned_to) VALUES (?,?,?,?,?,?,?,?)').run(
+    b.customer_name, b.customer_user_id || null, b.phone || null, b.delivery_date || null, b.status || 'open', b.note || null, cover, b.assigned_to || null);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req); const c = db.prepare('SELECT * FROM dresses WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
-  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=? WHERE id=?').run(
-    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, params.id);
+  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=? WHERE id=?').run(
+    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, params.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
