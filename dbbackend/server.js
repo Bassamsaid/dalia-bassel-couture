@@ -514,7 +514,10 @@ api['GET /api/dresses'] = async (req, res, user) => {
   list.forEach((d) => {
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
     d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY position, id').all(d.id);
-    if (user.role !== 'admin') delete d.price; // price is admin-only
+    if (user.role === 'admin') {
+      d.material_cost = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM purchase_lines WHERE dress_id=?').get(d.id).s;
+      d.profit = (d.price || 0) - d.material_cost;
+    } else { delete d.price; } // price is admin-only
   });
   send(res, 200, list);
 };
@@ -755,6 +758,34 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const absenceDeduction = Math.round(daily * absDays * 100) / 100;
   const net = Math.round((base + bonus - absenceDeduction - advTotal) * 100) / 100;
   send(res, 200, { user: u.name, month, base, work_days: wd, daily: Math.round(daily * 100) / 100, absent_days: absDays, absence_deduction: absenceDeduction, advances: advTotal, bonus, net });
+};
+
+// ================= DRESS MATERIAL PURCHASES (invoices + dress-linked lines) =================
+api['GET /api/purchases'] = async (req, res, user) => {
+  if (!requireManager(user, res)) return;
+  const invs = db.prepare('SELECT * FROM purchase_invoices ORDER BY id DESC').all();
+  invs.forEach((inv) => {
+    inv.lines = db.prepare('SELECT l.*, (SELECT customer_name FROM dresses WHERE id=l.dress_id) dress_name FROM purchase_lines l WHERE l.invoice_id=?').all(inv.id);
+    inv.total = inv.lines.reduce((a, x) => a + (x.amount || 0), 0);
+  });
+  send(res, 200, invs);
+};
+api['POST /api/purchases'] = async (req, res, user) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req);
+  const img = maybeImage(b.image);
+  const r = db.prepare('INSERT INTO purchase_invoices (shop,image,note,invoice_date,created_by) VALUES (?,?,?,?,?)').run(b.shop || null, img, b.note || null, b.invoice_date || null, user.id);
+  const invId = r.lastInsertRowid;
+  (Array.isArray(b.lines) ? b.lines : []).forEach((li) => {
+    if (li && (li.dress_id || li.amount)) db.prepare('INSERT INTO purchase_lines (invoice_id,dress_id,item,amount) VALUES (?,?,?,?)').run(invId, li.dress_id || null, li.item || null, li.amount || 0);
+  });
+  send(res, 200, { id: invId });
+};
+api['DELETE /api/purchases/:id'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  db.prepare('DELETE FROM purchase_lines WHERE invoice_id=?').run(params.id);
+  db.prepare('DELETE FROM purchase_invoices WHERE id=?').run(params.id);
+  send(res, 200, { ok: true });
 };
 
 // ================= SALARY DISBURSEMENTS (admin sends, staff confirms) =================

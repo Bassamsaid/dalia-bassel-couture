@@ -268,6 +268,7 @@ const NAV = {
     ['notes', 'Notes', '📌'],
     ['dalia', 'Dalia', '✦'],
     ['dresses', 'Dresses', '👗'],
+    ['purchases', 'Purchases', '🧾'],
     ['staff', 'Staff', '💼'],
     ['permissions', 'Permissions', '🔒'],
     ['config', 'Configuration', '⚙'],
@@ -287,6 +288,7 @@ const NAV = {
   manager: [
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
+    ['purchases', 'Purchases', '🧾'],
     ['students', 'Students', '👩‍🎓'],
     ['finance', 'Payments', '💳'],
     ['rounds', 'Rounds', '🗓'],
@@ -299,6 +301,7 @@ const NAV = {
   staff: [
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
+    ['purchases', 'Purchases', '🧾'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
     ['dalia', 'Dalia Bassel', '✦'],

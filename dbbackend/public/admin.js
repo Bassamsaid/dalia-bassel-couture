@@ -743,6 +743,12 @@ window.openDress = (id) => {
     <label>Notes</label><textarea id="dNote_${id}">${esc(d.note || '')}</textarea>
     ${state.user.role === 'admin' ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label><input id="dPrice_${id}" type="number" value="${d.price || 0}" />` : ''}
     <button class="btn sec" style="margin-top:10px" onclick="openMeasurements(${id})">📐 Measurements</button>
+    ${state.user.role === 'admin' ? `<div class="sec-title">Material & profit</div>
+      <div class="card" style="box-shadow:none;margin:0 0 8px">
+        ${kv('Material cost', money(d.material_cost || 0), 'bad')}
+        ${kv('Profit', money(d.profit || 0), (d.profit || 0) >= 0 ? 'ok' : 'bad')}
+      </div>
+      <button class="btn sec sm" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>` : ''}
     <div class="sec-title">Status</div>
     <select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <div class="sec-title">Assigned staff</div>
@@ -832,6 +838,52 @@ window.printMeasurements = (id) => {
   const w = window.open('', '_blank');
   if (!w) return toast('Allow pop-ups to print');
   w.document.write(html); w.document.close();
+};
+
+/* ============ DRESS MATERIAL PURCHASES (invoices with dress-linked items) ============ */
+PAGES.purchases = async (c) => {
+  const [invoices, dresses] = await Promise.all([GET('/api/purchases'), GET('/api/dresses')]);
+  window._allDressesForPurchase = dresses;
+  c.innerHTML = title('Purchases', '🧾') +
+    `<button class="btn" onclick="newPurchase()">＋ New purchase (فاتورة)</button>
+    <div style="margin-top:12px">${invoices.length ? invoices.map((inv) => `<div class="card">
+      <div class="item">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}" onclick="lightbox('/uploads/${esc(inv.image)}')"/></div>` : '<div class="av">🧾</div>'}
+        <div class="main"><div class="nm">${esc(inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''}</div></div>
+        <button class="btn-icon" onclick="delPurchase(${inv.id})">🗑</button></div>
+      ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div>
+        <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
+    </div>`).join('') : empty('No purchases yet', '🧾')}</div>`;
+};
+window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); go('purchases'); });
+let _puLineN = 0;
+window.newPurchase = async (presetDressId) => {
+  const dresses = window._allDressesForPurchase || await GET('/api/dresses');
+  window._puDresses = dresses; window._puImg = null; window._puPreset = presetDressId || ''; _puLineN = 0;
+  modal(`<h3>New purchase (فاتورة)</h3>
+    <label>Shop</label><input id="pu_shop" placeholder="Shop name" />
+    <label>Invoice date</label><input id="pu_date" type="date" value="${today()}" />
+    <label>Note</label><input id="pu_note" />
+    <div class="row" style="margin-top:6px"><button class="btn ghost sm" onclick="pickPuImg()">📷 Invoice photo</button><span class="hint" id="puImgLbl">None</span></div>
+    <div class="sec-title">Items — each linked to a dress</div>
+    <div id="pu_lines"></div>
+    <button class="btn ghost sm" onclick="addPuLine()">＋ Add item</button>
+    <button class="btn" style="margin-top:14px" onclick="savePurchase()">Save purchase</button>`);
+  addPuLine();
+};
+window.pickPuImg = () => pickImage((b64) => { window._puImg = b64; const el = document.getElementById('puImgLbl'); if (el) el.textContent = 'Selected ✓'; });
+window.addPuLine = () => {
+  const box = document.getElementById('pu_lines'); if (!box) return;
+  const opts = (window._puDresses || []).map((d) => `<option value="${d.id}" ${String(window._puPreset) === String(d.id) ? 'selected' : ''}>${esc(d.customer_name)}</option>`).join('');
+  const div = document.createElement('div'); div.className = 'pu-line';
+  div.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
+  div.innerHTML = `<select class="pu-dress" style="flex:2;min-width:0">${opts}</select><input class="pu-item" placeholder="Item" style="flex:2;min-width:0"/><input class="pu-amt" type="number" placeholder="Amount" style="flex:1;min-width:0"/><button class="btn-icon" onclick="this.parentElement.remove()">✕</button>`;
+  box.appendChild(div);
+};
+window.savePurchase = async () => {
+  const lines = [...document.querySelectorAll('.pu-line')].map((l) => ({ dress_id: Number(l.querySelector('.pu-dress').value) || null, item: l.querySelector('.pu-item').value, amount: Number(l.querySelector('.pu-amt').value) || 0 })).filter((x) => x.dress_id && x.amount > 0);
+  if (!lines.length) return toast('Add at least one item (dress + amount)');
+  await POST('/api/purchases', { shop: document.getElementById('pu_shop').value, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines });
+  toast('Purchase saved'); closeModal(); go('purchases');
 };
 window.delDressImg = async (imgId, dressId) => { await DEL('/api/dress-images/' + imgId); toast('Photo deleted'); refreshDress(dressId); };
 /* pointer-based drag-reorder for dress photos (works on touch + mouse); first photo = cover */

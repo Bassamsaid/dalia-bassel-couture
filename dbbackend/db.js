@@ -285,6 +285,24 @@ CREATE TABLE IF NOT EXISTS otps (
   expires_at TEXT NOT NULL
 );
 
+-- Dress material purchases: a shop invoice (with photo) whose line items are each linked to a dress
+CREATE TABLE IF NOT EXISTS purchase_invoices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  shop TEXT,
+  image TEXT,
+  note TEXT,
+  invoice_date TEXT,
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS purchase_lines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id INTEGER NOT NULL,
+  dress_id INTEGER,
+  item TEXT,
+  amount REAL NOT NULL DEFAULT 0
+);
+
 -- Salary disbursements: admin sends salary (with transfer screenshot), staff confirms receipt
 CREATE TABLE IF NOT EXISTS salary_payments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
