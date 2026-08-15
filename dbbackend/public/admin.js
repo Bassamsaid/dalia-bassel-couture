@@ -667,17 +667,24 @@ function daliaForm(p) {
   p = p || {};
   window._dImg = p.image || null; window._dEditId = p.id || null;
   const tpls = [['below', '🖼️ Image on top · text below'], ['side', '↔️ Image beside text'], ['hero', '✨ Big image · title on it'], ['text', '📝 Text only (info block)']];
+  const prev = p.image ? (String(p.image).startsWith('data:') ? p.image : '/uploads/' + esc(p.image)) : '';
   modal(`<h3>${p.id ? 'Edit post' : 'New post'}</h3>
     <label>Template</label>
     <select id="dTpl">${tpls.map(([k, l]) => `<option value="${k}" ${(p.template || 'below') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <label>Title</label><input id="dT" value="${esc(p.title || '')}" placeholder="Heading" />
     <label>Subtitle</label><input id="dSub" value="${esc(p.subtitle || '')}" placeholder="Second heading (optional)" />
     <label>Text / description</label><textarea id="dB" placeholder="Write about the dress, the collection, or Dalia...">${esc(p.body || '')}</textarea>
-    <div class="row"><button class="btn ghost sm" onclick="dPic()">📷 Photo</button><span class="hint" id="dH">${p.image ? 'Selected ✓' : 'optional'}</span></div>
-    ${p.image ? `<img class="thumb" style="width:90px;aspect-ratio:3/4;margin-top:8px" src="/uploads/${esc(p.image)}"/>` : ''}
+    <div class="row"><button class="btn ghost sm" onclick="dPic()">📷 Photo (crop)</button><span class="hint" id="dH">${p.image ? 'Selected ✓' : 'optional'}</span></div>
+    ${prev ? `<img class="thumb" style="width:110px;aspect-ratio:3/4;object-fit:cover;margin-top:8px" src="${prev}"/>` : ''}
     <button class="btn" style="margin-top:14px" onclick="saveDalia()">${p.id ? 'Save' : 'Publish'}</button>`);
 }
-window.dPic = () => pickImage((b) => { window._dImg = b; $('#dH').textContent = 'Selected ✓'; });
+window.dPic = () => {
+  const cur = { id: window._dEditId, template: $('#dTpl').value, title: $('#dT').value, subtitle: $('#dSub').value, body: $('#dB').value, image: window._dImg };
+  pickImage((b) => {
+    const aspect = cur.template === 'hero' ? 16 / 10 : 3 / 4; // hero = wide banner, else portrait
+    cropImage(b, aspect, (cropped) => { cur.image = cropped; setTimeout(() => daliaForm(cur), 0); }); // reopen form with cropped photo
+  });
+};
 window.saveDalia = async () => {
   const body = { template: $('#dTpl').value, title: $('#dT').value, subtitle: $('#dSub').value, body: $('#dB').value, image: window._dImg };
   if (window._dEditId) await PUT('/api/dalia/' + window._dEditId, body);
