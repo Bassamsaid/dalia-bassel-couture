@@ -733,11 +733,9 @@ window.openDress = (id) => {
     <div class="sub muted">${d.phone ? esc(d.phone) + ' · ' : ''}Delivery ${dt(d.delivery_date)}</div>
     ${d.note ? `<div class="hint">${esc(d.note)}</div>` : ''}
     <div class="sec-title">Status</div>
-    <div class="row"><select id="statSel_${id}" style="flex:2">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-      <button class="btn sm" onclick="saveDressStatus(${id})">Save</button></div>
+    <select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <div class="sec-title">Assigned staff</div>
-    <div class="row"><select id="assignSel_${id}" style="flex:2"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
-      <button class="btn sm" onclick="saveAssign(${id})">Save</button></div>
+    <select id="assignSel_${id}" onchange="saveAssign(${id})" style="width:100%"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
     <div class="sec-title">Fittings</div>
     ${d.fittings.length ? d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div>
       <div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div>
@@ -789,8 +787,8 @@ window.delFitting = async (fid, id) => { await DEL('/api/fittings/' + fid); refr
 window.addDressImg = (id) => pickImages(async (b64) => { await POST(`/api/dresses/${id}/images`, { image: b64 }); toast('Photo added'); refreshDress(id); });
 window.delDress = (id) => confirmDel('Delete dress booking?', async () => { await DEL('/api/dresses/' + id); closeModal(); go('dresses'); });
 async function refreshDress(id) { window._dresses = await GET('/api/dresses'); openDress(id); }
-window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); await refreshDress(id); };
-window.saveDressStatus = async (id) => { await PUT('/api/dresses/' + id, { status: document.getElementById('statSel_' + id).value }); toast('Saved'); await refreshDress(id); };
+window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); window._dresses = await GET('/api/dresses'); go('dresses'); };
+window.saveDressStatus = async (id) => { await PUT('/api/dresses/' + id, { status: document.getElementById('statSel_' + id).value }); toast('Saved'); window._dresses = await GET('/api/dresses'); go('dresses'); };
 
 /* ============ STAFF HR ============ */
 PAGES.staff = async (c) => {

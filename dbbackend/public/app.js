@@ -338,7 +338,21 @@ function renderApp() {
       ${(BOTTOM[u.role] || state.nav).filter(([k]) => !isHidden(k)).map(([k, l, ic]) => `<button data-p="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}
     </div>`;
   $('#nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.p); });
-  go(state.nav[0][0]);
+  // restore the last screen after a refresh (so reload keeps you where you were)
+  let start = state.nav[0][0];
+  try {
+    const route = JSON.parse(localStorage.getItem('dalia_route') || 'null');
+    if (route && route.page && PAGES[route.page]) {
+      const inNav = state.nav.some(([k]) => k === route.page);
+      const detailOK = ((route.page === 'round' && route.roundId) || (route.page === 'staffmember' && route.staffId)) && ['admin', 'manager'].includes(u.role);
+      if (inNav || detailOK || route.page === 'profile') {
+        window._roundId = route.roundId; window._roundTab = route.roundTab;
+        window._staffId = route.staffId; window._staffTab2 = route.staffTab2;
+        start = route.page;
+      }
+    }
+  } catch (e) {}
+  go(start);
 }
 function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'Student', staff: 'Staff', customer: 'Client' }[r] || r; }
 function openDrawer() {
@@ -354,9 +368,12 @@ function openDrawer() {
 }
 function closeDrawer() { const d = document.getElementById('drawer-root'); if (d) d.innerHTML = ''; }
 window.openDrawer = openDrawer; window.closeDrawer = closeDrawer;
-async function logout() { try { await POST('/api/logout'); } catch (e) {} state.user = null; renderAuth(); }
+async function logout() { try { await POST('/api/logout'); } catch (e) {} try { localStorage.removeItem('dalia_route'); } catch (e) {} state.user = null; renderAuth(); }
 window.logout = logout;
 
+function persistRoute() {
+  try { localStorage.setItem('dalia_route', JSON.stringify({ page: state.page, roundId: window._roundId, roundTab: window._roundTab, staffId: window._staffId, staffTab2: window._staffTab2 })); } catch (e) {}
+}
 function go(page, opts = {}) {
   if (isHidden(page)) page = (NAV[state.user.role] || [])[0][0]; // blocked section -> landing
   // push the current screen onto the back-stack (skip refreshes of the same page and back navigations)
@@ -365,6 +382,7 @@ function go(page, opts = {}) {
     try { history.pushState({ page }, ''); } catch (e) {}
   }
   state.page = page;
+  persistRoute();
   updateBackBtn();
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.p === page));
   const c = $('#content'); if (!c) return; c.innerHTML = '<div class="spinner"></div>'; window.scrollTo(0, 0);
