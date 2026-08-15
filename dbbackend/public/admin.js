@@ -255,13 +255,13 @@ PAGES.rounds = async (c) => {
     `<div class="row"><button class="btn" onclick="addRound()">＋ Round</button><button class="btn sec" onclick="addGroup()">＋ Group</button></div>
     ${rounds.length ? rounds.map((r) => `<div class="card">
       <div class="item"><div class="av">${r.number || '#'}</div>
-        <div class="main"><div class="nm">${esc(r.name)} <span class="badge ${r.kind === 'online' ? '' : 'ok'}">${r.kind === 'online' ? 'Online' : 'In‑person'}</span> <span class="badge">${cnt(r.id)} students</span></div>
-          <div class="sub">${r.start_date ? 'Starts ' + dt(r.start_date) : ''} ${r.description ? '· ' + esc(r.description) : ''}</div></div>
+        <div class="main" style="cursor:pointer" onclick="openRound(${r.id})"><div class="nm">${esc(r.name)} <span class="badge ${r.kind === 'online' ? '' : 'ok'}">${r.kind === 'online' ? 'Online' : 'In‑person'}</span> <span class="badge">${cnt(r.id)} students</span></div>
+          <div class="sub">${r.start_date ? 'Starts ' + dt(r.start_date) : ''} ${r.description ? '· ' + esc(r.description) : ''} · tap to open ›</div></div>
         <button class="btn-icon" onclick="delRound(${r.id})">🗑</button></div>
       ${groups.filter((g) => g.round_id === r.id).map((g) => `<div class="item" style="padding-inline-start:14px">
         <div class="av" style="background:#fff">◦</div>
-        <div class="main"><div class="nm">${esc(g.name)}</div>
-          <div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'}</div></div>
+        <div class="main" style="cursor:pointer" onclick="openGroup(${g.id})"><div class="nm">${esc(g.name)}</div>
+          <div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'} · tap to add girls ›</div></div>
         <button class="btn-icon" onclick="delGroup(${g.id})">🗑</button></div>`).join('')}
     </div>`).join('') : empty('No rounds yet — start by adding a round')}`;
   window._rounds = rounds;
@@ -284,7 +284,32 @@ window.addGroup = async (presetRound) => {
     { name: 'capacity', label: 'Capacity', type: 'number', value: 6 },
   ], async (d) => { await POST('/api/groups', d); toast('Added'); go(state.page); });
 };
-window.delGroup = (id) => confirmDel('Delete group?', async () => { await DEL('/api/groups/' + id); go('rounds'); });
+window.delGroup = (id) => confirmDel('Delete group?', async () => { await DEL('/api/groups/' + id); go(state.page); });
+
+/* open a group -> manage which students of the round are in it */
+window.openGroup = async (gid) => {
+  const [groups, users] = await Promise.all([GET('/api/groups'), GET('/api/users?role=trainee')]);
+  const g = groups.find((x) => x.id === gid);
+  if (!g) return;
+  const roundStudents = users.filter((u) => u.round_id === g.round_id);
+  const members = roundStudents.filter((u) => u.group_id === gid);
+  const available = roundStudents.filter((u) => u.group_id !== gid);
+  modal(`<h3>${esc(g.name)}</h3>
+    <div class="sub muted">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${members.length}/${g.capacity || '∞'} students</div>
+    <div class="sec-title">In this group</div>
+    <div class="card" style="box-shadow:none;margin:0 0 12px">${members.length ? members.map((u) => `<div class="item">
+      <div class="av">${esc(initials(u.name))}</div><div class="main"><div class="nm">${esc(u.name)}</div></div>
+      <button class="btn sm danger" onclick="setStudentGroup(${u.id},'',${gid})">Remove</button></div>`).join('') : '<div class="hint">No students yet — add from below</div>'}</div>
+    <div class="sec-title">Add students from this round</div>
+    <div class="card" style="box-shadow:none;margin:0">${available.length ? available.map((u) => `<div class="item">
+      <div class="av">${esc(initials(u.name))}</div><div class="main"><div class="nm">${esc(u.name)}</div><div class="sub">${u.group_id ? 'in another group' : 'no group'}</div></div>
+      <button class="btn sm ghost" onclick="setStudentGroup(${u.id},${gid},${gid})">Add</button></div>`).join('') : '<div class="hint">All round students are already in this group</div>'}</div>`);
+};
+window.setStudentGroup = async (uid, gid, reopenGid) => {
+  await PUT('/api/users/' + uid, { group_id: gid });
+  toast('Updated'); await openGroup(reopenGid);
+  if (state.page === 'round' || state.page === 'rounds') go(state.page); // refresh counts behind the modal
+};
 
 /* ============ COURSES / VIDEOS ============ */
 PAGES.courses = async (c) => {
@@ -337,7 +362,7 @@ PAGES.round = async (c) => {
   } else if (tab === 'groups') {
     inner = `<button class="btn" onclick="addGroup(${id})">＋ Group</button>
       <div class="card" style="margin-top:12px">${gList.length ? gList.map((g) => `<div class="item"><div class="av">◦</div>
-        <div class="main"><div class="nm">${esc(g.name)}</div><div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'}</div></div>
+        <div class="main" style="cursor:pointer" onclick="openGroup(${g.id})"><div class="nm">${esc(g.name)}</div><div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'} · tap to add girls ›</div></div>
         <button class="btn-icon" onclick="delGroup(${g.id})">🗑</button></div>`).join('') : empty('No groups yet')}</div>`;
   } else if (tab === 'pay') {
     const tot = finRows.reduce((a, r) => { a.fee += r.total_fee; a.paid += r.paid; a.rem += r.remaining; return a; }, { fee: 0, paid: 0, rem: 0 });
