@@ -386,5 +386,7 @@ try { db.exec('ALTER TABLE dresses ADD COLUMN measure_note TEXT'); } catch (e) {
 try { db.exec('ALTER TABLE dresses ADD COLUMN measure_image TEXT'); } catch (e) { /* column exists */ }           // reference photo
 try { db.exec("ALTER TABLE absences ADD COLUMN status TEXT DEFAULT 'confirmed'"); } catch (e) { /* column exists */ } // pending | confirmed (admin approves)
 try { db.exec('ALTER TABLE users ADD COLUMN off_days TEXT'); } catch (e) { /* column exists */ } // paid weekly off-days (comma weekday names)
+try { db.exec("ALTER TABLE dalia_posts ADD COLUMN template TEXT DEFAULT 'below'"); } catch (e) { /* column exists */ } // below | side | hero | text
+try { db.exec('ALTER TABLE dalia_posts ADD COLUMN subtitle TEXT'); } catch (e) { /* column exists */ }
 
 module.exports = { db, hashPassword, verifyPassword };

@@ -633,40 +633,52 @@ PAGES.dalia = async (c) => {
   c.innerHTML = title('Dalia Bassel', '') +
     `<div class="feed-hero"><div class="fn">Dalia Bassel</div><div class="fs">Haute Couture · News & Highlights</div></div>` +
     (admin ? `<button class="btn" style="margin-bottom:14px" onclick="addDalia()">＋ New post</button>` : '') +
-    (posts.length ? posts.map((p) => {
-      let tbl = ''; try { const t = p.table_data && JSON.parse(p.table_data); if (t && t.rows) tbl = renderMiniTable(t); } catch (e) {}
-      return `<div class="feed-post">
-      ${p.image ? `<img class="ph" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','${esc(p.title || '')}')"/>` : ''}
-      <div class="body">
-        <div class="date">${dt(p.created_at)}</div>
-        ${p.title ? `<div class="ttl">${esc(p.title)}</div>` : ''}
-        ${p.body ? `<div class="txt">${esc(p.body)}</div>` : ''}
-        ${tbl}
-        ${admin ? `<button class="btn danger sm" style="margin-top:12px" onclick="delDalia(${p.id})">Delete</button>` : ''}
-      </div></div>`;
-    }).join('') : empty('No posts yet — add photos & news', '✦'));
+    (posts.length ? posts.map((p) => renderDaliaPost(p, admin)).join('') : empty('No posts yet — add photos & news', '✦'));
 };
+function renderDaliaPost(p, admin) {
+  const tpl = p.template || 'below';
+  const img = p.image ? '/uploads/' + esc(p.image) : '';
+  const cap = esc((p.title || '').replace(/'/g, ''));
+  const imgTag = img ? `<img class="ph" src="${img}" onclick="lightbox('${img}','${cap}')"/>` : '';
+  const heads = `${p.title ? `<div class="ttl">${esc(p.title)}</div>` : ''}${p.subtitle ? `<div class="sub2">${esc(p.subtitle)}</div>` : ''}`;
+  const txt = p.body ? `<div class="txt">${esc(p.body)}</div>` : '';
+  let tbl = ''; try { const t = p.table_data && JSON.parse(p.table_data); if (t && t.rows) tbl = renderMiniTable(t); } catch (e) {}
+  const date = `<div class="date">${dt(p.created_at)}</div>`;
+  const del = admin ? `<button class="btn danger sm" style="margin-top:12px" onclick="delDalia(${p.id})">Delete</button>` : '';
+  if (tpl === 'hero') {
+    return `<div class="feed-post fp-hero">${img ? `<div class="hero-img" style="background-image:url('${img}')" onclick="lightbox('${img}','${cap}')"><div class="hero-ov">${heads}</div></div>` : `<div class="body">${heads}</div>`}<div class="body">${date}${txt}${tbl}${del}</div></div>`;
+  }
+  if (tpl === 'text') {
+    return `<div class="feed-post fp-text"><div class="body">${date}${heads}${txt}${tbl}${del}</div></div>`;
+  }
+  if (tpl === 'side') {
+    return `<div class="feed-post fp-side">${imgTag}<div class="body">${date}${heads}${txt}${tbl}${del}</div></div>`;
+  }
+  return `<div class="feed-post fp-below">${imgTag}<div class="body">${date}${heads}${txt}${tbl}${del}</div></div>`;
+}
 function renderMiniTable(t) {
   return `<div class="tbl-wrap" style="margin-top:8px"><table><thead><tr>${(t.cols || []).map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${(t.rows || []).map((r) => `<tr>${r.map((cell) => `<td>${esc(cell)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 window.addDalia = () => {
   modal(`<h3>New post</h3>
-    <label>Title</label><input id="dT" />
-    <label>Text</label><textarea id="dB"></textarea>
-    <div class="row"><button class="btn ghost sm" onclick="dPic()">📷 Image</button><span class="hint" id="dH">optional</span></div>
-    <div class="divider"></div><div class="sec-title">Table (optional)</div>
-    <label>Column headers (comma-separated)</label><input id="dCols" placeholder="Item, Qty, Price" />
-    <label>Rows (one per line, values comma-separated)</label><textarea id="dRows" placeholder="Dress, 2, 3000&#10;Embroidery, 1, 500"></textarea>
-    <button class="btn" style="margin-top:12px" onclick="saveDalia()">Publish</button>`);
+    <label>Template</label>
+    <select id="dTpl">
+      <option value="below">🖼️ Image on top · text below</option>
+      <option value="side">↔️ Image beside text</option>
+      <option value="hero">✨ Big image · title on it</option>
+      <option value="text">📝 Text only (info block)</option>
+    </select>
+    <label>Title</label><input id="dT" placeholder="Heading" />
+    <label>Subtitle</label><input id="dSub" placeholder="Second heading (optional)" />
+    <label>Text / description</label><textarea id="dB" placeholder="Write about the dress, the collection, or Dalia..."></textarea>
+    <div class="row"><button class="btn ghost sm" onclick="dPic()">📷 Photo</button><span class="hint" id="dH">optional</span></div>
+    <button class="btn" style="margin-top:14px" onclick="saveDalia()">Publish</button>`);
   window._dImg = null;
 };
 window.dPic = () => pickImage((b) => { window._dImg = b; $('#dH').textContent = 'Selected ✓'; });
 window.saveDalia = async () => {
-  let td = null;
-  const cols = $('#dCols').value.trim(); const rows = $('#dRows').value.trim();
-  if (cols || rows) td = { cols: cols.split(',').map((s) => s.trim()), rows: rows.split('\n').filter(Boolean).map((l) => l.split(',').map((s) => s.trim())) };
-  await POST('/api/dalia', { title: $('#dT').value, body: $('#dB').value, image: window._dImg, table_data: td });
+  await POST('/api/dalia', { template: $('#dTpl').value, title: $('#dT').value, subtitle: $('#dSub').value, body: $('#dB').value, image: window._dImg });
   closeModal(); toast('Published'); go('dalia');
 };
 window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/api/dalia/' + id); go('dalia'); });

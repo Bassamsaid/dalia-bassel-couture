@@ -503,7 +503,7 @@ api['POST /api/dalia'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
-  const r = db.prepare('INSERT INTO dalia_posts (title,body,image,table_data) VALUES (?,?,?,?)').run(b.title || null, b.body || null, img, b.table_data ? JSON.stringify(b.table_data) : null);
+  const r = db.prepare('INSERT INTO dalia_posts (title,subtitle,body,image,table_data,template) VALUES (?,?,?,?,?,?)').run(b.title || null, b.subtitle || null, b.body || null, img, b.table_data ? JSON.stringify(b.table_data) : null, b.template || 'below');
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/dalia/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dalia_posts WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
