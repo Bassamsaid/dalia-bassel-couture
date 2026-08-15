@@ -34,10 +34,14 @@ function toast(msg) {
   const t = ensureEl('toast', 'toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400);
 }
+function lazyImgs(sel) {
+  document.querySelectorAll(sel + ' img').forEach((im) => { im.loading = 'lazy'; im.decoding = 'async'; });
+}
 function modal(html) {
   const mr = ensureEl('modal-root');
   mr.innerHTML = `<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal">
     <button class="close" onclick="closeModal()">✕</button>${html}</div></div>`;
+  lazyImgs('#modal-root');
 }
 function closeModal() { const m = document.getElementById('modal-root'); if (m) m.innerHTML = ''; }
 window.closeModal = closeModal;
@@ -66,11 +70,11 @@ function compressImage(file, cb) {
   fr.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const max = 2200; let { width: w, height: h } = img; // HD-quality cap
+      const max = 1500; let { width: w, height: h } = img; // lighter cap for faster loading
       if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
       const c = document.createElement('canvas'); c.width = w; c.height = h;
       const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, 0, 0, w, h);
-      cb(c.toDataURL('image/jpeg', 0.92));
+      cb(c.toDataURL('image/jpeg', 0.82));
     };
     img.onerror = () => cb(fr.result);
     img.src = fr.result;
@@ -387,7 +391,7 @@ function go(page, opts = {}) {
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.p === page));
   const c = $('#content'); if (!c) return; c.innerHTML = '<div class="spinner"></div>'; window.scrollTo(0, 0);
   const fn = PAGES[page];
-  if (fn) fn(c).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
+  if (fn) fn(c).then(() => lazyImgs('#content')).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
   else c.innerHTML = '<div class="empty">Coming soon</div>';
 }
 window.go = go;

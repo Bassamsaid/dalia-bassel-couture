@@ -818,7 +818,10 @@ function serveStatic(req, res, pathname) {
       return send(res, 404, { error: 'not found' });
     }
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    // uploaded files have unique immutable names -> let the browser cache them forever
+    if (pathname.startsWith('/uploads/')) headers['Cache-Control'] = 'public, max-age=31536000, immutable';
+    res.writeHead(200, headers);
     res.end(data);
   });
 }
