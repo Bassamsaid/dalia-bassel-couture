@@ -253,14 +253,15 @@ for (const [name, table] of [['rounds', 'rounds'], ['groups', 'groups']]) {
 api['POST /api/rounds'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
-  const r = db.prepare('INSERT INTO rounds (number,name,description,start_date,active) VALUES (?,?,?,?,?)').run(b.number || null, b.name, b.description || null, b.start_date || null, b.active ?? 1);
+  const kind = b.kind === 'online' ? 'online' : 'onsite';
+  const r = db.prepare('INSERT INTO rounds (number,name,description,start_date,active,kind) VALUES (?,?,?,?,?,?)').run(b.number || null, b.name, b.description || null, b.start_date || null, b.active ?? 1, kind);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['PUT /api/rounds/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req); const c = db.prepare('SELECT * FROM rounds WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
-  db.prepare('UPDATE rounds SET number=?,name=?,description=?,start_date=?,active=? WHERE id=?').run(b.number ?? c.number, b.name ?? c.name, b.description ?? c.description, b.start_date ?? c.start_date, b.active ?? c.active, params.id);
+  db.prepare('UPDATE rounds SET number=?,name=?,description=?,start_date=?,active=?,kind=? WHERE id=?').run(b.number ?? c.number, b.name ?? c.name, b.description ?? c.description, b.start_date ?? c.start_date, b.active ?? c.active, b.kind ?? c.kind, params.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/rounds/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM rounds WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
@@ -485,8 +486,10 @@ api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => { i
 // ================= STAFF HR =================
 api['GET /api/attendance'] = async (req, res, user, url) => {
   if (!requireAuth(user, res)) return;
-  if (user.role === 'admin') {
+  if (user.role === 'admin' || user.role === 'manager') {
     const uid = url.searchParams.get('user_id');
+    const round = url.searchParams.get('round_id');
+    if (round) return send(res, 200, db.prepare('SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE u.round_id=? ORDER BY a.date DESC').all(round));
     const q = uid ? 'SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY date DESC' : 'SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id ORDER BY date DESC LIMIT 300';
     return send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
   }

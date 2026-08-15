@@ -289,5 +289,6 @@ seed();
 try { db.exec('ALTER TABLE about ADD COLUMN home_image TEXT'); } catch (e) { /* column exists */ }
 try { db.exec("ALTER TABLE videos ADD COLUMN kind TEXT DEFAULT 'online'"); } catch (e) { /* column exists */ } // online | onsite (in-person)
 try { db.exec("ALTER TABLE payments ADD COLUMN method TEXT DEFAULT 'transfer'"); } catch (e) { /* column exists */ } // transfer | cash
+try { db.exec("ALTER TABLE rounds ADD COLUMN kind TEXT DEFAULT 'onsite'"); } catch (e) { /* column exists */ } // online | onsite (in-person)
 
 module.exports = { db, hashPassword, verifyPassword };

@@ -183,11 +183,11 @@ window.editStudent = async (id) => {
   ], async (d) => {
     d.role = 'trainee';
     if (id) await PUT('/api/users/' + id, d); else await POST('/api/users', d);
-    toast('Saved'); go('students');
+    toast('Saved'); go(state.page);
   });
   if (id) $('#fm').insertAdjacentHTML('beforeend', `<button type="button" class="btn danger" style="margin-top:8px" onclick="delStudent(${id})">Delete student</button>`);
 };
-window.delStudent = (id) => confirmDel('Delete this student and all their data?', async () => { await DEL('/api/users/' + id); closeModal(); toast('Deleted'); go('students'); });
+window.delStudent = (id) => confirmDel('Delete this student and all their data?', async () => { await DEL('/api/users/' + id); closeModal(); toast('Deleted'); go(state.page === 'round' ? 'round' : 'students'); });
 
 /* ============ FINANCE (sheet + payments + reminders) ============ */
 PAGES.finance = async (c) => {
@@ -235,7 +235,7 @@ window.addPayment = () => formModal('Record payment', [
   { name: 'paid_at', label: 'Date', type: 'date', value: today() },
   { name: 'note', label: 'Note', value: '' },
   { name: 'image', label: 'Transfer screenshot (if bank transfer)', type: 'image' },
-], async (d) => { await POST('/api/payments', d); toast('Recorded'); go('finance'); });
+], async (d) => { await POST('/api/payments', d); toast('Recorded'); go(state.page); });
 window.delPayment = (id) => confirmDel('Delete this payment?', async () => { await DEL('/api/payments/' + id); toast('Deleted'); go('finance'); });
 window.addReminder = () => formModal('Payment reminder', [
   { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },
@@ -255,7 +255,7 @@ PAGES.rounds = async (c) => {
     `<div class="row"><button class="btn" onclick="addRound()">＋ Round</button><button class="btn sec" onclick="addGroup()">＋ Group</button></div>
     ${rounds.length ? rounds.map((r) => `<div class="card">
       <div class="item"><div class="av">${r.number || '#'}</div>
-        <div class="main"><div class="nm">${esc(r.name)} <span class="badge">${cnt(r.id)} students</span></div>
+        <div class="main"><div class="nm">${esc(r.name)} <span class="badge ${r.kind === 'online' ? '' : 'ok'}">${r.kind === 'online' ? 'Online' : 'In‑person'}</span> <span class="badge">${cnt(r.id)} students</span></div>
           <div class="sub">${r.start_date ? 'Starts ' + dt(r.start_date) : ''} ${r.description ? '· ' + esc(r.description) : ''}</div></div>
         <button class="btn-icon" onclick="delRound(${r.id})">🗑</button></div>
       ${groups.filter((g) => g.round_id === r.id).map((g) => `<div class="item" style="padding-inline-start:14px">
@@ -269,44 +269,104 @@ PAGES.rounds = async (c) => {
 window.addRound = () => formModal('New round', [
   { name: 'number', label: 'Round number', type: 'number' },
   { name: 'name', label: 'Name', required: true, placeholder: 'August Round' },
+  { name: 'kind', label: 'Course type', type: 'select', value: 'onsite', options: [{ value: 'online', label: 'Online Course' }, { value: 'onsite', label: 'In‑person' }] },
   { name: 'start_date', label: 'Start date', type: 'date' },
   { name: 'description', label: 'Description', type: 'textarea' },
 ], async (d) => { await POST('/api/rounds', d); toast('Added'); go('rounds'); });
 window.delRound = (id) => confirmDel('Delete round?', async () => { await DEL('/api/rounds/' + id); go('rounds'); });
-window.addGroup = async () => {
+window.addGroup = async (presetRound) => {
   const rounds = window._rounds || await GET('/api/rounds');
   formModal('New group', [
-    { name: 'round_id', label: 'Round', type: 'select', options: rounds.map((r) => ({ value: r.id, label: r.name })) },
+    { name: 'round_id', label: 'Round', type: 'select', value: presetRound || '', options: rounds.map((r) => ({ value: r.id, label: r.name })) },
     { name: 'name', label: 'Group name', required: true, placeholder: 'Group 1' },
     { name: 'day', label: 'Day', type: 'select', options: [{ value: 'friday', label: 'Friday' }, { value: 'saturday', label: 'Saturday' }] },
     { name: 'time_slot', label: 'Time', type: 'select', options: [{ value: '11-3', label: '11 AM – 3 PM' }, { value: '5-9', label: '5 PM – 9 PM' }] },
     { name: 'capacity', label: 'Capacity', type: 'number', value: 6 },
-  ], async (d) => { await POST('/api/groups', d); toast('Added'); go('rounds'); });
+  ], async (d) => { await POST('/api/groups', d); toast('Added'); go(state.page); });
 };
 window.delGroup = (id) => confirmDel('Delete group?', async () => { await DEL('/api/groups/' + id); go('rounds'); });
 
 /* ============ COURSES / VIDEOS ============ */
 PAGES.courses = async (c) => {
   if (state.user.role !== 'admin' && state.user.role !== 'manager') return PAGES.courses_trainee(c);
-  const [videos, rounds] = await Promise.all([GET('/api/videos'), GET('/api/rounds')]);
-  const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
+  const [rounds, students] = await Promise.all([GET('/api/rounds'), GET('/api/users?role=trainee')]);
   window._rounds = rounds;
+  const cnt = (rid) => students.filter((u) => u.round_id === rid).length;
   const tab = window._courseTab === 'onsite' ? 'onsite' : 'online';
   const tabs = [['online', 'Online Course'], ['onsite', 'In‑person']];
-  const list = videos.filter((v) => (v.kind || 'online') === tab);
+  const list = rounds.filter((r) => (r.kind || 'onsite') === tab);
   c.innerHTML = title('Courses', '') +
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="courseTab('${k}')">${l}</span>`).join('')}</div>
-    <button class="btn" onclick="addVideo('${tab}')">＋ Upload / add ${tab === 'onsite' ? 'in‑person' : 'online'} video</button>
-    <div class="grid g2" style="margin-top:12px">${list.length ? list.map((v) => `
-      <div class="card" style="margin:0">
-        <div class="nm" style="font-weight:600">${esc(v.title)}</div>
-        <div class="sub muted" style="font-size:12px">${v.round_id ? esc(rMap[v.round_id] || '') : 'All rounds'}</div>
-        ${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
-        ${videoEmbed(v)}
-        <button class="btn danger sm" style="margin-top:8px" onclick="delVideo(${v.id})">Delete</button>
-      </div>`).join('') : empty(tab === 'onsite' ? 'No in‑person videos yet' : 'No online videos yet', '🎬')}</div>`;
+    <button class="btn sec sm" onclick="addRound()">＋ New round</button>
+    <div style="margin-top:12px">${list.length ? list.map((r) => `<div class="card" style="cursor:pointer" onclick="openRound(${r.id})">
+      <div class="item"><div class="av">${r.number || '#'}</div>
+        <div class="main"><div class="nm">${esc(r.name)} <span class="badge">${cnt(r.id)} students</span></div>
+          <div class="sub">${r.start_date ? 'Starts ' + dt(r.start_date) : ''}${r.description ? ' · ' + esc(r.description) : ''}</div></div>
+        <span class="muted" style="font-size:20px">›</span></div>
+    </div>`).join('') : empty(tab === 'onsite' ? 'No in‑person rounds yet' : 'No online rounds yet', '🎓')}</div>`;
 };
 window.courseTab = (t) => { window._courseTab = t; go('courses'); };
+window.openRound = (id) => { window._roundId = id; window._roundTab = 'students'; go('round'); };
+
+/* ---- Round detail: students / groups / payments / videos / attendance / quizzes ---- */
+PAGES.round = async (c) => {
+  const id = window._roundId;
+  if (!id) return go('courses');
+  const [rounds, groups, students, videos, quizzes, sheet, attendance] = await Promise.all([
+    GET('/api/rounds'), GET('/api/groups'), GET('/api/users?round_id=' + id), GET('/api/videos'),
+    GET('/api/quizzes'), GET('/api/finance/sheet'), GET('/api/attendance?round_id=' + id),
+  ]);
+  const round = rounds.find((r) => r.id === id) || { name: 'Round' };
+  window._rounds = rounds;
+  window._students = { users: students, rounds, groups };  // enable viewStudent / editStudent
+  window._fin = { users: students };                       // enable addPaymentFor
+  const gList = groups.filter((g) => g.round_id === id);
+  const vList = videos.filter((v) => v.round_id === id);
+  const qList = quizzes.filter((q) => q.round_id === id);
+  const finRows = sheet.rows.filter((r) => r.round_id === id);
+  const gcnt = (gid) => students.filter((u) => u.group_id === gid).length;
+  const isAdmin = state.user.role === 'admin';
+  const tab = window._roundTab || 'students';
+  const tabs = [['students', 'Students'], ['groups', 'Groups'], ['pay', 'Payments'], ['videos', 'Videos'], ['att', 'Attendance'], ['quiz', 'Quizzes']];
+  let inner = '';
+  if (tab === 'students') {
+    inner = `<button class="btn" onclick="editStudent()">＋ Add student</button>
+      <div class="card" style="margin-top:12px">${students.length ? students.map((u) => `<div class="item" style="cursor:pointer" onclick="viewStudent(${u.id})">
+        <div class="av">${esc(initials(u.name))}</div><div class="main"><div class="nm">${esc(u.name)}</div><div class="sub">${u.phone ? esc(u.phone) : 'no phone'}</div></div>
+        <span class="muted" style="font-size:20px">›</span></div>`).join('') : empty('No students in this round')}</div>`;
+  } else if (tab === 'groups') {
+    inner = `<button class="btn" onclick="addGroup(${id})">＋ Group</button>
+      <div class="card" style="margin-top:12px">${gList.length ? gList.map((g) => `<div class="item"><div class="av">◦</div>
+        <div class="main"><div class="nm">${esc(g.name)}</div><div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'}</div></div>
+        <button class="btn-icon" onclick="delGroup(${g.id})">🗑</button></div>`).join('') : empty('No groups yet')}</div>`;
+  } else if (tab === 'pay') {
+    const tot = finRows.reduce((a, r) => { a.fee += r.total_fee; a.paid += r.paid; a.rem += r.remaining; return a; }, { fee: 0, paid: 0, rem: 0 });
+    inner = `<div class="grid g3"><div class="stat"><div class="n">${money(tot.fee)}</div><div class="l">Total</div></div>
+      <div class="stat"><div class="n" style="color:var(--ok)">${money(tot.paid)}</div><div class="l">Paid</div></div>
+      <div class="stat"><div class="n" style="color:${tot.rem ? 'var(--bad)' : 'var(--ok)'}">${money(tot.rem)}</div><div class="l">Remaining</div></div></div>
+      <div class="card" style="margin-top:10px">${finRows.length ? finRows.map((r) => `<div class="item">
+        <div class="main"><div class="nm">${esc(r.name)}</div><div class="sub">Paid ${money(r.paid)} · <span style="color:${r.remaining ? 'var(--bad)' : 'var(--ok)'}">Rem ${money(r.remaining)}</span></div></div>
+        <button class="btn sm ghost" onclick="addPaymentFor(${r.id})">＋ Pay</button></div>`).join('') : empty('No students yet')}</div>`;
+  } else if (tab === 'videos') {
+    inner = `<button class="btn" onclick="addVideo('${round.kind || 'onsite'}',${id})">＋ Add video</button>
+      <div class="grid g2" style="margin-top:12px">${vList.length ? vList.map((v) => `<div class="card" style="margin:0">
+        <div class="nm" style="font-weight:600">${esc(v.title)}</div>${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
+        ${videoEmbed(v)}<button class="btn danger sm" style="margin-top:8px" onclick="delVideo(${v.id})">Delete</button></div>`).join('') : empty('No videos yet', '🎬')}</div>`;
+  } else if (tab === 'att') {
+    inner = `<div class="hint" style="margin-bottom:8px">Students check themselves in/out from their own account.</div>
+      <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Day</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>${attendance.length ? attendance.map((a) => `<tr><td>${esc(a.user_name)}</td><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">No attendance yet</td></tr>'}</tbody></table></div></div>`;
+  } else {
+    inner = `${isAdmin ? '<button class="btn" onclick="newQuiz()">＋ New quiz</button>' : ''}
+      <div style="margin-top:12px">${qList.length ? qList.map((q) => `<div class="card"><div class="item"><div class="av">📝</div>
+        <div class="main"><div class="nm">${esc(q.title)} <span class="badge">${q.ref_code}</span></div><div class="sub">${q.questions_count} questions · ${q.duration_min} min</div></div>
+        <button class="btn sm sec" onclick="quizResults(${q.id},'${esc(q.title).replace(/'/g, "\\'")}')">Results</button>${isAdmin ? `<button class="btn-icon" onclick="delQuiz(${q.id})">🗑</button>` : ''}</div></div>`).join('') : empty('No quizzes yet', '📝')}</div>`;
+  }
+  c.innerHTML = title(round.name, '') +
+    `<div class="sub muted" style="margin:-8px 2px 10px">${round.kind === 'online' ? 'Online Course' : 'In‑person'}${round.start_date ? ' · Starts ' + dt(round.start_date) : ''}</div>
+    <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="roundTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+};
+window.roundTab = (t) => { window._roundTab = t; go('round'); };
 function videoEmbed(v) {
   if (v.file) return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>`;
   if (v.url) {
@@ -316,16 +376,16 @@ function videoEmbed(v) {
   }
   return '';
 }
-window.addVideo = async (kind) => {
+window.addVideo = async (kind, presetRound) => {
   const rounds = window._rounds || await GET('/api/rounds');
   formModal('New video', [
     { name: 'title', label: 'Title', required: true },
     { name: 'kind', label: 'Course type', type: 'select', value: kind === 'onsite' ? 'onsite' : 'online', options: [{ value: 'online', label: 'Online Course' }, { value: 'onsite', label: 'In‑person' }] },
-    { name: 'round_id', label: 'Round', type: 'select', options: [{ value: '', label: 'All rounds' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
+    { name: 'round_id', label: 'Round', type: 'select', value: presetRound || '', options: [{ value: '', label: 'All rounds' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'description', label: 'Description', type: 'textarea' },
     { name: 'url', label: 'Link (YouTube or any URL)', placeholder: 'https://...' },
     { name: 'file', label: 'Or upload a video from device', type: 'file', accept: 'video/*' },
-  ], async (d) => { await POST('/api/videos', d); toast('Uploaded'); go('courses'); });
+  ], async (d) => { await POST('/api/videos', d); toast('Uploaded'); go(state.page); });
 };
 window.delVideo = (id) => confirmDel('Delete video?', async () => { await DEL('/api/videos/' + id); go('courses'); });
 

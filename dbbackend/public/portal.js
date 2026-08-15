@@ -56,12 +56,31 @@ PAGES.home_trainee = async (c) => {
     </div>
     <div class="sec-title">Menu</div>
     <div class="tiles">
-      ${[['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['notes', '📌', 'Notes'], ['mypay', '💳', 'Account'], ['about', 'ℹ', 'About']]
+      ${[['myattendance', '🕒', 'Attendance'], ['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['notes', '📌', 'Notes'], ['mypay', '💳', 'Account'], ['about', 'ℹ', 'About']]
       .filter(([p]) => !isHidden(p))
       .map(([p, e, t]) => `<div class="tile" onclick="go('${p}')"><div class="em">${e}</div><div class="t">${t}</div></div>`).join('')}
     </div>
     ${notes.length ? `<div class="sec-title">Latest notes</div>${notes.slice(0, 3).map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>${n.body ? `<div style="font-size:13px">${esc(n.body)}</div>` : ''}</div>`).join('')}` : ''}`;
 };
+
+/* ============ STUDENT SELF ATTENDANCE (check in/out) ============ */
+PAGES.myattendance = async (c) => {
+  const att = await GET('/api/attendance');
+  const todayRec = att.find((a) => a.date === today());
+  let label = 'Check in', ic = '●';
+  if (todayRec && todayRec.check_in && !todayRec.check_out) { label = 'Check out'; ic = '◐'; }
+  else if (todayRec && todayRec.check_out) { label = 'Done for today ✓'; ic = '✓'; }
+  c.innerHTML = title('My Attendance', '') + `
+    <div class="card" style="text-align:center">
+      <div style="font-size:40px">${ic}</div>
+      <div class="nm" style="font-weight:600;font-size:16px;margin:8px 0">${todayRec ? `In: ${todayRec.check_in || '—'} · Out: ${todayRec.check_out || '—'}` : 'No attendance today yet'}</div>
+      ${todayRec && todayRec.check_out ? '' : `<button class="btn" onclick="doCheckMy()">${label}</button>`}
+    </div>
+    <div class="sec-title">History</div>
+    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>${att.length ? att.slice(0, 30).map((a) => `<tr><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="3" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+};
+window.doCheckMy = async () => { const r = await POST('/api/attendance/check'); toast(r.action === 'in' ? 'Checked in ✓' : r.action === 'out' ? 'Checked out ✓' : 'Done'); go('myattendance'); };
 
 /* ============ STUDENT COURSES (videos, read-only) ============ */
 PAGES.courses_trainee = async (c) => {

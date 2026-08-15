@@ -231,6 +231,7 @@ const NAV = {
   ],
   trainee: [
     ['home', 'Home', '⌂'],
+    ['myattendance', 'Attendance', '🕒'],
     ['courses', 'Courses', '🎬'],
     ['homework', 'Tasks', '✎'],
     ['quizzes', 'Quizzes', '📝'],
