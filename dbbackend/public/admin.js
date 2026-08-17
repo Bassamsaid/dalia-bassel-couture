@@ -272,14 +272,18 @@ PAGES.finance = async (c) => {
         <span class="chip ${pf === 'transfer' ? 'active' : ''}" onclick="payFilter('transfer')">🏦 Transfer</span>
       </div>
       <button class="btn" onclick="addPayment()">＋ Record payment</button>
-      <div class="hint" style="margin:8px 2px">${shown.length} payment${shown.length === 1 ? '' : 's'} · ${money(shownTotal)}</div>
+      <div class="hint" style="margin:8px 2px">${shown.length} payment${shown.length === 1 ? '' : 's'}</div>
       <div class="card">${shown.length ? shown.map((p) => `
       <div class="item">
         <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','Transfer ${esc(p.user_name || '')}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
         <div class="main"><div class="nm">${esc(p.user_name || '')} · ${money(p.amount)}</div>
           <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
         <button class="btn-icon" onclick="delPayment(${p.id})">🗑</button>
-      </div>`).join('') : empty('No payments match this filter')}</div>`;
+      </div>`).join('') : empty('No payments match this filter')}</div>
+      <div class="item" style="background:var(--soft);border-radius:12px;padding:12px 14px;margin-top:10px;border:none">
+        <div class="main"><div class="nm">TOTAL${pf === 'cash' ? ' · 💵 Cash' : pf === 'transfer' ? ' · 🏦 Transfer' : ''}</div><div class="sub">${shown.length} payment${shown.length === 1 ? '' : 's'}</div></div>
+        <div class="serif" style="font-size:20px;font-weight:800;color:var(--ok)">${money(shownTotal)}</div>
+      </div>`;
   } else {
     inner = `<button class="btn" onclick="addReminder()">＋ Payment reminder</button>
       <div class="card" style="margin-top:12px">${reminders.length ? reminders.map((r) => `
