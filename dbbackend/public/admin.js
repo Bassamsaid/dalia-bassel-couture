@@ -359,18 +359,27 @@ window.delGroup = (id) => confirmDel('Delete group?', async () => { await DEL('/
 
 /* open a group -> manage which students of the round are in it */
 window.openGroup = async (gid) => {
-  const [groups, users] = await Promise.all([GET('/api/groups'), GET('/api/users?role=trainee')]);
+  const [groups, users, sheet] = await Promise.all([GET('/api/groups'), GET('/api/users?role=trainee'), GET('/api/finance/sheet')]);
   const g = groups.find((x) => x.id === gid);
   if (!g) return;
+  const fin = {}; (sheet.rows || []).forEach((r) => { fin[r.id] = r; });
   const roundStudents = users.filter((u) => u.round_id === g.round_id);
   const members = roundStudents.filter((u) => u.group_id === gid);
   const available = roundStudents.filter((u) => u.group_id !== gid);
+  const gFee = members.reduce((a, u) => a + ((fin[u.id] || {}).total_fee || 0), 0);
+  const gPaid = members.reduce((a, u) => a + ((fin[u.id] || {}).paid || 0), 0);
+  const gRem = members.reduce((a, u) => a + ((fin[u.id] || {}).remaining || 0), 0);
   modal(`<h3>${esc(g.name)}</h3>
     <div class="sub muted">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${members.length}/${g.capacity || '∞'} students</div>
     <div class="sec-title">In this group</div>
-    <div class="card" style="box-shadow:none;margin:0 0 12px">${members.length ? members.map((u) => `<div class="item">
-      <div class="av">${esc(initials(u.name))}</div><div class="main"><div class="nm">${esc(u.name)}</div></div>
-      <button class="btn sm danger" onclick="setStudentGroup(${u.id},'',${gid})">Remove</button></div>`).join('') : '<div class="hint">No students yet — add from below</div>'}</div>
+    <div class="card" style="box-shadow:none;margin:0 0 12px">${members.length ? members.map((u) => { const f = fin[u.id] || { total_fee: 0, paid: 0, remaining: 0 }; return `<div class="item">
+      <div class="av">${esc(initials(u.name))}</div>
+      <div class="main"><div class="nm">${esc(u.name)}</div>
+        <div class="sub">Paid <b style="color:var(--ok)">${money(f.paid)}</b> · Remaining <b style="color:${f.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(f.remaining)}</b></div></div>
+      <button class="btn sm danger" onclick="setStudentGroup(${u.id},'',${gid})">Remove</button></div>`; }).join('') : '<div class="hint">No students yet — add from below</div>'}
+      ${members.length ? `<div class="item" style="background:var(--soft);border-radius:10px;border:none;margin-top:6px">
+        <div class="main"><div class="nm">Group total</div><div class="sub">Fees ${money(gFee)}</div></div>
+        <div style="text-align:end;font-size:12px;font-weight:700">Paid <span style="color:var(--ok)">${money(gPaid)}</span><br>Remaining <span style="color:${gRem ? 'var(--bad)' : 'var(--ok)'}">${money(gRem)}</span></div></div>` : ''}</div>
     <div class="sec-title">Add students from this round</div>
     <div class="card" style="box-shadow:none;margin:0">${available.length ? available.map((u) => `<div class="item">
       <div class="av">${esc(initials(u.name))}</div><div class="main"><div class="nm">${esc(u.name)}</div><div class="sub">${u.group_id ? 'in another group' : 'no group'}</div></div>
