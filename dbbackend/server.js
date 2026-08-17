@@ -278,7 +278,13 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
 };
 api['DELETE /api/users/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
-  db.prepare('DELETE FROM users WHERE id=? AND role!=?').run(params.id, 'admin');
+  const id = Number(params.id);
+  const target = db.prepare('SELECT id, role FROM users WHERE id=?').get(id);
+  if (!target || target.role === 'admin') return send(res, 200, { ok: true }); // never delete the admin
+  // clean cascade: remove every record that belongs to this user
+  const tables = ['sessions', 'enrollments', 'payments', 'reminders', 'submissions', 'quiz_attempts', 'attendance', 'salaries', 'leaves', 'absences', 'advances', 'salary_adjustments', 'salary_payments', 'notifications'];
+  for (const t of tables) { try { db.prepare(`DELETE FROM ${t} WHERE user_id=?`).run(id); } catch (e) { /* table/column may not exist */ } }
+  db.prepare('DELETE FROM users WHERE id=? AND role!=?').run(id, 'admin');
   send(res, 200, { ok: true });
 };
 
