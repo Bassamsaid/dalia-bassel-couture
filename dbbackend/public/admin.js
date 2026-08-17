@@ -257,14 +257,29 @@ PAGES.finance = async (c) => {
       <tfoot><tr><td>Total (${sheet.totals.count})</td><td>${money(sheet.totals.total_fee)}</td><td>${money(sheet.totals.paid)}</td><td>${money(sheet.totals.remaining)}</td></tr></tfoot>
       </table></div></div>`;
   } else if (tab === 'pay') {
-    inner = `<button class="btn" onclick="addPayment()">＋ Record payment</button>
-      <div class="card" style="margin-top:12px">${payments.length ? payments.map((p) => `
+    const pf = window._payMethod || 'all';
+    const cashTotal = payments.filter((p) => p.method === 'cash').reduce((a, p) => a + (p.amount || 0), 0);
+    const transferTotal = payments.filter((p) => p.method !== 'cash').reduce((a, p) => a + (p.amount || 0), 0);
+    const shown = pf === 'all' ? payments : payments.filter((p) => (pf === 'cash' ? p.method === 'cash' : p.method !== 'cash'));
+    const shownTotal = shown.reduce((a, p) => a + (p.amount || 0), 0);
+    inner = `<div class="grid g2" style="margin-bottom:10px">
+        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(cashTotal)}</div><div class="l">💵 Cash</div></div>
+        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(transferTotal)}</div><div class="l">🏦 Transfer</div></div>
+      </div>
+      <div class="filters">
+        <span class="chip ${pf === 'all' ? 'active' : ''}" onclick="payFilter('all')">All · ${money(cashTotal + transferTotal)}</span>
+        <span class="chip ${pf === 'cash' ? 'active' : ''}" onclick="payFilter('cash')">💵 Cash</span>
+        <span class="chip ${pf === 'transfer' ? 'active' : ''}" onclick="payFilter('transfer')">🏦 Transfer</span>
+      </div>
+      <button class="btn" onclick="addPayment()">＋ Record payment</button>
+      <div class="hint" style="margin:8px 2px">${shown.length} payment${shown.length === 1 ? '' : 's'} · ${money(shownTotal)}</div>
+      <div class="card">${shown.length ? shown.map((p) => `
       <div class="item">
-        <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','Transfer ${esc(p.user_name || '')}')"/>` : '💵'}</div>
+        <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','Transfer ${esc(p.user_name || '')}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
         <div class="main"><div class="nm">${esc(p.user_name || '')} · ${money(p.amount)}</div>
           <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
         <button class="btn-icon" onclick="delPayment(${p.id})">🗑</button>
-      </div>`).join('') : empty('No payments yet')}</div>`;
+      </div>`).join('') : empty('No payments match this filter')}</div>`;
   } else {
     inner = `<button class="btn" onclick="addReminder()">＋ Payment reminder</button>
       <div class="card" style="margin-top:12px">${reminders.length ? reminders.map((r) => `
@@ -278,6 +293,7 @@ PAGES.finance = async (c) => {
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="finTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.finTab = (t) => { window._finTab = t; go('finance'); };
+window.payFilter = (m) => { window._payMethod = m; go('finance'); };
 window.addPayment = () => formModal('Record payment', [
   { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },
   { name: 'amount', label: 'Amount', type: 'number', required: true },
