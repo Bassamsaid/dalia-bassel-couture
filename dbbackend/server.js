@@ -572,6 +572,8 @@ api['GET /api/dresses'] = async (req, res, user) => {
     if (user.role === 'admin') {
       d.material_cost = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM purchase_lines WHERE dress_id=?').get(d.id).s;
       d.profit = (d.price || 0) - d.material_cost;
+      d.paid = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM dress_payments WHERE dress_id=?').get(d.id).s;
+      d.remaining = Math.max(0, (d.price || 0) - d.paid);
     } else { delete d.price; } // price is admin-only
   });
   send(res, 200, list);
@@ -620,8 +622,26 @@ api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
   db.prepare('DELETE FROM dresses WHERE id=?').run(params.id);
   db.prepare('DELETE FROM dress_fittings WHERE dress_id=?').run(params.id);
   db.prepare('DELETE FROM dress_images WHERE dress_id=?').run(params.id);
+  db.prepare('DELETE FROM dress_payments WHERE dress_id=?').run(params.id);
+  db.prepare('DELETE FROM dress_updates WHERE dress_id=?').run(params.id);
   send(res, 200, { ok: true });
 };
+// ---- dress payments (client deposits/installments) — admin only (price is admin-only) ----
+api['GET /api/dresses/:id/payments'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  send(res, 200, db.prepare('SELECT * FROM dress_payments WHERE dress_id=? ORDER BY COALESCE(paid_at,created_at) DESC, id DESC').all(params.id));
+};
+api['POST /api/dresses/:id/payments'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (!b.amount) return send(res, 400, { error: 'Amount is required' });
+  const img = maybeImage(b.image);
+  const method = b.method === 'cash' ? 'cash' : 'transfer';
+  const r = db.prepare("INSERT INTO dress_payments (dress_id,amount,method,note,image,paid_at) VALUES (?,?,?,?,?,COALESCE(?,datetime('now')))")
+    .run(params.id, b.amount, method, b.note || null, img, b.paid_at || null);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/dress-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dress_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 api['POST /api/dresses/:id/fittings'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);

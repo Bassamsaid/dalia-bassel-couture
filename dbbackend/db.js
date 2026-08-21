@@ -348,6 +348,19 @@ CREATE TABLE IF NOT EXISTS dress_updates (
 );
 CREATE INDEX IF NOT EXISTS idx_dressupd ON dress_updates(dress_id);
 
+-- Dress payments: client deposits / installments against a dress price
+CREATE TABLE IF NOT EXISTS dress_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dress_id INTEGER NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  method TEXT DEFAULT 'transfer',
+  note TEXT,
+  image TEXT,
+  paid_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dresspay ON dress_payments(dress_id);
+
 -- Dress material purchases: a shop invoice (with photo) whose line items are each linked to a dress
 CREATE TABLE IF NOT EXISTS purchase_invoices (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

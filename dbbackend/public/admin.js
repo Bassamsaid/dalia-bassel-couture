@@ -103,6 +103,9 @@ PAGES.home_admin = async (c) => {
     GET('/api/finance/sheet'), GET('/api/rounds'), GET('/api/dresses'), GET('/api/reminders'), GET('/api/about'), GET('/api/users'),
   ]);
   const dueSoon = reminders.filter((r) => !r.done).length;
+  const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
+  const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
+  const dRem = dresses.reduce((a, x) => a + (x.remaining || 0), 0);
   c.innerHTML = title('Welcome, Dalia', '') +
     heroBanner(about, true) + `
     <div class="grid g3" style="margin-bottom:14px">
@@ -120,11 +123,11 @@ PAGES.home_admin = async (c) => {
         <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
         <button class="btn sm ghost" onclick="markReminder(${r.id})">Done</button></div>`).join('')}</div>` : ''}
     <div class="card">
-      <div class="sec-title">Payments summary</div>
+      <div class="sec-title">Dresses money 👗</div>
       <div class="grid g3">
-        <div class="stat"><div class="n">${money(sheet.totals.paid)}</div><div class="l">Collected</div></div>
-        <div class="stat"><div class="n">${money(sheet.totals.remaining)}</div><div class="l">Remaining</div></div>
-        <div class="stat"><div class="n">${money(sheet.totals.total_fee)}</div><div class="l">Total</div></div>
+        <div class="stat" onclick="go('dresses')"><div class="n" style="color:var(--ok)">${money(dPaid)}</div><div class="l">Deposits in</div></div>
+        <div class="stat" onclick="go('dresses')"><div class="n" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}">${money(dRem)}</div><div class="l">Remaining</div></div>
+        <div class="stat" onclick="go('dresses')"><div class="n">${money(dTotal)}</div><div class="l">Total value</div></div>
       </div>
     </div>`;
 };
@@ -808,7 +811,15 @@ window.openDress = (id) => {
         ${kv('Material cost', money(d.material_cost || 0), 'bad')}
         ${kv('Profit', money(d.profit || 0), (d.profit || 0) >= 0 ? 'ok' : 'bad')}
       </div>
-      <button class="btn sec sm" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>` : ''}
+      <button class="btn sec sm" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>
+      <div class="sec-title">Payments (deposits) 💰</div>
+      <div class="card" style="box-shadow:none;margin:0 0 8px">
+        ${kv('Price', money(d.price || 0))}
+        ${kv('Paid', money(d.paid || 0), 'ok')}
+        ${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}
+      </div>
+      <div id="dpay_${id}"><div class="hint">Loading…</div></div>
+      <button class="btn sec sm" style="margin-top:6px" onclick="addDressPayment(${id})">＋ Add payment / deposit</button>` : ''}
     <div class="sec-title">Status</div>
     <select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
     <div class="sec-title">Assigned staff</div>
@@ -834,7 +845,26 @@ window.openDress = (id) => {
     </div>`);
   wireDressPhotos(id);
   loadDressUpdates(id);
+  if (state.user.role === 'admin') loadDressPayments(id);
 };
+async function loadDressPayments(id) {
+  const box = document.getElementById('dpay_' + id); if (!box) return;
+  try {
+    const pays = await GET('/api/dresses/' + id + '/payments');
+    box.innerHTML = pays.length ? `<div class="card" style="box-shadow:none;margin:0">${pays.map((p) => `<div class="item">
+      <div class="av">${p.image ? `<img class="thumb" style="width:40px;height:40px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
+      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+      <button class="btn-icon" onclick="delDressPayment(${p.id},${id})">🗑</button></div>`).join('')}</div>` : '<div class="hint">No payments yet</div>';
+  } catch (e) { box.innerHTML = '<div class="hint">Could not load payments</div>'; }
+}
+window.addDressPayment = (id) => formModal('Add dress payment', [
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'method', label: 'Method', type: 'select', value: 'transfer', options: [{ value: 'transfer', label: 'Bank transfer / Instapay' }, { value: 'cash', label: 'Cash' }] },
+  { name: 'paid_at', label: 'Date', type: 'date', value: today() },
+  { name: 'note', label: 'Note (e.g. deposit)', value: '' },
+  { name: 'image', label: 'Receipt (optional)', type: 'image' },
+], async (d) => { await POST('/api/dresses/' + id + '/payments', d); toast('Payment added'); closeModal(); refreshDress(id); });
+window.delDressPayment = (pid, id) => confirmDel('Delete this payment?', async () => { await DEL('/api/dress-payments/' + pid); refreshDress(id); });
 async function loadDressUpdates(id) {
   const box = document.getElementById('dupd_' + id); if (!box) return;
   try {
