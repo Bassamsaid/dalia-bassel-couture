@@ -373,8 +373,37 @@ function openDrawer() {
     <div class="drawer-head" style="cursor:pointer" onclick="closeDrawer();go('profile')"><div class="logo">DB</div>
       <div><div class="dn">${esc(state.user.name)}</div><div class="dr">${roleLabel(state.user.role)}</div></div></div>
     <div class="drawer-nav">${items}</div>
-    <button class="btn sec" style="margin-top:14px" onclick="logout()">Sign out</button></div></div>`;
+    ${appInstalled() ? '' : '<button class="btn sec" style="margin-top:14px" onclick="closeDrawer();installApp()">📲 Install app</button>'}
+    <button class="btn sec" style="margin-top:8px" onclick="logout()">Sign out</button></div></div>`;
 }
+/* ---- PWA install ---- */
+let _deferredPrompt = null;
+function appInstalled() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); _deferredPrompt = e; });
+window.installApp = async () => {
+  if (appInstalled()) { toast('App already installed ✓'); return; }
+  if (_deferredPrompt) {
+    _deferredPrompt.prompt();
+    try { await _deferredPrompt.userChoice; } catch (e) {}
+    _deferredPrompt = null;
+    return;
+  }
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  modal(isIOS
+    ? `<h3>Install on iPhone 🍎</h3>
+       <ol style="line-height:2;padding-inline-start:20px;font-size:14px">
+         <li>Open this page in <b>Safari</b>.</li>
+         <li>Tap the <b>Share</b> button ⬆️ (bottom bar).</li>
+         <li>Scroll down and tap <b>“Add to Home Screen”</b>.</li>
+         <li>Tap <b>Add</b> — the icon appears on your home screen.</li>
+       </ol>`
+    : `<h3>Install app 📲</h3>
+       <ol style="line-height:2;padding-inline-start:20px;font-size:14px">
+         <li>Open the browser menu <b>⋮</b> (top-right).</li>
+         <li>Tap <b>“Add to Home screen”</b> / <b>“Install app”</b>.</li>
+         <li>Confirm — the icon appears on your home screen.</li>
+       </ol>`);
+};
 function closeDrawer() { const d = document.getElementById('drawer-root'); if (d) d.innerHTML = ''; }
 window.openDrawer = openDrawer; window.closeDrawer = closeDrawer;
 async function logout() { try { await POST('/api/logout'); } catch (e) {} try { localStorage.removeItem('dalia_route'); } catch (e) {} state.user = null; renderAuth(); }
