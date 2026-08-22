@@ -188,7 +188,7 @@ window.viewStudent = async (id) => {
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   const gMap = Object.fromEntries(groups.map((g) => [g.id, g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '')]));
   const canSeeMoney = ['admin', 'manager'].includes(state.user.role); // course money: admin + manager
-  const canEdit = canSeeMoney; // staff view-only
+  const canEdit = ['admin', 'manager', 'staff'].includes(state.user.role); // staff may edit contact info
   const pays = canSeeMoney ? await GET('/api/payments?user_id=' + id) : [];
   const fin = canSeeMoney ? ((await GET('/api/finance/sheet')).rows.find((r) => r.id === id) || { total_fee: 0, paid: 0, remaining: 0 }) : null;
   modal(`
@@ -203,8 +203,8 @@ window.viewStudent = async (id) => {
       <div class="stat"><div class="n" style="color:${fin.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(fin.remaining)}</div><div class="l">Remaining</div></div>
     </div>` : ''}
     <div class="card" style="box-shadow:none;margin:12px 0 12px">
-      ${u.governorate ? `<div class="item"><div class="main"><div class="sub">Governorate</div><div class="nm">${esc(u.governorate)}</div></div></div>` : ''}
-      ${u.phone ? `<div class="item"><div class="main"><div class="sub">Phone</div><div class="nm">${esc(u.phone)}</div></div></div>` : ''}
+      <div class="item"><div class="main"><div class="sub">Phone</div><div class="nm">${u.phone ? esc(u.phone) : '—'}</div></div></div>
+      <div class="item"><div class="main"><div class="sub">Governorate</div><div class="nm">${u.governorate ? esc(u.governorate) : '—'}</div></div></div>
       ${u.email ? `<div class="item"><div class="main"><div class="sub">Email (login)</div><div class="nm">${esc(u.email)}</div></div></div>` : ''}
     </div>
     ${canSeeMoney ? `<div class="sec-title">Payments (${pays.length})</div>
@@ -223,14 +223,25 @@ window.addPaymentFor = async (id) => {
 };
 window.stFilter = (f) => { window._stF = f; go('students'); };
 window.editStudent = async (id) => {
+  const canManageFull = ['admin', 'manager'].includes(state.user.role); // staff: contact only, no money/round/group
   const { rounds, groups } = window._students;
   const u = id ? window._students.users.find((x) => x.id === id) : {};
+  const govField = { name: 'governorate', label: 'Governorate', type: 'select', value: u.governorate, options: [{ value: '', label: '—' }, ...EG_GOV.map((g) => ({ value: g, label: g }))] };
+  if (!canManageFull) {
+    // staff: edit contact info only
+    formModal('Edit student', [
+      { name: 'name', label: 'Name', required: true, value: u.name },
+      { name: 'phone', label: 'Phone', value: u.phone },
+      govField,
+    ], async (d) => { await PUT('/api/users/' + id, d); toast('Saved'); go(state.page); });
+    return;
+  }
   let fee = 0;
   if (id) { try { const s = await GET('/api/finance/sheet'); fee = (s.rows.find((r) => r.id === id) || {}).total_fee || 0; } catch (e) {} }
   formModal(id ? 'Edit student' : 'New student', [
     { name: 'name', label: 'Name', required: true, value: u.name },
     { name: 'phone', label: 'Phone', value: u.phone },
-    { name: 'governorate', label: 'Governorate', type: 'select', value: u.governorate, options: [{ value: '', label: '—' }, ...EG_GOV.map((g) => ({ value: g, label: g }))] },
+    govField,
     { name: 'email', label: 'Email (for login)', type: 'email', value: u.email },
     { name: 'password', label: id ? 'Reset password (optional)' : 'Login password', type: 'password', placeholder: id ? 'leave blank to keep current' : "or leave blank if she'll register herself" },
     { name: 'round_id', label: 'Round', type: 'select', value: u.round_id, options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },

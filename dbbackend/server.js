@@ -259,10 +259,15 @@ api['POST /api/users'] = async (req, res, user) => {
   } catch (e) { send(res, 400, { error: e.message.includes('UNIQUE') ? 'This email is already in use' : e.message }); }
 };
 api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
-  if (!requireManager(user, res)) return;
+  if (!requireStaffish(user, res)) return;
   const b = await readBody(req);
   const cur = db.prepare('SELECT * FROM users WHERE id=?').get(params.id);
   if (!cur) return send(res, 404, { error: 'not found' });
+  if (user.role === 'staff') { // staff may only edit a student/client's contact info — no money, role, round, group
+    if (!['trainee', 'customer'].includes(cur.role)) return send(res, 403, { error: 'forbidden' });
+    db.prepare('UPDATE users SET name=?,phone=?,governorate=? WHERE id=?').run(b.name ?? cur.name, b.phone ?? cur.phone, b.governorate ?? cur.governorate, params.id);
+    return send(res, 200, { ok: true });
+  }
   if (user.role === 'manager') { // managers may only touch students/clients and never escalate a role
     if (!['trainee', 'customer'].includes(cur.role)) return send(res, 403, { error: 'forbidden' });
     if (b.role && !['trainee', 'customer'].includes(b.role)) return send(res, 403, { error: 'cannot change role' });
