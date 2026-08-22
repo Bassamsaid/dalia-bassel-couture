@@ -108,31 +108,56 @@ PAGES.home_admin = async (c) => {
   const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
   const dRem = dresses.reduce((a, x) => a + (x.remaining || 0), 0);
   const dOpen = dresses.filter((x) => (x.status || 'open') !== 'done').length;
+  const clients = users.filter((u) => u.role === 'customer').length;
+  const visitors = users.filter((u) => u.role === 'visitor').length;
+  const team = users.filter((u) => ['staff', 'manager'].includes(u.role)).length;
   c.innerHTML = luxBackdrop() + dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
     heroBanner(about, true) + `
-    <div class="sec-title">Studio</div>
+    ${brandGroup({
+      name: 'Dalia Bassel', kind: 'Academy',
+      c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
+      summary: `${sheet.totals.count} students · ${rounds.length} round${rounds.length === 1 ? '' : 's'} · ${homeworks.length} task${homeworks.length === 1 ? '' : 's'}`,
+      rows: [
+        ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
+        ['rounds', '🗓', 'Rounds & groups', `${big(rounds.length)} round${rounds.length === 1 ? '' : 's'}`],
+        ['courses', '🎬', 'Courses', `${big(videos.length)} video${videos.length === 1 ? '' : 's'}`],
+        ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`],
+        ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`],
+        ['finance', '💳', 'Course money', sheet.totals.remaining ? `${big(money(sheet.totals.remaining))} still due` : `${big(money(sheet.totals.paid))} collected`],
+      ],
+      figuresGo: "go('finance')",
+      figures: [
+        { value: sheet.totals.paid, label: 'Collected', money: true, color: 'var(--ok)' },
+        { value: sheet.totals.remaining, label: 'Still due', money: true, color: sheet.totals.remaining ? 'var(--bad)' : 'var(--ok)' },
+        { value: sheet.totals.total_fee, label: 'Course fees', money: true },
+      ],
+    })}
+    ${brandGroup({
+      name: 'Daliessa', kind: 'Couture',
+      c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
+      summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
+      rows: [
+        ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
+        ['clients', '💛', 'Clients', `${big(clients)} client${clients === 1 ? '' : 's'}`, "openMembers('customer')"],
+        ['dressmoney', '💰', 'Dress money', dRem ? `${big(money(dRem))} still due` : `${big(money(dPaid))} collected`, "go('dresses')"],
+      ],
+      figuresGo: "go('dresses')",
+      figures: [
+        { value: dPaid, label: 'Deposits in', money: true, color: 'var(--ok)' },
+        { value: dRem, label: 'Remaining', money: true, color: dRem ? 'var(--bad)' : 'var(--ok)' },
+        { value: dTotal, label: 'Total value', money: true },
+      ],
+    })}
+    <div class="sec-title">Everyone</div>
     ${navList([
-      ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
-      ['members', '👥', 'Members', `${big(users.length)} registered`],
-      ['finance', '💳', 'Payments', sheet.totals.remaining
-        ? `${big(money(sheet.totals.remaining))} still due` : `${big(money(sheet.totals.paid))} collected`],
-      ['courses', '🎬', 'Courses', `${big(rounds.length)} rounds · ${big(videos.length)} videos`],
-      ['homework', '✎', 'Tasks', `${big(homeworks.length)} patterns set`],
-      ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quizzes`],
-      ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(money(dRem))} due`],
+      ['members', '👥', 'Members', `${big(users.length)} registered · ${big(visitors)} visitor${visitors === 1 ? '' : 's'}`],
+      ['staff', '🧵', 'Team', `${big(team)} in the studio`],
     ])}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
         <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
         <button class="btn sm ghost" onclick="markReminder(${r.id})">Done</button></div>`).join('')}</div>` : ''}
-    <div class="card">
-      <div class="sec-title">Dresses money 👗</div>
-      <div class="fig-row" onclick="go('dresses')">
-        <div class="fig"><div class="v" style="color:var(--ok)" data-count="${dPaid}" data-fmt="money">${money(0)}</div><div class="k">Deposits in</div></div>
-        <div class="fig"><div class="v" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}" data-count="${dRem}" data-fmt="money">${money(0)}</div><div class="k">Remaining</div></div>
-        <div class="fig"><div class="v" data-count="${dTotal}" data-fmt="money">${money(0)}</div><div class="k">Total value</div></div>
-      </div>
-    </div></div>`;
+    </div>`;
   runCounters(c);
 };
 window.markReminder = async (id) => { await PUT('/api/reminders/' + id, { done: 1 }); toast('Done'); go('home'); };
@@ -160,6 +185,7 @@ PAGES.members = async (c) => {
       </select></div>`).join('') : empty('No members')}</div>`;
 };
 window.memFilter = (r) => { window._memF = r; go('members'); };
+window.openMembers = (r) => { window._memF = r; go('members'); };
 window.setRole = async (id, role) => { await PUT('/api/users/' + id, { role }); toast('Permission updated'); go('members'); };
 
 /* ============ STUDENTS ============ */

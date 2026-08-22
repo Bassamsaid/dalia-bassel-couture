@@ -546,6 +546,10 @@ const TILE_TINT = {
   notes:    ['#c2622a', '#f3a97a', '194,98,42'],
   mypay:    ['#b3873a', '#e8c477', '179,135,58'],
   about:    ['#6b6478', '#b6aec6', '107,100,120'],
+  rounds:   ['#5b21b6', '#a78bfa', '91,33,182'],
+  clients:  ['#c2185b', '#f0a3c6', '194,24,91'],
+  dressmoney: ['#b3873a', '#e8c477', '179,135,58'],
+  staff:    ['#0f766e', '#5eead4', '15,118,110'],
 };
 function tintVars(key) {
   const [c1, c2, glow] = TILE_TINT[key] || TILE_TINT.students;
@@ -558,20 +562,38 @@ function tilesHtml(items) {
     <div class="em"><span>${e}</span></div><div class="t">${esc(t)}</div></div>`).join('')}</div>`;
 }
 /* elegant nav list: rows of [page, icon, label, meta-html] — replaces the tile grid */
-function navList(rows) {
-  return `<div class="nav-list">${rows.map(([p, e, label, meta], i) => `
-    <div class="nav-row" style="${tintVars(p)};--d:${(0.05 + i * 0.055).toFixed(3)}s" onclick="go('${p}')">
+function navList(rows, flush) {
+  return `<div class="nav-list${flush ? ' flush' : ''}">${rows.map(([p, e, label, meta, act], i) => `
+    <div class="nav-row" style="${tintVars(p)};--d:${(0.05 + i * 0.055).toFixed(3)}s" onclick="${act || `go('${p}')`}">
       <span class="rail"></span>
       <span class="ic">${e}</span>
       <span class="txt"><span class="nm">${esc(label)}</span><span class="meta">${meta || ''}</span></span>
       <span class="chev">›</span>
     </div>`).join('')}</div>`;
 }
+
+/* One of the two houses: a branded block that holds its own sections and figures.
+   o = { name, kind, summary, c1, c2, glow, rows, figures } */
+function brandGroup(o) {
+  const figs = (o.figures || []).map((f) => `<div class="fig">
+      <div class="v"${f.color ? ` style="color:${f.color}"` : ''} data-count="${f.value}"${f.money ? ' data-fmt="money"' : ''}>${f.money ? money(0) : 0}</div>
+      <div class="k">${esc(f.label)}</div></div>`).join('');
+  return `<div class="brand-group" style="--c1:${o.c1};--c2:${o.c2};--glow:${o.glow}">
+    <div class="bg-head">
+      <div class="bg-name">${esc(o.name)}</div>
+      <div class="bg-kind">${esc(o.kind)}</div>
+      ${o.summary ? `<div class="bg-sum">${o.summary}</div>` : ''}
+    </div>
+    ${navList(o.rows, true)}
+    ${figs ? `<div class="bg-figs"><div class="fig-row"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}
+  </div>`;
+}
 const big = (v) => `<b>${typeof v === 'number' ? v.toLocaleString('en-US') : esc(String(v))}</b>`;
 window.luxBackdrop = luxBackdrop;
 window.tilesHtml = tilesHtml;
 window.tintVars = tintVars;
 window.navList = navList;
+window.brandGroup = brandGroup;
 window.big = big;
 
 const PAGES = {};

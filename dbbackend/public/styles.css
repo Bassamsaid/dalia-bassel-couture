@@ -530,3 +530,27 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .sub-row:last-of-type{border-bottom:none}
 .pending-wrap{display:flex;flex-wrap:wrap;gap:7px}
 .pending-wrap .chip{cursor:default;font-size:11.5px;padding:6px 12px}
+
+/* ===== The two houses: a branded block per business ===== */
+.home-lux .brand-group{border-radius:19px;overflow:hidden;border:1px solid var(--line);margin-bottom:18px;
+  background:rgba(255,255,255,.74);box-shadow:var(--shadow-sm);
+  backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
+  animation:tileIn .55s cubic-bezier(.2,.8,.2,1) both}
+.home-lux .brand-group:nth-of-type(2){animation-delay:.12s}
+
+.home-lux .bg-head{position:relative;overflow:hidden;padding:20px 18px 17px;color:#fff;
+  background:linear-gradient(120deg,var(--c1) 0%,var(--c2) 45%,var(--c1) 100%);background-size:260% 260%;
+  animation:gradShift 13s ease-in-out infinite}
+.home-lux .bg-head::after{content:"";position:absolute;top:-60%;inset-inline-end:-18%;width:62%;height:220%;
+  background:radial-gradient(closest-side,rgba(255,255,255,.28),transparent 70%);pointer-events:none}
+.home-lux .bg-name{font-family:var(--serif);font-size:21px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;line-height:1.1}
+.home-lux .bg-kind{font-size:10px;letter-spacing:5px;text-transform:uppercase;font-weight:700;opacity:.9;margin-top:5px}
+.home-lux .bg-sum{font-size:12.5px;font-weight:600;margin-top:11px;opacity:.95;
+  font-variant-numeric:tabular-nums lining-nums}
+
+/* the rows sit flush inside the block instead of in their own card */
+.home-lux .nav-list.flush{background:none;border:none;box-shadow:none;border-radius:0;margin:0;
+  backdrop-filter:none;-webkit-backdrop-filter:none}
+
+/* the block's own figures, closed off by a hairline */
+.home-lux .bg-figs{border-top:1px solid var(--line);padding:14px 10px 15px;background:rgba(255,255,255,.4)}
