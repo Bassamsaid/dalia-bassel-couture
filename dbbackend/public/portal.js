@@ -198,16 +198,21 @@ PAGES.notes_trainee = async (c) => {
 PAGES.mypay = async (c) => {
   const pay = await GET('/api/payments');
   const rem = await GET('/api/reminders');
+  window._myPays = pay;
   const paid = pay.reduce((a, p) => a + (p.amount || 0), 0);
   c.innerHTML = title('My Account', '') + `
     <div class="grid g2"><div class="stat"><div class="n">${money(paid)}</div><div class="l">Total paid</div></div>
       <div class="stat"><div class="n">${pay.length}</div><div class="l">Payments</div></div></div>
     <div class="sec-title">My payments</div>
-    <div class="card">${pay.length ? pay.map((p) => `<div class="item">
+    <div class="card">${pay.length ? pay.map((p, i) => `<div class="item">
       <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : '💵'}</div>
-      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`).join('') : empty('No payments yet', '💵')}</div>
+      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+      <button class="btn sec sm" onclick="printMyPay(${i})">🖨 Receipt</button></div>`).join('') : empty('No payments yet', '💵')}</div>
     ${rem.filter((r) => !r.done).length ? `<div class="sec-title">Upcoming payments</div><div class="card">${rem.filter((r) => !r.done).map((r) => `<div class="item"><div class="av">◷</div><div class="main"><div class="nm">${dt(r.due_date)}</div><div class="sub">${money(r.amount)}${r.note ? ' · ' + esc(r.note) : ''}</div></div></div>`).join('')}</div>` : ''}`;
 };
+
+window.printMyPay = (i) => { const p = (window._myPays || [])[i]; if (!p) return; printReceipt({ name: state.user.name, forWhat: 'Course fees', amount: p.amount, method: p.method, kind: p.kind, date: p.paid_at, note: p.note }); };
+window.printDressPay = (did, i) => { const d = (window._custDresses || []).find((x) => x.id === did); if (!d || !d.payments) return; const p = d.payments[i]; if (!p) return; printReceipt({ name: state.user.name, forWhat: 'Dress order', amount: p.amount, method: p.method, date: p.paid_at, note: p.note, remaining: d.remaining }); };
 
 /* ============ ABOUT (view for non-admin) ============ */
 PAGES.about_view = async (c, a) => {
@@ -293,6 +298,7 @@ window.requestAdvance = () => formModal('Request advance', [
 /* ============ CLIENT / STAFF DRESSES (read-only) ============ */
 PAGES.mydresses = async (c, opts = {}) => {
   const dresses = await GET('/api/dresses');
+  window._custDresses = dresses;
   const stEn = { open: 'In preparation', in_progress: 'In progress', delivered: 'Ready' };
   const isStaff = ['staff', 'manager'].includes(state.user.role);
   const mine = isStaff && window._myDressMine;
@@ -313,6 +319,16 @@ PAGES.mydresses = async (c, opts = {}) => {
       <div class="sub muted">Delivery: ${dt(d.delivery_date)}${isStaff ? ' · ' + (d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned') : ''}</div>
       ${(isStaff && d.note) ? `<div class="sub" style="margin-top:6px">📝 ${esc(d.note)}</div>` : ''}
       ${isStaff ? dressMeasuresHtml(d) : ''}
+      ${(!isStaff && d.price != null) ? `<div class="sec-title">Payment 💳</div>
+        <div class="grid g3">
+          <div class="stat"><div class="n serif">${money(d.price)}</div><div class="l">Total</div></div>
+          <div class="stat"><div class="n serif" style="color:var(--ok)">${money(d.paid || 0)}</div><div class="l">Paid</div></div>
+          <div class="stat"><div class="n serif" style="color:${d.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(d.remaining || 0)}</div><div class="l">Remaining</div></div>
+        </div>
+        <div class="card" style="box-shadow:none;margin:8px 0 0">${(d.payments && d.payments.length) ? d.payments.map((p, i) => `<div class="item">
+          <div class="av">${p.method === 'cash' ? '💵' : '🏦'}</div>
+          <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.method === 'cash' ? 'Cash' : 'Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+          <button class="btn sec sm" onclick="printDressPay(${d.id},${i})">🖨 Receipt</button></div>`).join('') : '<div class="hint">No payments yet</div>'}</div>` : ''}
       ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
       ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
       <div class="sec-title">Updates 💬</div>

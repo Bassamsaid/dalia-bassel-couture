@@ -579,7 +579,12 @@ api['GET /api/dresses'] = async (req, res, user) => {
       d.profit = (d.price || 0) - d.material_cost;
       d.paid = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM dress_payments WHERE dress_id=?').get(d.id).s;
       d.remaining = Math.max(0, (d.price || 0) - d.paid);
-    } else { delete d.price; } // price is admin-only
+    } else if (user.role === 'customer') {
+      // clients see THEIR OWN order's price, deposits and balance (+ receipts)
+      d.paid = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM dress_payments WHERE dress_id=?').get(d.id).s;
+      d.remaining = Math.max(0, (d.price || 0) - d.paid);
+      d.payments = db.prepare('SELECT amount,method,note,paid_at FROM dress_payments WHERE dress_id=? ORDER BY COALESCE(paid_at,created_at) DESC, id DESC').all(d.id);
+    } else { delete d.price; } // staff / manager: no dress money
   });
   send(res, 200, list);
 };

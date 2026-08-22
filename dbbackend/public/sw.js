@@ -1,5 +1,5 @@
 // Dalia Bassel Couture — service worker: network-first shell, cache-first images
-const CACHE = 'dalia-v47';
+const CACHE = 'dalia-v48';
 const IMG_CACHE = 'dalia-img'; // uploaded files have immutable names -> safe to cache forever
 const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/admin.js', '/portal.js', '/manifest.json', '/icon.svg'];
 self.addEventListener('install', (e) => {
