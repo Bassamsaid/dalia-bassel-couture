@@ -84,7 +84,7 @@ function getUser(req) {
   if (!token) return null;
   const s = db.prepare('SELECT * FROM sessions WHERE token=?').get(token);
   if (!s) return null;
-  return db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active FROM users WHERE id=?').get(s.user_id) || null;
+  return db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,avatar FROM users WHERE id=?').get(s.user_id) || null;
 }
 // Save a base64 data URL (or raw base64) to uploads, return filename
 function saveImage(dataUrl, fallbackExt = '.jpg') {
@@ -212,6 +212,7 @@ api['PUT /api/profile'] = async (req, res, user) => {
   const cur = db.prepare('SELECT * FROM users WHERE id=?').get(user.id);
   db.prepare('UPDATE users SET name=?,phone=? WHERE id=?').run(b.name ?? cur.name, b.phone ?? cur.phone, user.id);
   if (b.password) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(b.password), user.id);
+  if (b.avatar !== undefined) db.prepare('UPDATE users SET avatar=? WHERE id=?').run(maybeImage(b.avatar), user.id);
   send(res, 200, { ok: true });
 };
 

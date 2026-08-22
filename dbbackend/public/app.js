@@ -301,7 +301,6 @@ const NAV = {
   staff: [
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
-    ['purchases', 'Purchases', '🧾'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
     ['dalia', 'Dalia Bassel', '✦'],
@@ -337,7 +336,7 @@ function renderApp() {
         <button class="bell-btn" onclick="go('notifications')" aria-label="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span></button>
         <button class="profile-btn" onclick="openDrawer()">
           <span class="who">${esc(u.name)}<br><span class="muted">${roleLabel(u.role)}</span></span>
-          <span class="pav">${esc(initials(u.name))}</span>
+          ${avatarHtml(u, 'pav')}
         </button>
       </div>
       <div class="content" id="content"><div class="spinner"></div></div>
@@ -347,7 +346,8 @@ function renderApp() {
     </div>`;
   $('#nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.p); });
   // restore the last screen after a refresh (so reload keeps you where you were)
-  let start = state.nav[0][0];
+  // default landing = the Dalia feed (falls back to the first nav item)
+  let start = state.nav.some(([k]) => k === 'dalia') && !isHidden('dalia') ? 'dalia' : state.nav[0][0];
   try {
     const route = JSON.parse(localStorage.getItem('dalia_route') || 'null');
     if (route && route.page && PAGES[route.page]) {
@@ -364,6 +364,14 @@ function renderApp() {
   startNotifPoll();
 }
 function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'Student', staff: 'Staff', customer: 'Client' }[r] || r; }
+/* avatar: uploaded photo if present, else initials — same shape (pav / av) */
+function avatarHtml(u, cls) {
+  const c = cls || 'pav';
+  return (u && u.avatar)
+    ? `<span class="${c}" style="padding:0;overflow:hidden"><img src="/uploads/${esc(u.avatar)}" style="width:100%;height:100%;object-fit:cover" alt=""/></span>`
+    : `<span class="${c}">${esc(initials(u && u.name))}</span>`;
+}
+window.avatarHtml = avatarHtml;
 function openDrawer() {
   const profileItem = `<button class="draw-item ${state.page === 'profile' ? 'active' : ''}" onclick="closeDrawer();go('profile')"><span class="ic">👤</span>My Profile</button>`;
   const items = profileItem + state.nav.map(([k, l, ic]) =>

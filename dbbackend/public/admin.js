@@ -957,6 +957,7 @@ window.printMeasurements = (id) => {
 
 /* ============ DRESS MATERIAL PURCHASES (invoices with dress-linked items) ============ */
 PAGES.purchases = async (c) => {
+  if (state.user.role !== 'admin' && state.user.role !== 'manager') { c.innerHTML = empty('Managers only', '🧾'); return; }
   const [invoices, dresses, vendors] = await Promise.all([GET('/api/purchases'), GET('/api/dresses'), (state.user.role === 'admin' ? GET('/api/vendors') : Promise.resolve([]))]);
   window._allDressesForPurchase = dresses;
   window._purchases = invoices;

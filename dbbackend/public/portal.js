@@ -4,10 +4,12 @@
 /* ============ MY PROFILE (all roles) ============ */
 PAGES.profile = async (c) => {
   const u = state.user;
+  window._pfAvatar = undefined; // undefined = photo unchanged
   c.innerHTML = title('My Profile', '') + `
     <div class="card" style="text-align:center">
-      <div class="av" style="width:76px;height:76px;font-size:26px;margin:0 auto 8px">${esc(initials(u.name))}</div>
-      <div class="serif" style="font-size:22px;font-weight:700">${esc(u.name)}</div>
+      <div id="pfBigAv" style="width:92px;height:92px;border-radius:50%;margin:0 auto 8px;overflow:hidden;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:30px;font-weight:700">${u.avatar ? `<img src="/uploads/${esc(u.avatar)}" style="width:100%;height:100%;object-fit:cover" alt=""/>` : esc(initials(u.name))}</div>
+      <button class="btn ghost sm" onclick="changeAvatar()">📷 Change photo</button>
+      <div class="serif" style="font-size:22px;font-weight:700;margin-top:10px">${esc(u.name)}</div>
       <div class="muted">${roleLabel(u.role)}${u.email ? ' · ' + esc(u.email) : ''}</div>
     </div>
     <div class="card">
@@ -17,9 +19,15 @@ PAGES.profile = async (c) => {
       <button class="btn" style="margin-top:14px" onclick="saveProfile()">Save changes</button>
     </div>`;
 };
+window.changeAvatar = () => pickImage((b64) => cropImage(b64, 1, (cropped) => {
+  window._pfAvatar = cropped;
+  const el = document.getElementById('pfBigAv');
+  if (el) el.innerHTML = `<img src="${cropped}" style="width:100%;height:100%;object-fit:cover" alt=""/>`;
+}));
 window.saveProfile = async () => {
   const body = { name: $('#pfName').value, phone: $('#pfPhone').value };
   if ($('#pfPass').value) body.password = $('#pfPass').value;
+  if (window._pfAvatar !== undefined) body.avatar = window._pfAvatar;
   await PUT('/api/profile', body);
   state.user = (await GET('/api/me')).user;
   toast('Saved'); renderApp();
