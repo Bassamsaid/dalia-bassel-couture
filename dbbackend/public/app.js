@@ -65,16 +65,16 @@ function pickImage(cb, accept = 'image/*', raw = false) {
   };
   inp.click();
 }
-function compressImage(file, cb) {
+function compressImage(file, cb, maxSide, quality) {
   const fr = new FileReader();
   fr.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const max = 1500; let { width: w, height: h } = img; // lighter cap for faster loading
+      const max = maxSide || 1500; let { width: w, height: h } = img; // lighter cap for faster loading
       if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
       const c = document.createElement('canvas'); c.width = w; c.height = h;
       const ctx = c.getContext('2d'); ctx.imageSmoothingQuality = 'high'; ctx.drawImage(img, 0, 0, w, h);
-      cb(c.toDataURL('image/jpeg', 0.82));
+      cb(c.toDataURL('image/jpeg', quality || 0.82));
     };
     img.onerror = () => cb(fr.result);
     img.src = fr.result;
@@ -91,6 +91,18 @@ function pickImages(cb) {
   inp.click();
 }
 window.pickImages = pickImages;
+
+/* Pattern pages: pick or shoot several at once, kept large and never cropped.
+   `capture` opens the camera straight away; leaving it off lets iOS offer
+   Photo Library / Take Photo / Scan Documents. */
+function pickScans(cb, camera) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;
+  if (camera) inp.capture = 'environment';
+  inp.onchange = () => { Array.from(inp.files || []).forEach((f) => compressImage(f, cb, 2400, 0.9)); };
+  inp.click();
+}
+window.pickScans = pickScans;
 
 /* lightweight image cropper (drag to pan + zoom) -> cb(croppedDataUrl) */
 function cropImage(dataUrl, aspect, cb) {
@@ -650,6 +662,7 @@ window.openNotif = (page, id) => {
     go(['admin', 'manager'].includes(state.user.role) ? 'dresses' : (state.user.role === 'staff' ? 'dresses' : 'mydresses'));
     return;
   }
+  if (page === 'homework' && id) window._openTaskAfter = id; // land on that task's hand-in list
   const target = PAGES[page] ? page : 'notifications';
   go(target);
 };

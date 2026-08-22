@@ -491,3 +491,42 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 
 /* chip rows with a fixed, short set of filters wrap instead of scrolling off-screen */
 .filters.wrap{flex-wrap:wrap;overflow:visible}
+
+/* ===== Tasks: scanned pattern pages + hand-in progress ===== */
+.task-card .task-head{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:2px}
+.task-card .task-head .badge{flex:0 0 auto}
+
+/* a row of pages you can swipe through */
+.scan-strip{display:flex;gap:8px;overflow-x:auto;padding:10px 0 4px;-webkit-overflow-scrolling:touch}
+.scan-strip::-webkit-scrollbar{display:none}
+.scan-thumb{flex:0 0 auto;width:78px;height:104px;object-fit:cover;border-radius:9px;cursor:pointer;
+  background:var(--soft);border:1px solid var(--line)}
+
+/* the upload sheet: every page with its own delete */
+.scan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.scan-cell{position:relative;aspect-ratio:3/4;border-radius:11px;overflow:hidden;background:var(--soft);
+  border:1px solid var(--line);animation:zoomIn .22s ease both}
+.scan-cell img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
+.scan-del{position:absolute;top:4px;inset-inline-end:4px;width:24px;height:24px;border:none;border-radius:50%;
+  background:rgba(20,14,26,.66);color:#fff;font-size:12px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center}
+.scan-tag{position:absolute;bottom:4px;inset-inline-start:4px;font-size:9px;font-weight:700;letter-spacing:.6px;
+  text-transform:uppercase;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,.9);color:var(--muted)}
+.scan-tag.new{background:var(--grad);color:#fff}
+.scan-empty{grid-column:1/-1;text-align:center;color:var(--muted);font-size:13px;padding:26px 10px;
+  border:1.5px dashed var(--line);border-radius:12px}
+
+/* how many of the class have handed in */
+.prog{margin:10px 0 6px;cursor:pointer}
+.prog-top{display:flex;align-items:baseline;gap:7px;margin-bottom:6px}
+.prog-n{font-family:var(--serif);font-size:17px;font-weight:800;color:var(--ink);
+  font-variant-numeric:tabular-nums lining-nums}
+.prog-l{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700}
+.prog-bar{height:7px;border-radius:6px;background:var(--soft);overflow:hidden}
+.prog-bar>span{display:block;height:100%;border-radius:6px;background:var(--grad);
+  transition:width .5s cubic-bezier(.2,.8,.2,1)}
+
+.sub-row{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:6px}
+.sub-row:last-of-type{border-bottom:none}
+.pending-wrap{display:flex;flex-wrap:wrap;gap:7px}
+.pending-wrap .chip{cursor:default;font-size:11.5px;padding:6px 12px}

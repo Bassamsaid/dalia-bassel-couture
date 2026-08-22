@@ -92,33 +92,81 @@ PAGES.courses_trainee = async (c) => {
 /* ============ STUDENT TASKS ============ */
 PAGES.homework_trainee = async (c) => {
   const hw = await GET('/api/homeworks');
+  window._hwList = hw;
+  const overdue = (h) => h.due_date && !h.my_submission && new Date(h.due_date) < new Date(new Date().toDateString());
   c.innerHTML = title('Tasks', '') +
-    (hw.length ? hw.map((h) => `<div class="card">
-      <div class="nm" style="font-weight:600">${esc(h.title)}</div>
-      <div class="sub muted">${h.due_date ? 'Due ' + dt(h.due_date) : ''}</div>
+    (hw.length ? hw.map((h) => {
+      const sub = h.my_submission;
+      const n = sub && sub.images ? sub.images.length : 0;
+      return `<div class="card task-card">
+      <div class="task-head">
+        <div class="nm serif" style="font-size:17px">${esc(h.title)}</div>
+        ${sub ? '<span class="badge ok">Handed in ✓</span>'
+              : `<span class="badge ${overdue(h) ? 'bad' : 'warn'}">${overdue(h) ? 'Late' : 'To do'}</span>`}
+      </div>
+      <div class="sub muted">${h.due_date ? 'Due ' + dt(h.due_date) : 'No due date'}</div>
       ${h.measurements ? `<div class="hint">Measurements: ${esc(h.measurements)}</div>` : ''}
       ${h.instructions ? `<div class="hint">${esc(h.instructions)}</div>` : ''}
-      ${h.my_submission ? `<div class="item" style="margin-top:8px">
-          ${h.my_submission.image ? `<img class="thumb" style="width:54px;height:54px;aspect-ratio:1" src="/uploads/${esc(h.my_submission.image)}" onclick="lightbox('/uploads/${esc(h.my_submission.image)}')"/>` : '▤'}
-          <div class="main"><div class="nm">Submitted ✓</div><div class="sub">${dt(h.my_submission.submitted_at)}${h.my_submission.grade ? ' · ' + esc(h.my_submission.grade) : ''}</div>
-          ${h.my_submission.feedback ? `<div class="hint">${esc(h.my_submission.feedback)}</div>` : ''}</div>
-          <button class="btn sm sec" onclick="submitHw(${h.id})">Edit</button></div>`
-        : `<button class="btn" style="margin-top:8px" onclick="submitHw(${h.id})">Upload pattern</button>`}
-    </div>`).join('') : empty('No tasks yet', '✎'));
+      ${sub ? `<div class="scan-strip">${sub.images.map((im) => `
+            <img class="scan-thumb" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}')" alt=""/>`).join('')}
+          </div>
+          <div class="hint">${n} photo${n === 1 ? '' : 's'} · sent ${dt(sub.submitted_at)}${sub.grade ? ' · ' + esc(sub.grade) : ''}</div>
+          ${sub.feedback ? `<div class="upd upd-studio" style="max-width:100%"><div class="upd-h">Dalia's note</div><div class="upd-b">${esc(sub.feedback)}</div></div>` : ''}
+          <button class="btn sec" style="margin-top:10px" onclick="submitHw(${h.id})">Add or remove photos</button>`
+        : `<button class="btn" style="margin-top:10px" onclick="submitHw(${h.id})">📷 Upload my pattern</button>`}
+    </div>`;
+    }).join('') : empty('No tasks yet', '✎'));
 };
+
+/* --- upload sheet: shoot or pick as many pages as you like, full size, no cropping --- */
 window.submitHw = (id) => {
-  modal(`<h3>Upload pattern</h3>
-    <div class="row"><button class="btn ghost" onclick="hwPic()">📷 Pattern photo</button></div>
-    <img id="hwPrev" class="thumb hidden" style="aspect-ratio:3/4;margin-top:10px"/>
-    <label>Note (optional)</label><textarea id="hwNote"></textarea>
-    <button class="btn" style="margin-top:12px" onclick="doSubmitHw(${id})">Submit</button>`);
-  window._hwImg = null;
+  const h = (window._hwList || []).find((x) => x.id === id) || {};
+  window._hwNew = [];                                    // photos added in this sheet
+  window._hwOld = (h.my_submission && h.my_submission.images) || []; // already sent
+  window._hwId = id;
+  modal(`<h3>${esc(h.title || 'Upload pattern')}</h3>
+    <p class="hint" style="margin-top:-6px">Photograph every page. Nothing is cropped — the whole sheet is kept.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn ghost" onclick="hwAdd(true)">📷 Camera</button>
+      <button class="btn ghost" onclick="hwAdd(false)">🖼 From phone</button>
+    </div>
+    <div id="hwGrid" class="scan-grid" style="margin-top:14px"></div>
+    <label>Note for Dalia (optional)</label><textarea id="hwNote">${esc((h.my_submission && h.my_submission.note) || '')}</textarea>
+    <button class="btn" style="margin-top:12px" id="hwSend" onclick="doSubmitHw()">Send</button>`);
+  hwPaint();
 };
-window.hwPic = () => pickImage((b) => { window._hwImg = b; const p = $('#hwPrev'); p.src = b; p.classList.remove('hidden'); });
-window.doSubmitHw = async (id) => {
-  if (!window._hwImg) return toast('Choose the pattern photo');
-  await POST(`/api/homeworks/${id}/submit`, { image: window._hwImg, note: $('#hwNote').value });
-  closeModal(); toast('Submitted ✓'); go('homework');
+function hwPaint() {
+  const g = $('#hwGrid'); if (!g) return;
+  const old = window._hwOld.map((im) => `<div class="scan-cell">
+      <img src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}')" alt=""/>
+      <button class="scan-del" onclick="hwDelOld(${im.id})" aria-label="Remove photo">✕</button>
+      <span class="scan-tag">sent</span></div>`).join('');
+  const fresh = window._hwNew.map((b64, i) => `<div class="scan-cell">
+      <img src="${b64}" alt=""/>
+      <button class="scan-del" onclick="hwDelNew(${i})" aria-label="Remove photo">✕</button>
+      <span class="scan-tag new">new</span></div>`).join('');
+  const total = window._hwOld.length + window._hwNew.length;
+  g.innerHTML = (old + fresh) || '<div class="scan-empty">No photos yet — tap Camera to start</div>';
+  const btn = $('#hwSend');
+  if (btn) btn.textContent = window._hwNew.length
+    ? `Send ${window._hwNew.length} new photo${window._hwNew.length === 1 ? '' : 's'}`
+    : (total ? 'Save note' : 'Send');
+}
+window.hwAdd = (camera) => pickScans((b64) => { window._hwNew.push(b64); hwPaint(); }, camera);
+window.hwDelNew = (i) => { window._hwNew.splice(i, 1); hwPaint(); };
+window.hwDelOld = (imgId) => confirmDel('Remove this photo?', async () => {
+  await DEL('/api/submission-images/' + imgId);
+  window._hwOld = window._hwOld.filter((x) => x.id !== imgId);
+  hwPaint(); toast('Removed');
+});
+window.doSubmitHw = async () => {
+  const total = window._hwOld.length + window._hwNew.length;
+  if (!total) return toast('Add at least one photo');
+  const btn = $('#hwSend'); if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    await POST(`/api/homeworks/${window._hwId}/submit`, { images: window._hwNew, note: $('#hwNote').value });
+    closeModal(); toast('Sent to Dalia ✓'); go('homework');
+  } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'Send'; } toast(e.message); }
 };
 
 /* ============ STUDENT QUIZZES ============ */

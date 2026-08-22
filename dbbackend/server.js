@@ -439,32 +439,97 @@ api['DELETE /api/videos/:id'] = async (req, res, user, url, params) => { if (!re
 // ================= HOMEWORK + SUBMISSIONS =================
 api['GET /api/homeworks'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
-  const list = user.role === 'admin'
+  const studio = ['admin', 'manager', 'staff'].includes(user.role);
+  const list = studio
     ? db.prepare('SELECT * FROM homeworks ORDER BY id DESC').all()
     : db.prepare('SELECT * FROM homeworks WHERE round_id IS NULL OR round_id=? ORDER BY id DESC').all(user.round_id || -1);
+  if (studio) {
+    // how many of the students it was sent to have handed it in
+    list.forEach((h) => {
+      h.expected_count = taskAudience(h).length;
+      h.submitted_count = db.prepare('SELECT COUNT(*) c FROM submissions WHERE homework_id=?').get(h.id).c;
+    });
+  }
   if (user.role !== 'admin') {
-    list.forEach((h) => { h.my_submission = db.prepare('SELECT * FROM submissions WHERE homework_id=? AND user_id=?').get(h.id, user.id) || null; });
+    list.forEach((h) => {
+      h.my_submission = db.prepare('SELECT * FROM submissions WHERE homework_id=? AND user_id=?').get(h.id, user.id) || null;
+      if (h.my_submission) h.my_submission.images = subImages(h.my_submission.id);
+    });
   }
   send(res, 200, list);
 };
+// Students a task was sent to: its round, or every student when it is for all rounds.
+function taskAudience(hw) {
+  return hw.round_id
+    ? db.prepare("SELECT id,name FROM users WHERE role='trainee' AND active=1 AND round_id=? ORDER BY name").all(hw.round_id)
+    : db.prepare("SELECT id,name FROM users WHERE role='trainee' AND active=1 ORDER BY name").all();
+}
+function subImages(submissionId) {
+  return db.prepare('SELECT id,image FROM submission_images WHERE submission_id=? ORDER BY position,id').all(submissionId);
+}
 api['POST /api/homeworks'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   const r = db.prepare('INSERT INTO homeworks (round_id,title,measurements,instructions,due_date) VALUES (?,?,?,?,?)').run(b.round_id || null, b.title, b.measurements || null, b.instructions || null, b.due_date || null);
-  send(res, 200, { id: r.lastInsertRowid });
+  const hid = r.lastInsertRowid;
+  const due = b.due_date ? ` · due ${b.due_date}` : '';
+  taskAudience({ round_id: b.round_id || null }).forEach((st) => notify(st.id, {
+    type: 'task', title: `New task: ${b.title}`, body: `Upload your pattern photos${due}`,
+    link_page: 'homework', link_id: hid, actor_name: user.name,
+  }));
+  send(res, 200, { id: hid });
 };
 api['DELETE /api/homeworks/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM homeworks WHERE id=?').run(params.id); db.prepare('DELETE FROM submissions WHERE homework_id=?').run(params.id); send(res, 200, { ok: true }); };
 api['GET /api/homeworks/:id/submissions'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
-  send(res, 200, db.prepare('SELECT s.*,u.name user_name FROM submissions s JOIN users u ON u.id=s.user_id WHERE homework_id=? ORDER BY submitted_at DESC').all(params.id));
+  if (!requireStaffish(user, res)) return; // managers and staff follow the class too
+  const hw = db.prepare('SELECT * FROM homeworks WHERE id=?').get(params.id);
+  if (!hw) return send(res, 404, { error: 'Task not found' });
+  const submitted = db.prepare('SELECT s.*,u.name user_name FROM submissions s JOIN users u ON u.id=s.user_id WHERE homework_id=? ORDER BY s.submitted_at DESC').all(params.id);
+  submitted.forEach((s) => { s.images = subImages(s.id); });
+  const done = new Set(submitted.map((s) => s.user_id));
+  const pending = taskAudience(hw).filter((st) => !done.has(st.id));
+  send(res, 200, { homework: hw, submitted, pending, expected: submitted.length + pending.length });
 };
 api['POST /api/homeworks/:id/submit'] = async (req, res, user, url, params) => {
   if (!requireAuth(user, res)) return;
   const b = await readBody(req);
-  const img = maybeImage(b.image);
+  const hw = db.prepare('SELECT * FROM homeworks WHERE id=?').get(params.id);
+  if (!hw) return send(res, 404, { error: 'Task not found' });
   const ex = db.prepare('SELECT id FROM submissions WHERE homework_id=? AND user_id=?').get(params.id, user.id);
-  if (ex) db.prepare('UPDATE submissions SET image=?,note=?,submitted_at=datetime(\'now\') WHERE id=?').run(img, b.note || null, ex.id);
-  else db.prepare('INSERT INTO submissions (homework_id,user_id,image,note) VALUES (?,?,?,?)').run(params.id, user.id, img, b.note || null);
+  const first = ex ? false : true;
+  let sid;
+  if (ex) { db.prepare("UPDATE submissions SET note=?,submitted_at=datetime('now') WHERE id=?").run(b.note ?? null, ex.id); sid = ex.id; }
+  else { sid = db.prepare('INSERT INTO submissions (homework_id,user_id,note) VALUES (?,?,?)').run(params.id, user.id, b.note || null).lastInsertRowid; }
+
+  // new photos are appended — nothing already uploaded is replaced
+  const incoming = [].concat(b.images || [], b.image ? [b.image] : []).filter(Boolean);
+  let pos = db.prepare('SELECT COALESCE(MAX(position),-1) p FROM submission_images WHERE submission_id=?').get(sid).p;
+  incoming.forEach((raw) => {
+    const saved = maybeImage(raw);
+    if (saved) db.prepare('INSERT INTO submission_images (submission_id,image,position) VALUES (?,?,?)').run(sid, saved, ++pos);
+  });
+  // keep the cover in sync so old screens and thumbnails still work
+  const cover = db.prepare('SELECT image FROM submission_images WHERE submission_id=? ORDER BY position,id LIMIT 1').get(sid);
+  db.prepare('UPDATE submissions SET image=? WHERE id=?').run(cover ? cover.image : null, sid);
+
+  const count = db.prepare('SELECT COUNT(*) c FROM submission_images WHERE submission_id=?').get(sid).c;
+  notifyRoles(['admin', 'manager', 'staff'], {
+    type: 'submission',
+    title: `${user.name} ${first ? 'handed in' : 'updated'}: ${hw.title}`,
+    body: `${count} photo${count === 1 ? '' : 's'}`,
+    link_page: 'homework', link_id: hw.id, image: cover ? cover.image : null, actor_name: user.name,
+  }, user.id);
+  send(res, 200, { ok: true, submission_id: sid, count });
+};
+// a student removes one of her own photos; the studio may remove any
+api['DELETE /api/submission-images/:id'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  const row = db.prepare('SELECT si.*, s.user_id FROM submission_images si JOIN submissions s ON s.id=si.submission_id WHERE si.id=?').get(params.id);
+  if (!row) return send(res, 404, { error: 'not found' });
+  if (row.user_id !== user.id && !['admin', 'manager'].includes(user.role)) return send(res, 403, { error: 'forbidden' });
+  db.prepare('DELETE FROM submission_images WHERE id=?').run(params.id);
+  const cover = db.prepare('SELECT image FROM submission_images WHERE submission_id=? ORDER BY position,id LIMIT 1').get(row.submission_id);
+  db.prepare('UPDATE submissions SET image=? WHERE id=?').run(cover ? cover.image : null, row.submission_id);
   send(res, 200, { ok: true });
 };
 api['PUT /api/submissions/:id'] = async (req, res, user, url, params) => {

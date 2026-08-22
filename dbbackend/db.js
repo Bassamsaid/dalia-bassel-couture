@@ -463,6 +463,17 @@ try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch (e) { /* colu
 // invited = the studio added this email but the person has not set a password yet.
 // Existing rows default to 0, so no live account can be claimed by someone else.
 try { db.exec('ALTER TABLE users ADD COLUMN invited INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* column exists */ }
+
+// A pattern is photographed page by page, so a submission holds many images.
+// submissions.image stays as the cover so older rows keep working.
+db.exec(`CREATE TABLE IF NOT EXISTS submission_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  submission_id INTEGER NOT NULL,
+  image TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_sub_images ON submission_images(submission_id, position)');
 try { db.exec('ALTER TABLE videos ADD COLUMN group_id INTEGER'); } catch (e) { /* column exists */ } // scope a video/photo to one group (null = whole round)
 
 module.exports = { db, hashPassword, verifyPassword };

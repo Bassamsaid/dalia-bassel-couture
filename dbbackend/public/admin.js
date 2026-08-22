@@ -586,21 +586,33 @@ window.delVideo = (id) => confirmDel('Delete video?', async () => { await DEL('/
 
 /* ============ HOMEWORK / TASKS ============ */
 PAGES.homework = async (c) => {
-  if (state.user.role !== 'admin') return PAGES.homework_trainee(c);
+  if (!['admin', 'manager', 'staff'].includes(state.user.role)) return PAGES.homework_trainee(c);
+  const canSend = state.user.role === 'admin';
   const [hw, rounds] = await Promise.all([GET('/api/homeworks'), GET('/api/rounds')]);
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   window._rounds = rounds;
   c.innerHTML = title('Tasks (Patterns)', '') +
-    `<button class="btn" onclick="addHomework()">＋ Send task</button>
-    ${hw.length ? hw.map((h) => `<div class="card">
-      <div class="item"><div class="av">✎</div>
+    `${canSend ? '<button class="btn" onclick="addHomework()">＋ Send task</button>' : ''}
+    ${hw.length ? hw.map((h) => {
+      const done = h.submitted_count || 0, all = h.expected_count || 0;
+      const pct = all ? Math.round((done / all) * 100) : 0;
+      return `<div class="card">
+      <div class="item" style="border-bottom:none;padding-bottom:4px"><div class="av">✎</div>
         <div class="main"><div class="nm">${esc(h.title)}</div>
-          <div class="sub">${h.round_id ? esc(rMap[h.round_id] || '') : 'All'} ${h.due_date ? '· due ' + dt(h.due_date) : ''}</div></div>
-        <button class="btn sm sec" onclick="viewSubs(${h.id},'${esc(h.title)}')">Submissions</button>
-        <button class="btn-icon" onclick="delHomework(${h.id})">🗑</button></div>
+          <div class="sub">${h.round_id ? esc(rMap[h.round_id] || '') : 'All rounds'}${h.due_date ? ' · due ' + dt(h.due_date) : ''}</div></div>
+        ${canSend ? `<button class="btn-icon" onclick="delHomework(${h.id})">🗑</button>` : ''}</div>
+      <div class="prog" onclick="viewSubs(${h.id})">
+        <div class="prog-top"><span class="prog-n">${done} of ${all}</span><span class="prog-l">handed in</span></div>
+        <div class="prog-bar"><span style="width:${pct}%"></span></div>
+      </div>
       ${h.measurements ? `<div class="hint">Measurements: ${esc(h.measurements)}</div>` : ''}
       ${h.instructions ? `<div class="hint">${esc(h.instructions)}</div>` : ''}
-    </div>`).join('') : empty('No tasks yet', '✎')}`;
+      <button class="btn sec" style="margin-top:10px" onclick="viewSubs(${h.id})">See who handed in</button>
+    </div>`;
+    }).join('') : empty('No tasks yet', '✎')}`;
+  // arriving from a "handed in" notification opens that task straight away
+  const jump = window._openTaskAfter; window._openTaskAfter = null;
+  if (jump && hw.some((h) => h.id === jump)) viewSubs(jump);
 };
 window.addHomework = async () => {
   const rounds = window._rounds || await GET('/api/rounds');
@@ -613,17 +625,34 @@ window.addHomework = async () => {
   ], async (d) => { await POST('/api/homeworks', d); toast('Sent'); go('homework'); });
 };
 window.delHomework = (id) => confirmDel('Delete task?', async () => { await DEL('/api/homeworks/' + id); go('homework'); });
-window.viewSubs = async (id, tt) => {
-  const subs = await GET(`/api/homeworks/${id}/submissions`);
-  modal(`<h3>Submissions: ${esc(tt)}</h3>${subs.length ? subs.map((s) => `
-    <div class="item"><div class="av">${s.image ? `<img class="thumb" style="width:46px;height:46px;aspect-ratio:1" src="/uploads/${esc(s.image)}" onclick="lightbox('/uploads/${esc(s.image)}','${esc(s.user_name)}')"/>` : '▤'}</div>
-      <div class="main"><div class="nm">${esc(s.user_name)}</div><div class="sub">${dt(s.submitted_at)}${s.note ? ' · ' + esc(s.note) : ''}${s.grade ? ' · ' + esc(s.grade) : ''}</div></div>
-      <button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button></div>`).join('') : empty('No submissions')}`);
+window.viewSubs = async (id) => {
+  const r = await GET(`/api/homeworks/${id}/submissions`);
+  const canGrade = ['admin', 'manager'].includes(state.user.role);
+  const pct = r.expected ? Math.round((r.submitted.length / r.expected) * 100) : 0;
+  modal(`<h3>${esc(r.homework.title)}</h3>
+    <div class="prog" style="margin:0 0 4px">
+      <div class="prog-top"><span class="prog-n">${r.submitted.length} of ${r.expected}</span><span class="prog-l">handed in · ${pct}%</span></div>
+      <div class="prog-bar"><span style="width:${pct}%"></span></div>
+    </div>
+    <div class="sec-title">Handed in (${r.submitted.length})</div>
+    ${r.submitted.length ? r.submitted.map((s) => `<div class="sub-row">
+        <div class="item" style="border-bottom:none;padding:8px 0">
+          <div class="av">${esc(initials(s.user_name))}</div>
+          <div class="main"><div class="nm">${esc(s.user_name)}</div>
+            <div class="sub">${dt(s.submitted_at)} · ${s.images.length} photo${s.images.length === 1 ? '' : 's'}${s.grade ? ' · ' + esc(s.grade) : ''}</div></div>
+          ${canGrade ? `<button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button>` : ''}</div>
+        ${s.images.length ? `<div class="scan-strip">${s.images.map((im) => `
+          <img class="scan-thumb" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(s.user_name)}')" alt=""/>`).join('')}</div>` : ''}
+        ${s.note ? `<div class="hint">“${esc(s.note)}”</div>` : ''}
+      </div>`).join('') : '<div class="hint">Nobody has handed in yet</div>'}
+    <div class="sec-title">Still waiting (${r.pending.length})</div>
+    ${r.pending.length ? `<div class="pending-wrap">${r.pending.map((u) => `<span class="chip">${esc(u.name)}</span>`).join('')}</div>`
+      : '<div class="hint">Everyone has handed in 🎉</div>'}`);
 };
 window.gradeSub = (id, cur) => formModal('Grade submission', [
   { name: 'grade', label: 'Grade', value: cur },
   { name: 'feedback', label: 'Feedback', type: 'textarea' },
-], async (d) => { await PUT('/api/submissions/' + id, d); toast('Saved'); closeModal(); });
+], async (d) => { await PUT('/api/submissions/' + id, d); toast('Saved'); closeModal(); go('homework'); });
 
 /* ============ QUIZZES ============ */
 PAGES.quizzes = async (c) => {
