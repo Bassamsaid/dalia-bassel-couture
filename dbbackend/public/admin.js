@@ -99,32 +99,38 @@ window.uploadCover = () => pickImage((b64) => cropImage(b64, 16 / 10, async (cro
 
 /* ============ HOME / DASHBOARD ============ */
 PAGES.home_admin = async (c) => {
-  const [sheet, rounds, dresses, reminders, about, users] = await Promise.all([
+  const [sheet, rounds, dresses, reminders, about, users, homeworks, quizzes, videos] = await Promise.all([
     GET('/api/finance/sheet'), GET('/api/rounds'), GET('/api/dresses'), GET('/api/reminders'), GET('/api/about'), GET('/api/users'),
+    GET('/api/homeworks'), GET('/api/quizzes'), GET('/api/videos'),
   ]);
   const dueSoon = reminders.filter((r) => !r.done).length;
   const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
   const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
   const dRem = dresses.reduce((a, x) => a + (x.remaining || 0), 0);
+  const dOpen = dresses.filter((x) => (x.status || 'open') !== 'done').length;
   c.innerHTML = luxBackdrop() + dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
     heroBanner(about, true) + `
-    <div class="grid g3" style="margin-bottom:14px">
-      <div class="stat" style="${tintVars('members')}" onclick="go('members')"><div class="n" data-count="${users.length}">0</div><div class="l">Members</div></div>
-      <div class="stat" style="${tintVars('students')}"><div class="n" data-count="${sheet.totals.count}">0</div><div class="l">Students</div></div>
-      <div class="stat" style="${tintVars('dresses')}"><div class="n" data-count="${dresses.length}">0</div><div class="l">Dresses</div></div>
-    </div>
-    <div class="sec-title">Menu</div>
-    ${tilesHtml([['students', '👩‍🎓', 'Students'], ['finance', '💳', 'Payments'], ['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['dresses', '👗', 'Dresses']])}
+    <div class="sec-title">Studio</div>
+    ${navList([
+      ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
+      ['members', '👥', 'Members', `${big(users.length)} registered`],
+      ['finance', '💳', 'Payments', sheet.totals.remaining
+        ? `${big(money(sheet.totals.remaining))} still due` : `${big(money(sheet.totals.paid))} collected`],
+      ['courses', '🎬', 'Courses', `${big(rounds.length)} rounds · ${big(videos.length)} videos`],
+      ['homework', '✎', 'Tasks', `${big(homeworks.length)} patterns set`],
+      ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quizzes`],
+      ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(money(dRem))} due`],
+    ])}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
         <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
         <button class="btn sm ghost" onclick="markReminder(${r.id})">Done</button></div>`).join('')}</div>` : ''}
     <div class="card">
       <div class="sec-title">Dresses money 👗</div>
-      <div class="grid g3">
-        <div class="stat" style="--c1:#2f9d66;--c2:#7fd3a6;--glow:47,157,102" onclick="go('dresses')"><div class="n" style="color:var(--ok)" data-count="${dPaid}" data-fmt="money">${money(0)}</div><div class="l">Deposits in</div></div>
-        <div class="stat" style="--c1:#d24b62;--c2:#f0a3b0;--glow:210,75,98" onclick="go('dresses')"><div class="n" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}" data-count="${dRem}" data-fmt="money">${money(0)}</div><div class="l">Remaining</div></div>
-        <div class="stat" style="${tintVars('dresses')}" onclick="go('dresses')"><div class="n" data-count="${dTotal}" data-fmt="money">${money(0)}</div><div class="l">Total value</div></div>
+      <div class="fig-row" onclick="go('dresses')">
+        <div class="fig"><div class="v" style="color:var(--ok)" data-count="${dPaid}" data-fmt="money">${money(0)}</div><div class="k">Deposits in</div></div>
+        <div class="fig"><div class="v" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}" data-count="${dRem}" data-fmt="money">${money(0)}</div><div class="k">Remaining</div></div>
+        <div class="fig"><div class="v" data-count="${dTotal}" data-fmt="money">${money(0)}</div><div class="k">Total value</div></div>
       </div>
     </div></div>`;
   runCounters(c);

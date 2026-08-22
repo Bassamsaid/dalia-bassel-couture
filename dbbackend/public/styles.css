@@ -441,3 +441,50 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 /* hero keeps drifting through the brand gradient */
 .home-lux .hero.hero-brand{background:linear-gradient(120deg,#7c3aed 0%,#a24fd6 28%,#e24a8b 55%,#b39866 78%,#7c3aed 100%);
   background-size:280% 280%;animation:rise .4s ease both,gradShift 14s ease-in-out infinite}
+
+/* ===== Home nav list (replaces the tile grid) ===== */
+@keyframes rowIn{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
+@keyframes railGrow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+
+.home-lux .nav-list{background:rgba(255,255,255,.74);border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;box-shadow:var(--shadow-sm);margin-bottom:14px;
+  backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
+.home-lux .nav-row{--c1:var(--purple-d);--c2:var(--purple);--glow:124,58,237;
+  position:relative;display:flex;align-items:center;gap:13px;padding:0 0 0 0;min-height:66px;
+  cursor:pointer;border-bottom:1px solid var(--line);transition:background .2s;
+  animation:rowIn .5s cubic-bezier(.2,.8,.2,1) var(--d,0s) both}
+.home-lux .nav-row:last-child{border-bottom:none}
+.home-lux .nav-row .rail{flex:0 0 auto;width:4px;align-self:stretch;border-radius:0 4px 4px 0;
+  background:linear-gradient(180deg,var(--c1),var(--c2));transform-origin:top;
+  animation:railGrow .55s cubic-bezier(.2,.8,.2,1) calc(var(--d,0s) + .18s) both}
+.home-lux .nav-row .ic{flex:0 0 auto;width:40px;height:40px;margin-inline-start:11px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:17px;color:#fff;
+  background:linear-gradient(135deg,var(--c1),var(--c2),var(--c1));background-size:200% 200%;
+  box-shadow:0 6px 14px rgba(var(--glow),.3);transition:transform .22s,box-shadow .22s;
+  animation:gradShift 11s ease-in-out calc(var(--d,0s) * 6) infinite}
+.home-lux .nav-row .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:14px 0}
+.home-lux .nav-row .nm{font-size:12.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--ink)}
+.home-lux .nav-row .meta{font-size:12.5px;color:var(--muted);font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.home-lux .nav-row .meta b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.home-lux .nav-row .chev{flex:0 0 auto;color:var(--c1);font-size:22px;line-height:1;
+  padding-inline-end:14px;transition:transform .22s}
+.home-lux .nav-row:hover{background:rgba(var(--glow),.07)}
+.home-lux .nav-row:hover .ic{transform:scale(1.07);box-shadow:0 8px 18px rgba(var(--glow),.42)}
+.home-lux .nav-row:hover .chev{transform:translateX(4px)}
+.home-lux .nav-row:active{background:rgba(var(--glow),.12)}
+.home-lux .nav-row:active .ic{transform:scale(.93)}
+
+@media (prefers-reduced-motion:reduce){
+  .home-lux .nav-row,.home-lux .nav-row .rail,.home-lux .nav-row .ic{animation:none!important}
+  .home-lux .nav-row .rail{transform:none}
+}
+
+/* slim figure strip — three numbers side by side, no boxes */
+.home-lux .fig-row{display:flex;align-items:stretch;cursor:pointer}
+.home-lux .fig{flex:1;min-width:0;text-align:center;padding:4px 6px;position:relative}
+.home-lux .fig+.fig::before{content:"";position:absolute;inset-inline-start:0;top:12%;height:76%;width:1px;background:var(--line)}
+.home-lux .fig .v{font-family:var(--serif);font-size:16.5px;font-weight:800;letter-spacing:.2px;
+  color:var(--ink);font-variant-numeric:tabular-nums lining-nums;line-height:1.25}
+.home-lux .fig .k{font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);
+  font-weight:700;margin-top:6px}

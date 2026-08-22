@@ -524,7 +524,7 @@ function luxBackdrop() {
 /* ---------- per-tile colour slice: [start, end, glow] ---------- */
 const TILE_TINT = {
   students: ['#7c3aed', '#a78bfa', '124,58,237'],
-  members:  ['#7c3aed', '#a78bfa', '124,58,237'],
+  members:  ['#6b4a7a', '#b596c4', '107,74,122'],
   finance:  ['#b3873a', '#e8c477', '179,135,58'],
   courses:  ['#2563eb', '#7ea8ff', '37,99,235'],
   homework: ['#e24a8b', '#f7a3c6', '226,74,139'],
@@ -546,9 +546,22 @@ function tilesHtml(items) {
   return `<div class="tiles">${items.map(([p, e, t]) => `<div class="tile" style="${tintVars(p)}" onclick="go('${p}')">
     <div class="em"><span>${e}</span></div><div class="t">${esc(t)}</div></div>`).join('')}</div>`;
 }
+/* elegant nav list: rows of [page, icon, label, meta-html] — replaces the tile grid */
+function navList(rows) {
+  return `<div class="nav-list">${rows.map(([p, e, label, meta], i) => `
+    <div class="nav-row" style="${tintVars(p)};--d:${(0.05 + i * 0.055).toFixed(3)}s" onclick="go('${p}')">
+      <span class="rail"></span>
+      <span class="ic">${e}</span>
+      <span class="txt"><span class="nm">${esc(label)}</span><span class="meta">${meta || ''}</span></span>
+      <span class="chev">›</span>
+    </div>`).join('')}</div>`;
+}
+const big = (v) => `<b>${typeof v === 'number' ? v.toLocaleString('en-US') : esc(String(v))}</b>`;
 window.luxBackdrop = luxBackdrop;
 window.tilesHtml = tilesHtml;
 window.tintVars = tintVars;
+window.navList = navList;
+window.big = big;
 
 const PAGES = {};
 

@@ -57,14 +57,16 @@ PAGES.home_trainee = async (c) => {
       ${round ? `<div class="nm serif" style="font-size:18px">${esc(round.name)}${round.number ? ' · Round ' + round.number : ''}</div>
         <div class="sub muted">${round.start_date ? 'Starts ' + dt(round.start_date) : ''} ${round.description ? '· ' + esc(round.description) : ''}</div>` : '<div class="muted">Not enrolled in a round yet</div>'}
     </div>
-    <div class="grid g3">
-      <div class="stat" style="${tintVars('mypay')}" onclick="go('mypay')"><div class="n" data-count="${paid}" data-fmt="money">${money(0)}</div><div class="l">Paid</div></div>
-      <div class="stat" style="${tintVars('homework')}" onclick="go('homework')"><div class="n" data-count="${pendingHw}">0</div><div class="l">Tasks due</div></div>
-      <div class="stat" style="${tintVars('quizzes')}" onclick="go('quizzes')"><div class="n" data-count="${newQuiz}">0</div><div class="l">New quiz</div></div>
-    </div>
-    <div class="sec-title">Menu</div>
-    ${tilesHtml([['myattendance', '🕒', 'Attendance'], ['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['notes', '📌', 'Notes'], ['mypay', '💳', 'Account'], ['about', 'ℹ', 'About']]
-      .filter(([p]) => !isHidden(p)))}
+    <div class="sec-title">Your academy</div>
+    ${navList([
+      ['myattendance', '🕒', 'Attendance', 'Check in & out'],
+      ['courses', '🎬', 'Courses', round ? esc(round.name) : 'No round yet'],
+      ['homework', '✎', 'Tasks', pendingHw ? `${big(pendingHw)} still to hand in` : 'All handed in'],
+      ['quizzes', '📝', 'Quizzes', newQuiz ? `${big(newQuiz)} new` : 'Nothing new'],
+      ['notes', '📌', 'Notes', `${big(notes.length)} notes`],
+      ['mypay', '💳', 'Account', `${big(money(paid))} paid`],
+      ['about', 'ℹ', 'About', 'The academy'],
+    ].filter(([p]) => !isHidden(p)))}
     ${notes.length ? `<div class="sec-title">Latest notes</div>${notes.slice(0, 3).map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>${n.body ? `<div style="font-size:13px">${esc(n.body)}</div>` : ''}</div>`).join('')}` : ''}</div>`;
   runCounters(c);
 };
