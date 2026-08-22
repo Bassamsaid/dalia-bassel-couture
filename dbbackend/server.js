@@ -629,6 +629,14 @@ api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
   db.prepare('DELETE FROM dress_updates WHERE dress_id=?').run(params.id);
   send(res, 200, { ok: true });
 };
+// materials bought for a dress — admin + manager (operational; NOT price/deposit)
+api['GET /api/dresses/:id/purchases'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  send(res, 200, db.prepare(`SELECT l.item, l.amount, pi.shop, pi.invoice_date, pi.created_at,
+      (SELECT name FROM vendors WHERE id=pi.vendor_id) vendor_name
+    FROM purchase_lines l JOIN purchase_invoices pi ON pi.id=l.invoice_id
+    WHERE l.dress_id=? ORDER BY pi.id DESC, l.id`).all(params.id));
+};
 // ---- dress payments (client deposits/installments) — admin only (price is admin-only) ----
 api['GET /api/dresses/:id/payments'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;

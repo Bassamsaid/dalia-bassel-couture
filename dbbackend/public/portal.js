@@ -311,6 +311,8 @@ PAGES.mydresses = async (c, opts = {}) => {
       ${d.unread ? `<span class="notif-dot">${d.unread}</span>` : ''}
       <div class="nm serif" style="font-size:18px">${esc(d.customer_name)} <span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span></div>
       <div class="sub muted">Delivery: ${dt(d.delivery_date)}${isStaff ? ' · ' + (d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned') : ''}</div>
+      ${(isStaff && d.note) ? `<div class="sub" style="margin-top:6px">📝 ${esc(d.note)}</div>` : ''}
+      ${isStaff ? dressMeasuresHtml(d) : ''}
       ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
       ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
       <div class="sec-title">Updates 💬</div>
@@ -323,6 +325,16 @@ PAGES.mydresses = async (c, opts = {}) => {
 };
 window.myDressTab = (v) => { window._myDressMine = v; go(state.page); };
 window.myDressStatus = (s) => { window._myDressStatus = s; go(state.page); };
+/* read-only measurements table for the staff dress card (no money) */
+function dressMeasuresHtml(d) {
+  let m = {}; try { m = d.measurements ? JSON.parse(d.measurements) : {}; } catch (e) {}
+  const fields = (typeof MEASURE_FIELDS !== 'undefined') ? MEASURE_FIELDS : [];
+  const rows = fields.filter(([k]) => m[k] != null && m[k] !== '').map(([k, l]) => `<tr><td style="color:var(--muted)">${esc(l)}</td><td style="text-align:end;font-weight:700">${esc(m[k])}</td></tr>`);
+  if (!rows.length && !m.fit && !d.measure_note) return '';
+  return `<div class="sec-title">Measurements 📐</div><div class="card" style="box-shadow:none;margin:0">
+    ${rows.length ? `<table style="width:100%;border-collapse:collapse">${rows.join('')}</table>` : ''}
+    ${m.fit ? `<div class="hint">Fit: ${esc(m.fit)}</div>` : ''}${d.measure_note ? `<div class="hint">${esc(d.measure_note)}</div>` : ''}</div>`;
+}
 window.sendDressNote = (id) => formModal('Note about the dress', [
   { name: 'body', label: 'Note', type: 'textarea' },
   { name: 'image', label: 'Photo (optional)', type: 'image' },

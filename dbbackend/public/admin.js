@@ -826,16 +826,14 @@ window.openDress = (id) => {
     <label>Notes</label><textarea id="dNote_${id}">${esc(d.note || '')}</textarea>
     ${state.user.role === 'admin' ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label><input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" />` : ''}
     <button class="btn sec" style="margin-top:10px" onclick="openMeasurements(${id})">📐 Measurements</button>
-    ${state.user.role === 'admin' ? `<div class="sec-title">Material & profit</div>
+    ${['admin', 'manager'].includes(state.user.role) ? `<div class="sec-title">Materials for this dress 🧵</div>
+      <div id="dmat_${id}"><div class="hint">Loading…</div></div>
+      <button class="btn sec sm" style="margin-top:6px" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>` : ''}
+    ${state.user.role === 'admin' ? `<div class="sec-title">Pricing & deposits 💰 <span class="hint">(admin only)</span></div>
       <div class="card" style="box-shadow:none;margin:0 0 8px">
         ${kv('Material cost', money(d.material_cost || 0), 'bad')}
         ${kv('Profit', money(d.profit || 0), (d.profit || 0) >= 0 ? 'ok' : 'bad')}
-      </div>
-      <button class="btn sec sm" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>
-      <div class="sec-title">Payments (deposits) 💰</div>
-      <div class="card" style="box-shadow:none;margin:0 0 8px">
-        ${kv('Price', money(d.price || 0))}
-        ${kv('Paid', money(d.paid || 0), 'ok')}
+        ${kv('Paid (deposits)', money(d.paid || 0), 'ok')}
         ${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}
       </div>
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
@@ -865,8 +863,21 @@ window.openDress = (id) => {
     </div>`);
   wireDressPhotos(id);
   loadDressUpdates(id);
+  if (['admin', 'manager'].includes(state.user.role)) loadDressMaterials(id);
   if (state.user.role === 'admin') loadDressPayments(id);
 };
+async function loadDressMaterials(id) {
+  const box = document.getElementById('dmat_' + id); if (!box) return;
+  try {
+    const items = await GET('/api/dresses/' + id + '/purchases');
+    const total = items.reduce((a, x) => a + (x.amount || 0), 0);
+    box.innerHTML = items.length ? `<div class="card" style="box-shadow:none;margin:0">${items.map((x) => `<div class="item">
+      <div class="av" style="background:#fff">◦</div>
+      <div class="main"><div class="nm">${esc(x.item || '—')}</div><div class="sub">${x.vendor_name ? esc(x.vendor_name) + ' · ' : ''}${!x.vendor_name && x.shop ? esc(x.shop) + ' · ' : ''}${x.invoice_date ? dt(x.invoice_date) : dt(x.created_at)}</div></div>
+      <div class="sub" style="font-weight:700">${money(x.amount)}</div></div>`).join('')}
+      <div class="item" style="border-top:2px solid var(--line)"><div class="main"><div class="nm">Total materials</div></div><div class="serif" style="font-weight:800">${money(total)}</div></div></div>` : '<div class="hint">No materials bought yet</div>';
+  } catch (e) { box.innerHTML = '<div class="hint">Could not load materials</div>'; }
+}
 async function loadDressPayments(id) {
   const box = document.getElementById('dpay_' + id); if (!box) return;
   try {
