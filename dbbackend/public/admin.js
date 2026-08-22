@@ -366,7 +366,8 @@ window.delGroup = (id) => confirmDel('Delete group?', async () => { await DEL('/
 
 /* open a group -> manage which students of the round are in it */
 window.openGroup = async (gid) => {
-  const [groups, users, sheet] = await Promise.all([GET('/api/groups'), GET('/api/users?role=trainee'), GET('/api/finance/sheet')]);
+  const canSeeMoney = ['admin', 'manager'].includes(state.user.role); // staff: no money, view-only
+  const [groups, users, sheet] = await Promise.all([GET('/api/groups'), GET('/api/users?role=trainee'), canSeeMoney ? GET('/api/finance/sheet') : Promise.resolve({ rows: [] })]);
   const g = groups.find((x) => x.id === gid);
   if (!g) return;
   const fin = {}; (sheet.rows || []).forEach((r) => { fin[r.id] = r; });
@@ -382,15 +383,15 @@ window.openGroup = async (gid) => {
     <div class="card" style="box-shadow:none;margin:0 0 12px">${members.length ? members.map((u) => { const f = fin[u.id] || { total_fee: 0, paid: 0, remaining: 0 }; return `<div class="item">
       <div class="av">${esc(initials(u.name))}</div>
       <div class="main"><div class="nm">${esc(u.name)}</div>
-        <div class="sub">Paid <b style="color:var(--ok)">${money(f.paid)}</b> · Remaining <b style="color:${f.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(f.remaining)}</b></div></div>
-      <button class="btn sm danger" onclick="setStudentGroup(${u.id},'',${gid})">Remove</button></div>`; }).join('') : '<div class="hint">No students yet — add from below</div>'}
-      ${members.length ? `<div class="item" style="background:var(--soft);border-radius:10px;border:none;margin-top:6px">
+        ${canSeeMoney ? `<div class="sub">Paid <b style="color:var(--ok)">${money(f.paid)}</b> · Remaining <b style="color:${f.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(f.remaining)}</b></div>` : `<div class="sub">${u.phone ? esc(u.phone) : ''}</div>`}</div>
+      ${canSeeMoney ? `<button class="btn sm danger" onclick="setStudentGroup(${u.id},'',${gid})">Remove</button>` : ''}</div>`; }).join('') : '<div class="hint">No students yet</div>'}
+      ${(canSeeMoney && members.length) ? `<div class="item" style="background:var(--soft);border-radius:10px;border:none;margin-top:6px">
         <div class="main"><div class="nm">Group total</div><div class="sub">Fees ${money(gFee)}</div></div>
         <div style="text-align:end;font-size:12px;font-weight:700">Paid <span style="color:var(--ok)">${money(gPaid)}</span><br>Remaining <span style="color:${gRem ? 'var(--bad)' : 'var(--ok)'}">${money(gRem)}</span></div></div>` : ''}</div>
-    <div class="sec-title">Add students from this round</div>
+    ${canSeeMoney ? `<div class="sec-title">Add students from this round</div>
     <div class="card" style="box-shadow:none;margin:0">${available.length ? available.map((u) => `<div class="item">
       <div class="av">${esc(initials(u.name))}</div><div class="main"><div class="nm">${esc(u.name)}</div><div class="sub">${u.group_id ? 'in another group' : 'no group'}</div></div>
-      <button class="btn sm ghost" onclick="setStudentGroup(${u.id},${gid},${gid})">Add</button></div>`).join('') : '<div class="hint">All round students are already in this group</div>'}</div>`);
+      <button class="btn sm ghost" onclick="setStudentGroup(${u.id},${gid},${gid})">Add</button></div>`).join('') : '<div class="hint">All round students are already in this group</div>'}</div>` : ''}`);
 };
 window.setStudentGroup = async (uid, gid, reopenGid) => {
   await PUT('/api/users/' + uid, { group_id: gid });
@@ -400,8 +401,8 @@ window.setStudentGroup = async (uid, gid, reopenGid) => {
 
 /* ============ COURSES / VIDEOS ============ */
 PAGES.courses = async (c) => {
-  if (state.user.role === 'staff') return PAGES.courses_staff(c);
-  if (state.user.role !== 'admin' && state.user.role !== 'manager') return PAGES.courses_trainee(c);
+  if (!['admin', 'manager', 'staff'].includes(state.user.role)) return PAGES.courses_trainee(c);
+  const canManage = ['admin', 'manager'].includes(state.user.role);
   const [rounds, students] = await Promise.all([GET('/api/rounds'), GET('/api/users?role=trainee')]);
   window._rounds = rounds;
   const cnt = (rid) => students.filter((u) => u.round_id === rid).length;
@@ -410,7 +411,7 @@ PAGES.courses = async (c) => {
   const list = rounds.filter((r) => (r.kind || 'onsite') === tab);
   c.innerHTML = title('Courses', '') +
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="courseTab('${k}')">${l}</span>`).join('')}</div>
-    <button class="btn sec sm" onclick="addRound()">＋ New round</button>
+    ${canManage ? '<button class="btn sec sm" onclick="addRound()">＋ New round</button>' : ''}
     <div style="margin-top:12px">${list.length ? list.map((r) => `<div class="card" style="cursor:pointer" onclick="openRound(${r.id})">
       <div class="item"><div class="av">${r.number || '#'}</div>
         <div class="main"><div class="nm">${esc(r.name)} <span class="badge">${cnt(r.id)} students</span></div>
@@ -444,9 +445,11 @@ window.delVideoStaff = (id) => confirmDel('Delete this item?', async () => { awa
 PAGES.round = async (c) => {
   const id = window._roundId;
   if (!id) return go('courses');
+  const canSeeMoney = ['admin', 'manager'].includes(state.user.role); // course money: admin + manager (NOT staff)
+  const canManage = canSeeMoney; // add/edit students, groups, payments
   const [rounds, groups, students, videos, quizzes, sheet, attendance] = await Promise.all([
     GET('/api/rounds'), GET('/api/groups'), GET('/api/users?round_id=' + id), GET('/api/videos'),
-    GET('/api/quizzes'), GET('/api/finance/sheet'), GET('/api/attendance?round_id=' + id),
+    GET('/api/quizzes'), canSeeMoney ? GET('/api/finance/sheet') : Promise.resolve({ rows: [] }), GET('/api/attendance?round_id=' + id),
   ]);
   const round = rounds.find((r) => r.id === id) || { name: 'Round' };
   window._rounds = rounds;
@@ -458,39 +461,39 @@ PAGES.round = async (c) => {
   const finRows = sheet.rows.filter((r) => r.round_id === id);
   const gcnt = (gid) => students.filter((u) => u.group_id === gid).length;
   const isAdmin = state.user.role === 'admin';
-  const canSeeMoney = ['admin', 'manager'].includes(state.user.role); // course money: admin + manager (NOT staff)
-  const tab = window._roundTab || 'students';
-  const tabs = [['students', 'Students'], ['groups', 'Groups'], ['pay', 'Payments'], ['videos', 'Videos'], ['att', 'Attendance'], ['quiz', 'Quizzes']];
+  let tab = window._roundTab || 'students';
+  if (tab === 'pay' && !canSeeMoney) tab = 'students'; // no Payments tab for staff
+  const tabs = [['students', 'Students'], ['groups', 'Groups'], ...(canSeeMoney ? [['pay', 'Payments']] : []), ['videos', 'Videos'], ['att', 'Attendance'], ['quiz', 'Quizzes']];
   let inner = '';
   if (tab === 'students') {
     const payMap = {}; finRows.forEach((r) => { payMap[r.id] = r; });
     const payStatus = (uid) => { const r = payMap[uid]; if (!r || !r.total_fee) return null; if (r.remaining <= 0) return { t: 'Paid', c: 'ok' }; if (r.paid > 0) return { t: 'Partial', c: 'warn' }; return { t: 'Unpaid', c: 'bad' }; };
     const govs = [...new Set(students.map((s) => s.governorate).filter(Boolean))].sort();
     const gf = window._roundGov || 'all';
-    const pf = window._roundPay || 'all';
+    const pf = canSeeMoney ? (window._roundPay || 'all') : 'all';
     let list = students.slice();
     if (gf !== 'all') list = list.filter((s) => (s.governorate || '') === gf);
     if (pf !== 'all') list = list.filter((s) => { const p = payStatus(s.id); return p && p.t.toLowerCase() === pf; });
     if (window._roundSortGov) list.sort((a, b) => (a.governorate || 'zzzz').localeCompare(b.governorate || 'zzzz') || a.name.localeCompare(b.name));
-    inner = `<button class="btn" onclick="editStudent()">＋ Add student</button>
+    inner = `${canManage ? '<button class="btn" onclick="editStudent()">＋ Add student</button>' : ''}
       <div class="row" style="margin:10px 2px 4px;align-items:center;gap:8px">
         <span style="font-weight:700">${list.length} registered</span>
         <select onchange="setRoundGov(this.value)" style="width:auto;padding:6px 8px;font-size:12px;margin-inline-start:auto">
           <option value="all">All governorates</option>${govs.map((g) => `<option value="${esc(g)}" ${gf === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
         <button class="btn ${window._roundSortGov ? '' : 'ghost'} sm" onclick="toggleGovSort()">Sort by gov.</button></div>
-      <div class="filters" style="margin:0 2px 6px">${[['all', 'All'], ['paid', 'Paid'], ['partial', 'Partial'], ['unpaid', 'Unpaid']].map(([k, l]) => `<span class="chip ${pf === k ? 'active' : ''}" onclick="setRoundPay('${k}')">${l}</span>`).join('')}</div>
+      ${canSeeMoney ? `<div class="filters" style="margin:0 2px 6px">${[['all', 'All'], ['paid', 'Paid'], ['partial', 'Partial'], ['unpaid', 'Unpaid']].map(([k, l]) => `<span class="chip ${pf === k ? 'active' : ''}" onclick="setRoundPay('${k}')">${l}</span>`).join('')}</div>` : ''}
       <input placeholder="🔍 Search student by name" value="${esc(window._roundSearch || '')}" oninput="window._roundSearch=this.value; liveSearch(this.value,'#roundStudentsList')" style="width:100%;padding:9px 12px;margin:0 0 8px" />
       <div class="card" id="roundStudentsList">${list.length ? list.map((u) => { const p = payStatus(u.id); const pr = payMap[u.id]; return `<div class="item" data-name="${esc((u.name || '').toLowerCase())}" style="cursor:pointer" onclick="viewStudent(${u.id})">
         <div class="av">${esc(initials(u.name))}</div>
-        <div class="main"><div class="nm">${esc(u.name)}${p ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
+        <div class="main"><div class="nm">${esc(u.name)}${(canSeeMoney && p) ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
           <div class="sub">${u.governorate ? esc(u.governorate) + ' · ' : ''}${u.phone ? esc(u.phone) : 'no phone'}</div></div>
-        ${pr && pr.remaining > 0 ? `<div style="text-align:end;white-space:nowrap"><div style="color:var(--bad);font-weight:700;font-size:13px">${money(pr.remaining)}</div><div class="muted" style="font-size:10px">remaining</div></div>` : (pr && pr.total_fee ? `<div style="color:var(--ok);font-weight:700;font-size:13px;white-space:nowrap">✓ Paid</div>` : '')}
+        ${canSeeMoney ? (pr && pr.remaining > 0 ? `<div style="text-align:end;white-space:nowrap"><div style="color:var(--bad);font-weight:700;font-size:13px">${money(pr.remaining)}</div><div class="muted" style="font-size:10px">remaining</div></div>` : (pr && pr.total_fee ? `<div style="color:var(--ok);font-weight:700;font-size:13px;white-space:nowrap">✓ Paid</div>` : '')) : ''}
         <span class="muted" style="font-size:20px">›</span></div>`; }).join('') : empty('No students in this round')}</div>`;
   } else if (tab === 'groups') {
-    inner = `<button class="btn" onclick="addGroup(${id})">＋ Group</button>
+    inner = `${canManage ? `<button class="btn" onclick="addGroup(${id})">＋ Group</button>` : ''}
       <div class="card" style="margin-top:12px">${gList.length ? gList.map((g) => `<div class="item"><div class="av">◦</div>
-        <div class="main" style="cursor:pointer" onclick="openGroup(${g.id})"><div class="nm">${esc(g.name)}</div><div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'} · tap to add girls ›</div></div>
-        <button class="btn-icon" onclick="delGroup(${g.id})">🗑</button></div>`).join('') : empty('No groups yet')}</div>`;
+        <div class="main" style="cursor:pointer" onclick="openGroup(${g.id})"><div class="nm">${esc(g.name)}</div><div class="sub">${g.day ? dayEn(g.day) : ''} ${g.time_slot ? '· ' + g.time_slot : ''} · ${gcnt(g.id)}/${g.capacity || '∞'} · tap to view ›</div></div>
+        ${canManage ? `<button class="btn-icon" onclick="delGroup(${g.id})">🗑</button>` : ''}</div>`).join('') : empty('No groups yet')}</div>`;
   } else if (tab === 'pay') {
     const tot = finRows.reduce((a, r) => { a.fee += r.total_fee; a.paid += r.paid; a.rem += r.remaining; return a; }, { fee: 0, paid: 0, rem: 0 });
     inner = `<div class="grid g3"><div class="stat"><div class="n">${money(tot.fee)}</div><div class="l">Total</div></div>
@@ -514,7 +517,7 @@ PAGES.round = async (c) => {
     inner = `${canSeeMoney ? `<button class="btn" onclick="newQuiz(${id})">＋ New quiz</button>` : ''}
       <div style="margin-top:12px">${qList.length ? qList.map((q) => `<div class="card"><div class="item"><div class="av">📝</div>
         <div class="main"><div class="nm">${esc(q.title)} <span class="badge">${q.ref_code}</span></div><div class="sub">${q.questions_count} questions · ${q.duration_min} min</div></div>
-        <button class="btn sm sec" onclick="quizResults(${q.id},'${esc(q.title).replace(/'/g, "\\'")}')">Results</button>${canSeeMoney ? `<button class="btn-icon" onclick="delQuiz(${q.id})">🗑</button>` : ''}</div></div>`).join('') : empty('No quizzes yet', '📝')}</div>`;
+        ${canSeeMoney ? `<button class="btn sm sec" onclick="quizResults(${q.id},'${esc(q.title).replace(/'/g, "\\'")}')">Results</button><button class="btn-icon" onclick="delQuiz(${q.id})">🗑</button>` : ''}</div></div>`).join('') : empty('No quizzes yet', '📝')}</div>`;
   }
   c.innerHTML = title(round.name, '') +
     `<div class="sub muted" style="margin:-8px 2px 10px">${round.kind === 'online' ? 'Online Course' : 'In‑person'}${round.start_date ? ' · Starts ' + dt(round.start_date) : ''}</div>

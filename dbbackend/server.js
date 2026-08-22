@@ -706,12 +706,13 @@ api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => {
 // ================= STAFF HR =================
 api['GET /api/attendance'] = async (req, res, user, url) => {
   if (!requireAuth(user, res)) return;
-  if (user.role === 'admin' || user.role === 'manager') {
-    const uid = url.searchParams.get('user_id');
-    const round = url.searchParams.get('round_id');
+  const uid = url.searchParams.get('user_id');
+  const round = url.searchParams.get('round_id');
+  if (['admin', 'manager', 'staff'].includes(user.role)) {
     if (round) return send(res, 200, db.prepare('SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE u.round_id=? ORDER BY a.date DESC').all(round));
-    const q = uid ? 'SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY date DESC' : 'SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id ORDER BY date DESC LIMIT 300';
-    return send(res, 200, uid ? db.prepare(q).all(uid) : db.prepare(q).all());
+    if (uid) return send(res, 200, db.prepare('SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY date DESC').all(uid));
+    if (user.role === 'staff') return send(res, 200, db.prepare('SELECT * FROM attendance WHERE user_id=? ORDER BY date DESC').all(user.id)); // staff no-param: own timeline (check-in screen)
+    return send(res, 200, db.prepare('SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id ORDER BY date DESC LIMIT 300').all());
   }
   send(res, 200, db.prepare('SELECT * FROM attendance WHERE user_id=? ORDER BY date DESC').all(user.id));
 };

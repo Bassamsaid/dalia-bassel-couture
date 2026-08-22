@@ -74,21 +74,8 @@ PAGES.home_trainee = async (c) => {
 /* ============ STUDENT SELF ATTENDANCE (check in/out) ============ */
 PAGES.myattendance = async (c) => {
   const att = await GET('/api/attendance');
-  const todayRec = att.find((a) => a.date === today());
-  let label = 'Check in', ic = '●';
-  if (todayRec && todayRec.check_in && !todayRec.check_out) { label = 'Check out'; ic = '◐'; }
-  else if (todayRec && todayRec.check_out) { label = 'Done for today ✓'; ic = '✓'; }
-  c.innerHTML = title('My Attendance', '') + `
-    <div class="card" style="text-align:center">
-      <div style="font-size:40px">${ic}</div>
-      <div class="nm" style="font-weight:600;font-size:16px;margin:8px 0">${todayRec ? `In: ${todayRec.check_in || '—'} · Out: ${todayRec.check_out || '—'}` : 'No attendance today yet'}</div>
-      ${todayRec && todayRec.check_out ? '' : `<button class="btn" onclick="doCheckMy()">${label}</button>`}
-    </div>
-    <div class="sec-title">History</div>
-    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead>
-      <tbody>${att.length ? att.slice(0, 30).map((a) => `<tr><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="3" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+  attScreen(c, att, 'My Attendance');
 };
-window.doCheckMy = async () => { const r = await POST('/api/attendance/check'); toast(r.action === 'in' ? 'Checked in ✓' : r.action === 'out' ? 'Checked out ✓' : 'Done'); go('myattendance'); };
 
 /* ============ STUDENT COURSES (videos, read-only) ============ */
 PAGES.courses_trainee = async (c) => {
@@ -222,24 +209,57 @@ PAGES.about_view = async (c, a) => {
     <div style="font-size:15px;white-space:pre-wrap">${esc(a.body || 'A couture academy for pattern-making and tailoring.')}</div></div>`;
 };
 
+/* ============ CHECK-IN / OUT (shared: staff home + student attendance) ============ */
+const _hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+function attMins(ci, co) { // minutes between two "HH:MM" times
+  if (!ci || !co) return 0;
+  const [ih, im] = ci.split(':').map(Number); const [oh, om] = co.split(':').map(Number);
+  let m = (oh * 60 + om) - (ih * 60 + im); if (m < 0) m += 1440; return m;
+}
+const fmtDur = (m) => Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
+function elapsedSince(ci) { const now = new Date(); return fmtDur(attMins(ci, _hhmm(now))); }
+function attScreen(c, att, titleTxt) {
+  const rec = att.find((a) => a.date === today());
+  const st = (!rec || !rec.check_in) ? 'out' : (!rec.check_out ? 'in' : 'done');
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  const ring = st === 'out'
+    ? `<button class="ck-ring out" onclick="doAttCheck()"><span class="ic">🕒</span><span class="lbl">Check in</span></button>`
+    : st === 'in'
+      ? `<button class="ck-ring in" onclick="doAttCheck()"><span class="ic">👋</span><span class="lbl">Check out</span></button>`
+      : `<div class="ck-ring done"><span class="ic">✓</span><span class="lbl">Done</span></div>`;
+  const status = st === 'out'
+    ? `<div class="ck-status"><span class="muted">No check-in yet — tap to start your day</span></div>`
+    : st === 'in'
+      ? `<div class="ck-status">Checked in at <b>${rec.check_in}</b> · <span id="ckElapsed" data-since="${rec.check_in}">${elapsedSince(rec.check_in)}</span></div>`
+      : `<div class="ck-pills"><div class="ck-pill"><div class="k">In</div><div class="v">${rec.check_in}</div></div>
+         <div class="ck-pill"><div class="k">Out</div><div class="v">${rec.check_out}</div></div>
+         <div class="ck-pill"><div class="k">Worked</div><div class="v">${fmtDur(attMins(rec.check_in, rec.check_out))}</div></div></div>`;
+  c.innerHTML = title(titleTxt, '') +
+    `<div class="card checkin">
+       <div class="ck-clock" id="ckClock">${_hhmm(now)}</div><div class="ck-date">${dateStr}</div>
+       ${ring}
+       ${status}
+     </div>
+     <div class="sec-title">Recent</div>
+     <div class="card">${att.length ? att.slice(0, 30).map((a) => `<div class="item">
+       <div class="av">${a.check_out ? '✓' : (a.check_in ? '◐' : '—')}</div>
+       <div class="main"><div class="nm">${dt(a.date)}</div><div class="sub">In ${a.check_in || '—'} · Out ${a.check_out || '—'}</div></div>
+       ${(a.check_in && a.check_out) ? `<div class="sub" style="font-weight:700;color:var(--ink)">${fmtDur(attMins(a.check_in, a.check_out))}</div>` : ''}</div>`).join('') : empty('No records yet', '🕒')}</div>`;
+  clearInterval(window._ckTimer);
+  window._ckTimer = setInterval(() => {
+    const clk = document.getElementById('ckClock'); if (!clk) { clearInterval(window._ckTimer); return; }
+    clk.textContent = _hhmm(new Date());
+    const el = document.getElementById('ckElapsed'); if (el && el.dataset.since) el.textContent = elapsedSince(el.dataset.since);
+  }, 20000);
+}
+window.doAttCheck = async () => { const r = await POST('/api/attendance/check'); toast(r.action === 'in' ? 'Checked in ✓' : r.action === 'out' ? 'Checked out ✓' : 'Done'); go(state.page); };
+
 /* ============ STAFF HOME (attendance) ============ */
 PAGES.home_staff = async (c) => {
   const att = await GET('/api/attendance');
-  const todayRec = att.find((a) => a.date === today());
-  let label = 'Check in', ic = '●';
-  if (todayRec && todayRec.check_in && !todayRec.check_out) { label = 'Check out'; ic = '◐'; }
-  else if (todayRec && todayRec.check_out) { label = 'Done for today ✓'; ic = '✓'; }
-  c.innerHTML = title(`Welcome, ${state.user.name}`, '') + `
-    <div class="card" style="text-align:center">
-      <div style="font-size:40px">${ic}</div>
-      <div class="nm" style="font-weight:600;font-size:16px;margin:8px 0">${todayRec ? `In: ${todayRec.check_in || '—'} · Out: ${todayRec.check_out || '—'}` : 'No attendance today yet'}</div>
-      ${todayRec && todayRec.check_out ? '' : `<button class="btn" onclick="doCheck()">${label}</button>`}
-    </div>
-    <div class="sec-title">Recent attendance</div>
-    <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead>
-      <tbody>${att.length ? att.slice(0, 30).map((a) => `<tr><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="3" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+  attScreen(c, att, `Welcome, ${state.user.name}`);
 };
-window.doCheck = async () => { const r = await POST('/api/attendance/check'); toast(r.action === 'in' ? 'Checked in' : r.action === 'out' ? 'Checked out' : 'Done'); go('home'); };
 
 /* ============ STAFF SALARY (own, auto-computed) ============ */
 PAGES.mysalary = async (c) => {
