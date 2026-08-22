@@ -393,6 +393,12 @@ const NAV = {
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
+  // a visitor has no place in the academy yet — the feed, a way to reach us, and who we are
+  visitor: [
+    ['dalia', 'Dalia Bassel', '✦'],
+    ['help', 'Customer service', '💬'],
+    ['about', 'About', 'ℹ'],
+  ],
 };
 
 /* bottom bar shows only 2 tabs; the rest live in the side drawer */

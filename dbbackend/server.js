@@ -1476,6 +1476,14 @@ function serveStatic(req, res, pathname) {
   });
 }
 
+// What a visitor may touch. Everything else answers 403.
+const VISITOR_OK = [
+  '/api/me', '/api/login', '/api/logout', '/api/register', '/api/profile',
+  '/api/settings', '/api/my-permissions',
+  '/api/dalia', '/api/about',
+  '/api/chats', '/api/notifications', '/api/upload',
+];
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
@@ -1487,6 +1495,12 @@ const server = http.createServer(async (req, res) => {
       const m = match(req.method, pathname);
       if (!m) return send(res, 404, { error: 'route not found' });
       const user = getUser(req);
+      // A visitor is not a member of the academy yet: the feed, who we are, and
+      // talking to us. Everything else is refused here rather than relying on each
+      // endpoint to scope itself — new endpoints are then closed by default.
+      if (user && user.role === 'visitor' && !VISITOR_OK.some((p) => pathname === p || pathname.startsWith(p + '/'))) {
+        return send(res, 403, { error: 'Ask the studio to give you access to this part of the app.' });
+      }
       return await m.handler(req, res, user, url, m.params);
     }
     serveStatic(req, res, pathname);
