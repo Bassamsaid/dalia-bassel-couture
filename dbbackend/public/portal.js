@@ -296,10 +296,18 @@ PAGES.mydresses = async (c, opts = {}) => {
   const stEn = { open: 'In preparation', in_progress: 'In progress', delivered: 'Ready' };
   const isStaff = ['staff', 'manager'].includes(state.user.role);
   const mine = isStaff && window._myDressMine;
-  const list = mine ? dresses.filter((d) => d.assigned_to === state.user.id) : dresses;
-  const chips = isStaff ? `<div class="filters"><span class="chip ${!mine ? 'active' : ''}" onclick="myDressTab(0)">All dresses</span><span class="chip ${mine ? 'active' : ''}" onclick="myDressTab(1)">Assigned to me</span></div>` : '';
-  c.innerHTML = title(opts.title || 'My Dresses', '') + chips +
-    (list.length ? list.map((d) => `<div class="card" id="dress_${d.id}" style="position:relative">
+  const stF = window._myDressStatus || 'all';
+  let list = mine ? dresses.filter((d) => d.assigned_to === state.user.id) : dresses;
+  if (isStaff && stF !== 'all') list = list.filter((d) => d.status === stF);
+  const chips = isStaff ? `<div class="filters">
+      <span class="chip ${!mine ? 'active' : ''}" onclick="myDressTab(0)">All</span>
+      <span class="chip ${mine ? 'active' : ''}" onclick="myDressTab(1)">👤 Assigned to me</span>
+    </div>
+    <div class="filters">${[['all', 'All'], ['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<span class="chip ${stF === k ? 'active' : ''}" onclick="myDressStatus('${k}')">${l}</span>`).join('')}</div>
+    <input placeholder="🔍 Search by client name" value="${esc(window._myDressSearch || '')}" oninput="window._myDressSearch=this.value;liveSearch(this.value,'#myDressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
+    <div class="hint" style="margin:0 2px 8px">${list.length} dress(es)</div>` : '';
+  c.innerHTML = title(opts.title || 'My Dresses', '') + chips + `<div id="myDressList">` +
+    (list.length ? list.map((d) => `<div class="card" id="dress_${d.id}" data-name="${esc((d.customer_name || '').toLowerCase())}" style="position:relative">
       ${d.unread ? `<span class="notif-dot">${d.unread}</span>` : ''}
       <div class="nm serif" style="font-size:18px">${esc(d.customer_name)} <span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span></div>
       <div class="sub muted">Delivery: ${dt(d.delivery_date)}${isStaff ? ' · ' + (d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned') : ''}</div>
@@ -308,11 +316,13 @@ PAGES.mydresses = async (c, opts = {}) => {
       <div class="sec-title">Updates 💬</div>
       <div id="dupd_${d.id}"><div class="hint">Loading…</div></div>
       <button class="btn sec sm" style="margin-top:8px" onclick="sendDressNote(${d.id})">📝 Send a note about your dress</button>
-    </div>`).join('') : empty(mine ? 'No dresses assigned to you' : 'No bookings yet', '👗'));
+    </div>`).join('') : empty(mine ? 'No dresses assigned to you' : 'No bookings yet', '👗')) + `</div>`;
   list.forEach((d) => loadDressUpdates(d.id));
+  if (isStaff && window._myDressSearch) liveSearch(window._myDressSearch, '#myDressList');
   if (window._openDressAfter) { const oid = window._openDressAfter; window._openDressAfter = null; setTimeout(() => { const el = document.getElementById('dress_' + oid); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 80); }
 };
 window.myDressTab = (v) => { window._myDressMine = v; go(state.page); };
+window.myDressStatus = (s) => { window._myDressStatus = s; go(state.page); };
 window.sendDressNote = (id) => formModal('Note about the dress', [
   { name: 'body', label: 'Note', type: 'textarea' },
   { name: 'image', label: 'Photo (optional)', type: 'image' },

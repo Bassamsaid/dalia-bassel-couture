@@ -81,7 +81,7 @@ window.wizNav = (dir) => {
 };
 window.pickForField = (name, type, accept) => pickImage((b64) => {
   $(`#fi_${name}`).value = b64; $(`#fh_${name}`).textContent = 'Selected ✓';
-}, accept || (type === 'file' ? 'video/*,image/*' : 'image/*'));
+}, accept || (type === 'file' ? 'video/*,image/*' : 'image/*'), type === 'file'); // file fields upload raw (HD, no compression)
 
 function confirmDel(msg, fn) { if (confirm(msg || 'Delete this?')) fn(); }
 window.confirmDel = confirmDel;
@@ -477,7 +477,9 @@ PAGES.round = async (c) => {
   } else if (tab === 'videos') {
     inner = `<button class="btn" onclick="addVideo('${round.kind || 'onsite'}',${id})">＋ Add video</button>
       <div class="grid g2" style="margin-top:12px">${vList.length ? vList.map((v) => `<div class="card" style="margin:0">
-        <div class="nm" style="font-weight:600">${esc(v.title)}</div>${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
+        <div class="nm" style="font-weight:600">${esc(v.title)}</div>
+        <div style="margin:4px 0"><span class="badge ${v.group_name ? '' : 'ok'}">${v.group_name ? '👥 ' + esc(v.group_name) : 'Whole round'}</span></div>
+        ${v.description ? `<div style="font-size:13px;margin:6px 0">${esc(v.description)}</div>` : ''}
         ${videoEmbed(v)}<button class="btn danger sm" style="margin-top:8px" onclick="delVideo(${v.id})">Delete</button></div>`).join('') : empty('No videos yet', '🎬')}</div>`;
   } else if (tab === 'att') {
     inner = `<div class="hint" style="margin-bottom:8px">Students check themselves in/out from their own account.</div>
@@ -499,7 +501,12 @@ window.setRoundGov = (v) => { window._roundGov = v; go('round'); };
 window.setRoundPay = (v) => { window._roundPay = v; go('round'); };
 window.toggleGovSort = () => { window._roundSortGov = !window._roundSortGov; go('round'); };
 function videoEmbed(v) {
-  if (v.file) return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>`;
+  if (v.file) {
+    if (/\.(png|jpe?g|webp|gif)$/i.test(v.file)) return `<img src="/uploads/${esc(v.file)}" style="width:100%;border-radius:10px;margin-top:6px;cursor:zoom-in" onclick="lightbox('/uploads/${esc(v.file)}')" alt=""/>
+      <a class="btn sec sm" style="margin-top:6px;display:inline-block" href="/uploads/${esc(v.file)}" download>⬇ Download</a>`;
+    return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>
+      <a class="btn sec sm" style="margin-top:6px;display:inline-block" href="/uploads/${esc(v.file)}" download>⬇ Download</a>`;
+  }
   if (v.url) {
     const yt = v.url.match(/(?:youtu\.be\/|v=)([\w-]{11})/);
     if (yt) return `<div style="position:relative;padding-top:56%;margin-top:6px"><iframe style="position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px" src="https://www.youtube.com/embed/${yt[1]}" allowfullscreen></iframe></div>`;
@@ -508,15 +515,28 @@ function videoEmbed(v) {
   return '';
 }
 window.addVideo = async (kind, presetRound) => {
-  const rounds = window._rounds || await GET('/api/rounds');
-  formModal('New video', [
+  const [rounds, groups] = await Promise.all([
+    window._rounds ? Promise.resolve(window._rounds) : GET('/api/rounds'),
+    GET('/api/groups'),
+  ]);
+  window._vidGroups = groups;
+  const grpOpts = [{ value: '', label: 'Whole round (all groups)' },
+    ...groups.filter((g) => !presetRound || g.round_id === Number(presetRound)).map((g) => ({ value: g.id, label: g.name }))];
+  formModal('New video / photo', [
     { name: 'title', label: 'Title', required: true },
     { name: 'kind', label: 'Course type', type: 'select', value: kind === 'onsite' ? 'onsite' : 'online', options: [{ value: 'online', label: 'Online Course' }, { value: 'onsite', label: 'In‑person' }] },
     { name: 'round_id', label: 'Round', type: 'select', value: presetRound || '', options: [{ value: '', label: 'All rounds' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
+    { name: 'group_id', label: 'Group (optional)', type: 'select', options: grpOpts },
     { name: 'description', label: 'Description', type: 'textarea' },
     { name: 'url', label: 'Link (YouTube or any URL)', placeholder: 'https://...' },
-    { name: 'file', label: 'Or upload a video from device', type: 'file', accept: 'video/*' },
-  ], async (d) => { await POST('/api/videos', d); toast('Uploaded'); go(state.page); });
+    { name: 'file', label: 'Upload a video', type: 'file', accept: 'video/*' },
+    { name: 'photo', label: 'Or upload a photo (HD)', type: 'file', accept: 'image/*' },
+  ], async (d) => {
+    if (d.photo) { d.file = d.photo; } // a photo, if given, is the media file
+    delete d.photo;
+    if (d.group_id) { const g = (window._vidGroups || []).find((x) => x.id === Number(d.group_id)); if (g) d.round_id = g.round_id; } // group implies its round
+    await POST('/api/videos', d); toast('Uploaded'); go(state.page);
+  });
 };
 window.delVideo = (id) => confirmDel('Delete video?', async () => { await DEL('/api/videos/' + id); go('courses'); });
 

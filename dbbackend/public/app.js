@@ -54,13 +54,13 @@ function lightbox(src, cap) {
 }
 window.lightbox = lightbox;
 
-/* pick an image file -> base64 data URL (compressed) */
-function pickImage(cb, accept = 'image/*') {
+/* pick a file -> base64 data URL. Images are compressed unless raw=true (HD/full quality). */
+function pickImage(cb, accept = 'image/*', raw = false) {
   const inp = document.createElement('input');
   inp.type = 'file'; inp.accept = accept;
   inp.onchange = () => {
     const f = inp.files[0]; if (!f) return;
-    if (accept.startsWith('image')) compressImage(f, cb);
+    if (accept.startsWith('image') && !raw) compressImage(f, cb);
     else { const fr = new FileReader(); fr.onload = () => cb(fr.result); fr.readAsDataURL(f); }
   };
   inp.click();

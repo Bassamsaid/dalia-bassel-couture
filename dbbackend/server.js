@@ -395,15 +395,17 @@ api['DELETE /api/groups/:id'] = async (req, res, user, url, params) => { if (!re
 // ================= VIDEOS =================
 api['GET /api/videos'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
-  if (user.role === 'admin') return send(res, 200, db.prepare('SELECT * FROM videos ORDER BY id DESC').all());
-  send(res, 200, db.prepare('SELECT * FROM videos WHERE round_id IS NULL OR round_id=? ORDER BY id DESC').all(user.round_id || -1));
+  const withNames = 'SELECT v.*, (SELECT name FROM rounds WHERE id=v.round_id) round_name, (SELECT name FROM groups WHERE id=v.group_id) group_name FROM videos v';
+  if (['admin', 'manager', 'staff'].includes(user.role)) return send(res, 200, db.prepare(withNames + ' ORDER BY v.id DESC').all());
+  // students: their round's content, and only their group (or round-wide items with no group)
+  send(res, 200, db.prepare(withNames + ' WHERE (v.round_id IS NULL OR v.round_id=?) AND (v.group_id IS NULL OR v.group_id=?) ORDER BY v.id DESC').all(user.round_id || -1, user.group_id || -1));
 };
 api['POST /api/videos'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const file = b.file && b.file.startsWith('data:') ? saveImage(b.file, '.mp4') : null;
   const kind = b.kind === 'onsite' ? 'onsite' : 'online';
-  const r = db.prepare('INSERT INTO videos (round_id,title,description,url,file,kind) VALUES (?,?,?,?,?,?)').run(b.round_id || null, b.title, b.description || null, b.url || null, file, kind);
+  const r = db.prepare('INSERT INTO videos (round_id,group_id,title,description,url,file,kind) VALUES (?,?,?,?,?,?,?)').run(b.round_id || null, b.group_id || null, b.title, b.description || null, b.url || null, file, kind);
   notifyRoles('admin', { type: 'course', title: `New lesson / video: ${b.title || ''}`, body: `${user.name} added new course content`, link_page: 'courses', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };

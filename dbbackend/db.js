@@ -460,5 +460,6 @@ try { db.exec("ALTER TABLE dalia_posts ADD COLUMN template TEXT DEFAULT 'below'"
 try { db.exec('ALTER TABLE dalia_posts ADD COLUMN subtitle TEXT'); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE purchase_invoices ADD COLUMN vendor_id INTEGER'); } catch (e) { /* column exists */ } // link a material invoice to a vendor (unified vendor spend)
 try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch (e) { /* column exists */ } // profile photo (uploaded filename)
+try { db.exec('ALTER TABLE videos ADD COLUMN group_id INTEGER'); } catch (e) { /* column exists */ } // scope a video/photo to one group (null = whole round)
 
 module.exports = { db, hashPassword, verifyPassword };
