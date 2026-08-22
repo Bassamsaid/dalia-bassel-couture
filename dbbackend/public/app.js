@@ -288,9 +288,7 @@ const NAV = {
   manager: [
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
-    ['purchases', 'Purchases', '🧾'],
     ['students', 'Students', '👩‍🎓'],
-    ['finance', 'Payments', '💳'],
     ['rounds', 'Rounds', '🗓'],
     ['courses', 'Courses', '🎬'],
     ['mysalary', 'Salary', '💵'],
@@ -301,6 +299,7 @@ const NAV = {
   staff: [
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
+    ['courses', 'Courses', '🎬'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
     ['dalia', 'Dalia Bassel', '✦'],
@@ -316,9 +315,9 @@ const NAV = {
 /* bottom bar shows only 2 tabs; the rest live in the side drawer */
 const BOTTOM = {
   admin: [['home', 'Home', '⌂'], ['courses', 'Courses', '🎬'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
-  manager: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['students', 'Students', '👩‍🎓'], ['dalia', 'Dalia', '✦']],
+  manager: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['courses', 'Courses', '🎬'], ['dalia', 'Dalia', '✦']],
   trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
-  staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
+  staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['courses', 'Courses', '🎬'], ['dalia', 'Dalia', '✦']],
   customer: [['mydresses', 'My Dresses', '👗'], ['dalia', 'Dalia Bassel', '✦']],
 };
 

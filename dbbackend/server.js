@@ -401,7 +401,7 @@ api['GET /api/videos'] = async (req, res, user) => {
   send(res, 200, db.prepare(withNames + ' WHERE (v.round_id IS NULL OR v.round_id=?) AND (v.group_id IS NULL OR v.group_id=?) ORDER BY v.id DESC').all(user.round_id || -1, user.group_id || -1));
 };
 api['POST /api/videos'] = async (req, res, user) => {
-  if (!requireManager(user, res)) return;
+  if (!requireStaffish(user, res)) return; // staff can upload course videos/photos too
   const b = await readBody(req);
   const file = b.file && b.file.startsWith('data:') ? saveImage(b.file, '.mp4') : null;
   const kind = b.kind === 'onsite' ? 'onsite' : 'online';
@@ -409,7 +409,7 @@ api['POST /api/videos'] = async (req, res, user) => {
   notifyRoles('admin', { type: 'course', title: `New lesson / video: ${b.title || ''}`, body: `${user.name} added new course content`, link_page: 'courses', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
-api['DELETE /api/videos/:id'] = async (req, res, user, url, params) => { if (!requireManager(user, res)) return; db.prepare('DELETE FROM videos WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/videos/:id'] = async (req, res, user, url, params) => { if (!requireStaffish(user, res)) return; db.prepare('DELETE FROM videos WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 // ================= HOMEWORK + SUBMISSIONS =================
 api['GET /api/homeworks'] = async (req, res, user) => {
