@@ -146,6 +146,8 @@ const api = {};
 api['POST /api/login'] = async (req, res) => {
   const b = await readBody(req);
   const u = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get((b.email || '').trim());
+  // an invited account has no password yet — point them at sign-up instead of a dead end
+  if (u && u.active && u.invited) return send(res, 401, { error: 'The studio added you. Tap "Create one" and sign up with this email to set your password.' });
   if (!u || !u.active || !verifyPassword(b.password || '', u.password_hash)) return send(res, 401, { error: 'Invalid email or password' });
   const token = crypto.randomBytes(24).toString('hex');
   db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(token, u.id);
@@ -196,11 +198,22 @@ api['POST /api/otp/verify'] = async (req, res) => {
 api['POST /api/register'] = async (req, res) => {
   const b = await readBody(req);
   if (!b.name || !b.email || !b.password) return send(res, 400, { error: 'All fields are required' });
-  const role = b.role === 'customer' ? 'customer' : 'trainee';
+  const email = String(b.email).trim().toLowerCase();
   try {
-    const r = db.prepare(`INSERT INTO users (name,email,password_hash,role) VALUES (?,?,?,?)`).run(b.name, b.email, hashPassword(b.password), role);
-    const uid = r.lastInsertRowid;
-    if (role === 'trainee') db.prepare('INSERT INTO enrollments (user_id,total_fee) VALUES (?,0)').run(uid);
+    // The studio adds a student's or client's email in advance. Signing up with that
+    // same email claims the account, keeping the role and round already set for them.
+    const invitee = db.prepare('SELECT * FROM users WHERE lower(email)=? AND invited=1').get(email);
+    let uid;
+    if (invitee) {
+      db.prepare('UPDATE users SET password_hash=?,invited=0 WHERE id=?').run(hashPassword(b.password), invitee.id);
+      uid = invitee.id;
+    } else {
+      const taken = db.prepare('SELECT id FROM users WHERE lower(email)=?').get(email);
+      if (taken) return send(res, 400, { error: 'Email already in use' });
+      // an email the studio does not know yet joins as a visitor
+      const r = db.prepare('INSERT INTO users (name,email,password_hash,role) VALUES (?,?,?,?)').run(b.name, email, hashPassword(b.password), 'visitor');
+      uid = r.lastInsertRowid;
+    }
     const token = crypto.randomBytes(24).toString('hex');
     db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(token, uid);
     send(res, 200, { ok: true }, { 'Set-Cookie': `sid=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax` });
@@ -244,11 +257,13 @@ api['POST /api/users'] = async (req, res, user) => {
   if (!b.name) return send(res, 400, { error: 'Name is required' });
   if (user.role === 'manager' && !['trainee', 'customer'].includes(b.role || 'trainee')) return send(res, 403, { error: 'managers can only add students or clients' });
   try {
-    const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date,governorate,off_days)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      b.name, b.email || null, b.phone || null, hashPassword(b.password || crypto.randomBytes(9).toString('hex')),
+    const invited = b.password ? 0 : 1; // no password -> they set one themselves by signing up with this email
+    const r = db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date,governorate,off_days,invited)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      b.name, b.email ? String(b.email).trim().toLowerCase() : null, b.phone || null,
+      hashPassword(b.password || crypto.randomBytes(9).toString('hex')),
       b.role || 'trainee', b.round_id || null, b.group_id || null,
-      b.job_title || null, b.base_salary || 0, b.hire_date || null, b.governorate || null, b.off_days || null);
+      b.job_title || null, b.base_salary || 0, b.hire_date || null, b.governorate || null, b.off_days || null, invited);
     const uid = r.lastInsertRowid;
     if (b.role !== 'staff' && (b.total_fee != null || b.round_id)) {
       db.prepare('INSERT INTO enrollments (user_id,round_id,total_fee) VALUES (?,?,?)').run(uid, b.round_id || null, b.total_fee || 0);
@@ -276,7 +291,10 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
     b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.off_days ?? cur.off_days, params.id);
-  if (b.password) db.prepare('UPDATE users SET password_hash=? WHERE id=?').run(hashPassword(b.password), params.id);
+  if (b.password) db.prepare('UPDATE users SET password_hash=?,invited=0 WHERE id=?').run(hashPassword(b.password), params.id);
+  // giving a login email to someone who had none makes the account claimable on sign-up.
+  // An account that already had an email keeps its password — editing it must not lock anyone out.
+  else if (!cur.email && b.email) db.prepare('UPDATE users SET invited=1 WHERE id=?').run(params.id);
   if (b.total_fee != null) {
     const en = db.prepare('SELECT id FROM enrollments WHERE user_id=?').get(params.id);
     if (en) db.prepare('UPDATE enrollments SET total_fee=?,round_id=? WHERE id=?').run(b.total_fee, b.round_id ?? cur.round_id, en.id);

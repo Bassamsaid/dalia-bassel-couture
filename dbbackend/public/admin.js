@@ -141,8 +141,8 @@ window.markReminder = async (id) => { await PUT('/api/reminders/' + id, { done: 
 PAGES.members = async (c) => {
   const users = await GET('/api/users');
   window._members = users;
-  const roles = ['all', 'admin', 'manager', 'trainee', 'customer', 'staff'];
-  const lbl = { all: 'All', admin: 'Admins', manager: 'Managers', trainee: 'Students', customer: 'Clients', staff: 'Staff' };
+  const roles = ['all', 'admin', 'manager', 'trainee', 'customer', 'staff', 'visitor'];
+  const lbl = { all: 'All', admin: 'Admins', manager: 'Managers', trainee: 'Students', customer: 'Clients', staff: 'Staff', visitor: 'Visitors' };
   const f = window._memF || 'all';
   const list = users.filter((u) => f === 'all' || u.role === f);
   c.innerHTML = title('Members', '') +
@@ -156,7 +156,7 @@ PAGES.members = async (c) => {
       <div class="main"><div class="nm">${esc(u.name)}</div>
         <div class="sub">${u.job_title ? esc(u.job_title) + ' · ' : ''}${u.email ? esc(u.email) : 'no email'} · joined ${dt(u.created_at)}</div></div>
       <select onchange="setRole(${u.id},this.value)" style="width:auto;padding:6px 8px;font-size:12px" ${u.role === 'admin' ? 'disabled' : ''}>
-        ${['trainee', 'customer', 'staff', 'manager', 'admin'].map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${lbl[r] || r}</option>`).join('')}
+        ${['visitor', 'trainee', 'customer', 'staff', 'manager', 'admin'].map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${lbl[r] || r}</option>`).join('')}
       </select></div>`).join('') : empty('No members')}</div>`;
 };
 window.memFilter = (r) => { window._memF = r; go('members'); };
@@ -247,8 +247,8 @@ window.editStudent = async (id) => {
     { name: 'name', label: 'Name', required: true, value: u.name },
     { name: 'phone', label: 'Phone', value: u.phone },
     govField,
-    { name: 'email', label: 'Email (for login)', type: 'email', value: u.email },
-    { name: 'password', label: id ? 'Reset password (optional)' : 'Login password', type: 'password', placeholder: id ? 'leave blank to keep current' : "or leave blank if she'll register herself" },
+    { name: 'email', label: 'Email — she signs up with this one', type: 'email', value: u.email },
+    { name: 'password', label: id ? 'Reset password (optional)' : 'Password (optional)', type: 'password', placeholder: id ? 'leave blank to keep current' : 'leave blank — she picks it when she signs up' },
     { name: 'round_id', label: 'Round', type: 'select', value: u.round_id, options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'group_id', label: 'Group', type: 'select', value: u.group_id, options: [{ value: '', label: '—' }, ...groups.map((g) => ({ value: g.id, label: g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '') }))] },
     { name: 'total_fee', label: 'Course fee (EGP)', type: 'number', value: fee },
@@ -734,7 +734,7 @@ PAGES.dalia = async (c) => {
   c.innerHTML = title('Dalia Bassel', '') +
     `<div class="feed-hero"><div class="fn">Dalia Bassel</div><div class="fs">Haute Couture · News & Highlights</div></div>` +
     (admin ? `<button class="btn" style="margin-bottom:14px" onclick="addDalia()">＋ New post</button>` : '') +
-    (posts.length ? posts.map((p) => renderDaliaPost(p, admin)).join('') : empty('No posts yet — add photos & news', '✦'));
+    (posts.length ? posts.map((p) => renderDaliaPost(p, admin)).join('') : empty(admin ? 'No posts yet — add photos & news' : 'Nothing here yet — check back soon', '✦'));
 };
 function renderDaliaPost(p, admin) {
   const tpl = p.template || 'below';

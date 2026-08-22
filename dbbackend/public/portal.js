@@ -38,6 +38,7 @@ PAGES.home = async (c) => {
   const r = state.user.role;
   if (r === 'admin') return PAGES.home_admin(c);
   if (r === 'staff' || r === 'manager') return PAGES.home_staff(c);
+  if (r === 'visitor') return PAGES.dalia(c); // visitors only ever see the feed
   return PAGES.home_trainee(c);
 };
 

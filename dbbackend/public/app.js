@@ -205,9 +205,7 @@ function renderAuth(mode) {
       <input name="email" type="email" placeholder="you@email.com" required />
       <label>Password</label>
       <input name="password" type="password" placeholder="••••••" required />
-      ${isReg ? `<label>I'm here to</label><select name="role">
-        <option value="trainee">Join a course (student)</option>
-        <option value="customer">Order a dress (client)</option></select>` : ''}
+      ${isReg ? '<p class="hint" style="margin-top:12px">Use the email the studio has for you and you go straight to your own pages. Any other email joins as a visitor.</p>' : ''}
       <div class="err hidden" id="authErr"></div>
       <button class="btn" style="margin-top:18px" type="submit">${isReg ? 'Create account' : 'Sign in'}</button>
     </form>
@@ -220,7 +218,7 @@ function renderAuth(mode) {
     e.preventDefault();
     const fd = new FormData(e.target);
     try {
-      if (isReg) await POST('/api/register', { name: fd.get('name'), email: fd.get('email'), password: fd.get('password'), role: fd.get('role') });
+      if (isReg) await POST('/api/register', { name: fd.get('name'), email: fd.get('email'), password: fd.get('password') });
       else await POST('/api/login', { email: fd.get('email'), password: fd.get('password') });
       state.user = (await GET('/api/me')).user;
       await loadPerms(); await loadConfig();
@@ -322,6 +320,7 @@ const BOTTOM = {
   trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
   staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['courses', 'Courses', '🎬'], ['dalia', 'Dalia', '✦']],
   customer: [['mydresses', 'My Dresses', '👗'], ['dalia', 'Dalia Bassel', '✦']],
+  visitor: [['dalia', 'Dalia Bassel', '✦'], ['about', 'About', 'ℹ']],
 };
 
 function renderApp() {
@@ -365,7 +364,7 @@ function renderApp() {
   go(start);
   startNotifPoll();
 }
-function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'Student', staff: 'Staff', customer: 'Client' }[r] || r; }
+function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'Student', staff: 'Staff', customer: 'Client', visitor: 'Visitor' }[r] || r; }
 /* avatar: uploaded photo if present, else initials — same shape (pav / av) */
 function avatarHtml(u, cls) {
   const c = cls || 'pav';
