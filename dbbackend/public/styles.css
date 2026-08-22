@@ -328,6 +328,7 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 @keyframes tileIn{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes tileShine{0%{left:-75%}17%{left:135%}100%{left:135%}}
 @keyframes emFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes emBreathe{0%,100%{opacity:.88}50%{opacity:1}}
 @keyframes lineGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 
 /* the watermark sits behind the whole screen, under topbar/bottomnav */
@@ -361,27 +362,33 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
   animation:tileIn .55s cubic-bezier(.2,.8,.2,1) var(--d,0s) both;
   transition:transform .18s,box-shadow .25s,border-color .25s}
 /* colour slice across the top of every tile */
-.home-lux .tile::before{content:"";position:absolute;top:0;inset-inline:0;height:3px;z-index:2;
-  background:linear-gradient(90deg,var(--c1),var(--c2));transform-origin:left;
-  animation:lineGrow .6s cubic-bezier(.2,.8,.2,1) calc(var(--d,0s) + .2s) both}
+.home-lux .tile::before{content:"";position:absolute;top:0;inset-inline:0;height:4px;z-index:2;
+  background:linear-gradient(90deg,var(--c1),var(--c2),var(--c1));background-size:220% 100%;transform-origin:left;
+  animation:lineGrow .6s cubic-bezier(.2,.8,.2,1) calc(var(--d,0s) + .2s) both,
+            gradShift 6s ease-in-out calc(var(--d,0s) + .9s) infinite}
 /* light sweep */
 .home-lux .tile::after{content:"";position:absolute;top:0;left:-75%;width:42%;height:100%;pointer-events:none;
   background:linear-gradient(100deg,transparent,rgba(255,255,255,.85),transparent);transform:skewX(-18deg);
   animation:tileShine 7s ease-in-out calc(var(--d,0s) + 1.4s) infinite}
 .home-lux .tile .em{position:relative;background:var(--soft);overflow:hidden;
-  transition:transform .25s,box-shadow .25s;
+  box-shadow:0 6px 14px rgba(var(--glow),.26);transition:transform .25s,box-shadow .25s;
   animation:emFloat 3.8s ease-in-out calc(var(--d,0s) * 8) infinite}
 .home-lux .tile .em::before{content:"";position:absolute;inset:0;border-radius:50%;
-  background:linear-gradient(135deg,var(--c1),var(--c2));opacity:.18;transition:opacity .28s}
+  background:linear-gradient(135deg,var(--c1),var(--c2),var(--c1));background-size:200% 200%;
+  transition:opacity .28s;
+  animation:emBreathe 5.2s ease-in-out calc(var(--d,0s) * 6) infinite,
+            gradShift 11s ease-in-out calc(var(--d,0s) * 6) infinite}
 .home-lux .tile .em>span{position:relative;z-index:1;line-height:1}
 .home-lux .tile .t{transition:color .25s}
 .home-lux .tile:hover{transform:translateY(-4px);border-color:transparent;
   box-shadow:0 18px 34px rgba(var(--glow),.22)}
-.home-lux .tile:hover .em{transform:scale(1.09);box-shadow:0 10px 20px rgba(var(--glow),.34)}
-.home-lux .tile:hover .em::before{opacity:1}
+.home-lux .tile:hover .em{transform:scale(1.09);box-shadow:0 12px 24px rgba(var(--glow),.42)}
+.home-lux .tile:hover .em::before{animation-play-state:paused;opacity:1}
 .home-lux .tile:hover .t{color:var(--c1)}
 .home-lux .tile:active{transform:scale(.96)}
-.home-lux .tile:active .em{transform:scale(.94)}
+.home-lux .tile:active .em{transform:scale(.94);box-shadow:0 4px 10px rgba(var(--glow),.5)}
+/* the stat cards' colour slice shimmers too */
+.home-lux .grid>.stat::before{background-size:220% 100%}
 
 /* stat cards ride in with the same rhythm */
 .home-lux .grid>.stat:nth-child(1){--d:.04s}
@@ -396,9 +403,11 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 
 @media (prefers-reduced-motion:reduce){
   .lux-bg,.lux-bg .band,.dress-wm,.dress-wm *,.home-lux .tile,.home-lux .tile::before,
-  .home-lux .tile::after,.home-lux .tile .em,.home-lux .grid>.stat,.home-lux .grid>.stat::before,
+  .home-lux .tile::after,.home-lux .tile .em,.home-lux .tile .em::before,
+  .home-lux .grid>.stat,.home-lux .grid>.stat::before,
   .home-lux .hero.hero-brand,.home-lux .sec-title::after{animation:none!important}
   .home-lux .tile::before,.home-lux .grid>.stat::before{transform:none}
+  .home-lux .tile .em::before{opacity:1}
   .dress-wm{opacity:1}
   .dress-wm .dwm-stroke{stroke-dashoffset:0}
   .dress-wm .dwm-detail{opacity:1}
