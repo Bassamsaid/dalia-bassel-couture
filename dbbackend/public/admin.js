@@ -150,10 +150,11 @@ PAGES.members = async (c) => {
       <div class="stat"><div class="n">${users.length}</div><div class="l">Registered</div></div>
       <div class="stat"><div class="n">${users.filter((u) => u.role === 'trainee').length}</div><div class="l">Students</div></div>
     </div>
-    <div class="filters">${roles.map((r) => `<span class="chip ${f === r ? 'active' : ''}" onclick="memFilter('${r}')">${lbl[r]} (${r === 'all' ? users.length : users.filter((u) => u.role === r).length})</span>`).join('')}</div>
+    <div class="filters wrap">${roles.map((r) => `<span class="chip ${f === r ? 'active' : ''}" onclick="memFilter('${r}')">${lbl[r]} (${r === 'all' ? users.length : users.filter((u) => u.role === r).length})</span>`).join('')}</div>
     <div class="card">${list.length ? list.map((u) => `<div class="item">
       <div class="av">${esc(initials(u.name))}</div>
-      <div class="main"><div class="nm">${esc(u.name)}</div><div class="sub">${u.email ? esc(u.email) : 'no email'} · joined ${dt(u.created_at)}</div></div>
+      <div class="main"><div class="nm">${esc(u.name)}</div>
+        <div class="sub">${u.job_title ? esc(u.job_title) + ' · ' : ''}${u.email ? esc(u.email) : 'no email'} · joined ${dt(u.created_at)}</div></div>
       <select onchange="setRole(${u.id},this.value)" style="width:auto;padding:6px 8px;font-size:12px" ${u.role === 'admin' ? 'disabled' : ''}>
         ${['trainee', 'customer', 'staff', 'manager', 'admin'].map((r) => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${lbl[r] || r}</option>`).join('')}
       </select></div>`).join('') : empty('No members')}</div>`;

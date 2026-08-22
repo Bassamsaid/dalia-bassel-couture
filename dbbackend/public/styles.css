@@ -488,3 +488,6 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
   color:var(--ink);font-variant-numeric:tabular-nums lining-nums;line-height:1.25}
 .home-lux .fig .k{font-size:9.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);
   font-weight:700;margin-top:6px}
+
+/* chip rows with a fixed, short set of filters wrap instead of scrolling off-screen */
+.filters.wrap{flex-wrap:wrap;overflow:visible}
