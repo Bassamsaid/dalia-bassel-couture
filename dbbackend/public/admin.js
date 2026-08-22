@@ -1808,30 +1808,51 @@ window.togglePerm = async (role, page, currentlyHidden) => {
 PAGES.chats = async (c) => {
   const { threads } = await GET('/api/chats');
   window._chatsRefresh = () => go('chats');
+  window._chatThreads = threads;
   const groups = [
-    { key: 'dress', name: 'Daliessa', kind: 'Couture', c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
-      blurb: 'Bookings, fittings and gown questions' },
-    { key: 'course', name: 'Dalia Bassel', kind: 'Academy', c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
-      blurb: 'Rounds, fees and joining the course' },
-    { key: 'general', name: 'Visitors', kind: 'General', c1: '#0f766e', c2: '#5eead4', glow: '15,118,110',
-      blurb: 'Everything else that comes in' },
+    { key: 'dress', icon: '👗', name: 'Couture', full: 'Daliessa Couture',
+      c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91', blurb: 'Bookings, fittings and gown questions' },
+    { key: 'course', icon: '🎓', name: 'Academy', full: 'Dalia Bassel Academy',
+      c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217', blurb: 'Rounds, fees and joining the course' },
+    { key: 'general', icon: '✦', name: 'Visitors', full: 'Visitors & general',
+      c1: '#0f766e', c2: '#5eead4', glow: '15,118,110', blurb: 'Everything else that comes in' },
   ];
+  const of = (k) => threads.filter((t) => (t.topic || 'general') === k);
+  const unreadOf = (k) => of(k).reduce((a, t) => a + (t.unread || 0), 0);
+  // open on the pile that needs you, unless you already picked one
+  const withNew = groups.find((g) => unreadOf(g.key));
+  const cat = groups.some((g) => g.key === window._chatCat) ? window._chatCat : (withNew ? withNew.key : 'dress');
+  window._chatCat = cat;
+  const g = groups.find((x) => x.key === cat);
+  const list = of(cat);
+  const open = list.filter((t) => t.status !== 'closed').length;
   const total = threads.reduce((a, t) => a + (t.unread || 0), 0);
+
   c.innerHTML = luxBackdrop() + '<div class="home-lux">' + title('Customer service', '') +
-    `<div class="card"><div class="nm serif" style="font-size:17px">${total ? `${total} new message${total === 1 ? '' : 's'}` : 'Nothing new'}</div>
+    `<div class="card" style="margin-bottom:14px"><div class="nm serif" style="font-size:17px">${total ? `${total} new message${total === 1 ? '' : 's'}` : 'Nothing new'}</div>
       <div class="sub muted" style="margin-top:4px">${threads.length} conversation${threads.length === 1 ? '' : 's'} in total</div></div>
-    ${groups.map((g) => {
-      const list = threads.filter((t) => (t.topic || 'general') === g.key);
-      const unread = list.reduce((a, t) => a + (t.unread || 0), 0);
-      return brandGroup({
-        name: g.name, kind: g.kind, c1: g.c1, c2: g.c2, glow: g.glow,
-        summary: `${list.length} conversation${list.length === 1 ? '' : 's'}${unread ? ` · ${unread} new` : ''} — ${g.blurb}`,
-        content: list.length ? list.map(studioChatRow).join('') : '<div class="hint" style="padding:12px 2px">Nothing here yet</div>',
-      });
-    }).join('')}
+    <div class="cat-row">
+      ${groups.map((x) => {
+        const n = of(x.key).length, u = unreadOf(x.key);
+        return `<button class="cat${x.key === cat ? ' on' : ''}" style="--c1:${x.c1};--c2:${x.c2};--glow:${x.glow}"
+          onclick="chatCat('${x.key}')" aria-pressed="${x.key === cat}">
+          ${u ? `<span class="cat-badge">${u}</span>` : ''}
+          <span class="cat-ic">${x.icon}</span>
+          <span class="cat-n">${x.name}</span>
+          <span class="cat-c">${n} chat${n === 1 ? '' : 's'}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <div class="cat-head" style="--c1:${g.c1};--c2:${g.c2}">
+      <div class="ch-name">${esc(g.full)}</div>
+      <div class="ch-sub">${esc(g.blurb)} · ${open} open</div>
+    </div>
+    ${list.length ? `<div class="nav-list">${list.map(studioChatRow).join('')}</div>`
+      : '<div class="card"><div class="hint" style="padding:8px 2px">Nothing here yet</div></div>'}
     </div>`;
   if (window._openChatAfter) { const id = window._openChatAfter; window._openChatAfter = null; openChat(id); }
 };
+window.chatCat = (k) => { window._chatCat = k; go('chats'); };
 
 function studioChatRow(t) {
   const m = (window.TOPIC_META || {})[t.topic] || { icon: '✦' };

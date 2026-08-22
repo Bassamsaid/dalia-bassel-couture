@@ -735,3 +735,33 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .bf-row:last-child{border-bottom:none}
 .bf-k{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:700;flex:0 0 auto}
 .bf-v{font-size:13.5px;font-weight:700;color:var(--ink);text-align:end}
+
+/* ===== Three piles side by side, one open at a time ===== */
+.home-lux .cat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:14px}
+.home-lux .cat{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:15px 6px 13px;border-radius:16px;border:1.5px solid var(--line);background:rgba(255,255,255,.8);
+  font:inherit;cursor:pointer;text-align:center;overflow:hidden;
+  backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+  transition:transform .17s,box-shadow .22s,border-color .22s}
+.home-lux .cat::before{content:"";position:absolute;top:0;inset-inline:0;height:3px;
+  background:linear-gradient(90deg,var(--c1),var(--c2));opacity:.5;transition:opacity .22s}
+.home-lux .cat-ic{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:17px;color:#fff;background:linear-gradient(135deg,var(--c1),var(--c2));
+  box-shadow:0 5px 12px rgba(var(--glow),.28);transition:transform .2s}
+.home-lux .cat-n{font-size:12px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--ink)}
+.home-lux .cat-c{font-size:10.5px;font-weight:600;color:var(--muted)}
+.home-lux .cat:hover{transform:translateY(-2px);box-shadow:0 12px 24px rgba(var(--glow),.18)}
+.home-lux .cat:active{transform:scale(.97)}
+.home-lux .cat.on{border-color:transparent;background:rgba(255,255,255,.96);
+  box-shadow:0 12px 26px rgba(var(--glow),.26)}
+.home-lux .cat.on::before{opacity:1;height:4px}
+.home-lux .cat.on .cat-ic{transform:scale(1.06)}
+.home-lux .cat.on .cat-n{color:var(--c1)}
+.home-lux .cat-badge{position:absolute;top:6px;inset-inline-end:6px;min-width:19px;height:19px;padding:0 5px;
+  border-radius:10px;background:var(--bad);color:#fff;font-size:10.5px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(210,75,98,.45)}
+
+/* the chosen pile, named above its list */
+.home-lux .cat-head{padding:2px 2px 12px}
+.home-lux .ch-name{font-family:var(--serif);font-size:18px;font-weight:700;letter-spacing:.4px;color:var(--ink)}
+.home-lux .ch-sub{font-size:12px;color:var(--muted);font-weight:600;margin-top:3px}
