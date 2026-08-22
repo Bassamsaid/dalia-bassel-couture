@@ -345,8 +345,9 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
   backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
 .home-lux .stat{background:linear-gradient(135deg,rgba(255,255,255,.8) 0%,rgba(243,238,252,.6) 100%);
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-.home-lux .sec-title::after{content:"";flex:1;height:1px;transform-origin:left;
-  background:linear-gradient(90deg,var(--line),rgba(233,228,242,0));animation:lineGrow .7s ease .2s both}
+.home-lux .sec-title::after{content:"";flex:1;height:1.5px;transform-origin:left;border-radius:2px;
+  background:linear-gradient(90deg,rgba(124,58,237,.45),rgba(226,74,139,.3),rgba(226,74,139,0));
+  background-size:220% 100%;animation:lineGrow .7s ease .2s both,gradShift 9s ease-in-out infinite}
 
 /* menu tiles: staggered entrance, light sweep, floating icon */
 .home-lux .tiles>.tile:nth-child(1){--d:.05s}
@@ -355,27 +356,79 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .home-lux .tiles>.tile:nth-child(4){--d:.23s}
 .home-lux .tiles>.tile:nth-child(5){--d:.29s}
 .home-lux .tiles>.tile:nth-child(6){--d:.35s}
-.home-lux .tile{position:relative;overflow:hidden;
-  animation:tileIn .55s cubic-bezier(.2,.8,.2,1) var(--d,0s) both}
+.home-lux .tile{--c1:var(--purple-d);--c2:var(--purple);--glow:124,58,237;
+  position:relative;overflow:hidden;padding:18px 10px 16px;
+  animation:tileIn .55s cubic-bezier(.2,.8,.2,1) var(--d,0s) both;
+  transition:transform .18s,box-shadow .25s,border-color .25s}
+/* colour slice across the top of every tile */
+.home-lux .tile::before{content:"";position:absolute;top:0;inset-inline:0;height:3px;z-index:2;
+  background:linear-gradient(90deg,var(--c1),var(--c2));transform-origin:left;
+  animation:lineGrow .6s cubic-bezier(.2,.8,.2,1) calc(var(--d,0s) + .2s) both}
+/* light sweep */
 .home-lux .tile::after{content:"";position:absolute;top:0;left:-75%;width:42%;height:100%;pointer-events:none;
   background:linear-gradient(100deg,transparent,rgba(255,255,255,.85),transparent);transform:skewX(-18deg);
   animation:tileShine 7s ease-in-out calc(var(--d,0s) + 1.4s) infinite}
-.home-lux .tile .em{transition:background .25s,transform .25s,box-shadow .25s;
+.home-lux .tile .em{position:relative;background:var(--soft);overflow:hidden;
+  transition:transform .25s,box-shadow .25s;
   animation:emFloat 3.8s ease-in-out calc(var(--d,0s) * 8) infinite}
-.home-lux .tile:hover{border-color:transparent;box-shadow:0 16px 32px rgba(124,58,237,.18)}
-.home-lux .tile:hover .em{background:var(--grad);transform:scale(1.08);box-shadow:0 8px 18px rgba(124,58,237,.3)}
+.home-lux .tile .em::before{content:"";position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(135deg,var(--c1),var(--c2));opacity:.18;transition:opacity .28s}
+.home-lux .tile .em>span{position:relative;z-index:1;line-height:1}
+.home-lux .tile .t{transition:color .25s}
+.home-lux .tile:hover{transform:translateY(-4px);border-color:transparent;
+  box-shadow:0 18px 34px rgba(var(--glow),.22)}
+.home-lux .tile:hover .em{transform:scale(1.09);box-shadow:0 10px 20px rgba(var(--glow),.34)}
+.home-lux .tile:hover .em::before{opacity:1}
+.home-lux .tile:hover .t{color:var(--c1)}
+.home-lux .tile:active{transform:scale(.96)}
 .home-lux .tile:active .em{transform:scale(.94)}
 
 /* stat cards ride in with the same rhythm */
 .home-lux .grid>.stat:nth-child(1){--d:.04s}
 .home-lux .grid>.stat:nth-child(2){--d:.1s}
 .home-lux .grid>.stat:nth-child(3){--d:.16s}
-.home-lux .grid>.stat{animation:tileIn .5s cubic-bezier(.2,.8,.2,1) var(--d,0s) both}
+.home-lux .grid>.stat{position:relative;overflow:hidden;
+  animation:tileIn .5s cubic-bezier(.2,.8,.2,1) var(--d,0s) both;transition:transform .18s,box-shadow .25s}
+.home-lux .grid>.stat::before{content:"";position:absolute;top:0;inset-inline:0;height:3px;
+  background:linear-gradient(90deg,var(--c1,var(--purple-d)),var(--c2,var(--purple)));transform-origin:left;
+  animation:lineGrow .6s cubic-bezier(.2,.8,.2,1) calc(var(--d,0s) + .18s) both}
+.home-lux .grid>.stat:hover{transform:translateY(-3px);box-shadow:0 14px 28px rgba(var(--glow,124,58,237),.18)}
 
 @media (prefers-reduced-motion:reduce){
-  .dress-wm,.dress-wm *,.home-lux .tile,.home-lux .tile::after,.home-lux .tile .em,
-  .home-lux .grid>.stat,.home-lux .sec-title::after{animation:none!important}
+  .lux-bg,.lux-bg .band,.dress-wm,.dress-wm *,.home-lux .tile,.home-lux .tile::before,
+  .home-lux .tile::after,.home-lux .tile .em,.home-lux .grid>.stat,.home-lux .grid>.stat::before,
+  .home-lux .hero.hero-brand,.home-lux .sec-title::after{animation:none!important}
+  .home-lux .tile::before,.home-lux .grid>.stat::before{transform:none}
   .dress-wm{opacity:1}
   .dress-wm .dwm-stroke{stroke-dashoffset:0}
   .dress-wm .dwm-detail{opacity:1}
 }
+
+/* ===== Animated colour bands (couture backdrop) ===== */
+@keyframes hueDrift{0%,100%{filter:hue-rotate(0deg) saturate(1)}50%{filter:hue-rotate(26deg) saturate(1.15)}}
+@keyframes bandA{0%,100%{transform:rotate(15deg) translate3d(0,0,0) scaleY(1)}
+  50%{transform:rotate(15deg) translate3d(30px,-34px,0) scaleY(1.1)}}
+@keyframes bandB{0%,100%{transform:rotate(-12deg) translate3d(0,0,0) scaleY(1.06)}
+  50%{transform:rotate(-12deg) translate3d(-38px,30px,0) scaleY(1)}}
+@keyframes bandC{0%,100%{transform:rotate(9deg) translate3d(0,20px,0)}
+  50%{transform:rotate(9deg) translate3d(44px,-16px,0)}}
+@keyframes bandD{0%,100%{transform:rotate(-18deg) translate3d(0,-14px,0) scaleY(1)}
+  50%{transform:rotate(-18deg) translate3d(-26px,22px,0) scaleY(1.12)}}
+@keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+
+.lux-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  background:linear-gradient(175deg,#fbf8ff 0%,#f6f4fb 42%,#fdf2f8 100%);
+  animation:hueDrift 28s ease-in-out infinite}
+.lux-bg .band{position:absolute;top:-45%;height:195%;width:42%;filter:blur(34px);will-change:transform}
+.lux-bg .b1{inset-inline-start:-20%;opacity:.5;
+  background:linear-gradient(180deg,rgba(124,58,237,.40),rgba(124,58,237,.04));animation:bandA 19s ease-in-out infinite}
+.lux-bg .b2{inset-inline-start:16%;opacity:.42;
+  background:linear-gradient(180deg,rgba(162,79,214,.05),rgba(226,74,139,.34));animation:bandB 23s ease-in-out infinite}
+.lux-bg .b3{inset-inline-start:52%;opacity:.4;
+  background:linear-gradient(180deg,rgba(179,152,102,.34),rgba(179,152,102,.03));animation:bandC 27s ease-in-out infinite}
+.lux-bg .b4{inset-inline-start:80%;opacity:.46;
+  background:linear-gradient(180deg,rgba(226,74,139,.06),rgba(124,58,237,.36));animation:bandD 21s ease-in-out infinite}
+
+/* hero keeps drifting through the brand gradient */
+.home-lux .hero.hero-brand{background:linear-gradient(120deg,#7c3aed 0%,#a24fd6 28%,#e24a8b 55%,#b39866 78%,#7c3aed 100%);
+  background-size:280% 280%;animation:rise .4s ease both,gradShift 14s ease-in-out infinite}

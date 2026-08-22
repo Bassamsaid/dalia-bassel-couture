@@ -513,6 +513,43 @@ function runCounters(root) {
 window.dressWatermark = dressWatermark;
 window.runCounters = runCounters;
 
+/* ---------- animated colour bands behind a screen (couture backdrop) ---------- */
+function luxBackdrop() {
+  return `<div class="lux-bg" aria-hidden="true">
+    <span class="band b1"></span><span class="band b2"></span>
+    <span class="band b3"></span><span class="band b4"></span>
+  </div>`;
+}
+
+/* ---------- per-tile colour slice: [start, end, glow] ---------- */
+const TILE_TINT = {
+  students: ['#7c3aed', '#a78bfa', '124,58,237'],
+  members:  ['#7c3aed', '#a78bfa', '124,58,237'],
+  finance:  ['#b3873a', '#e8c477', '179,135,58'],
+  courses:  ['#2563eb', '#7ea8ff', '37,99,235'],
+  homework: ['#e24a8b', '#f7a3c6', '226,74,139'],
+  quizzes:  ['#0f8f80', '#5ed4c6', '15,143,128'],
+  dresses:  ['#d63384', '#f39ac0', '214,51,132'],
+  dalia:    ['#a24fd6', '#d9a6f2', '162,79,214'],
+  myattendance: ['#4f46e5', '#9aa5ff', '79,70,229'],
+  notes:    ['#c2622a', '#f3a97a', '194,98,42'],
+  mypay:    ['#b3873a', '#e8c477', '179,135,58'],
+  about:    ['#6b6478', '#b6aec6', '107,100,120'],
+};
+function tintVars(key) {
+  const [c1, c2, glow] = TILE_TINT[key] || TILE_TINT.students;
+  return `--c1:${c1};--c2:${c2};--glow:${glow}`;
+}
+
+/* menu tiles: [page, emoji, label] -> coloured, animated tiles */
+function tilesHtml(items) {
+  return `<div class="tiles">${items.map(([p, e, t]) => `<div class="tile" style="${tintVars(p)}" onclick="go('${p}')">
+    <div class="em"><span>${e}</span></div><div class="t">${esc(t)}</div></div>`).join('')}</div>`;
+}
+window.luxBackdrop = luxBackdrop;
+window.tilesHtml = tilesHtml;
+window.tintVars = tintVars;
+
 const PAGES = {};
 
 /* ---------- printable payment receipt (students + clients) ---------- */

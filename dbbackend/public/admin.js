@@ -106,18 +106,15 @@ PAGES.home_admin = async (c) => {
   const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
   const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
   const dRem = dresses.reduce((a, x) => a + (x.remaining || 0), 0);
-  c.innerHTML = dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
+  c.innerHTML = luxBackdrop() + dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
     heroBanner(about, true) + `
     <div class="grid g3" style="margin-bottom:14px">
-      <div class="stat" onclick="go('members')"><div class="n" data-count="${users.length}">0</div><div class="l">Members</div></div>
-      <div class="stat"><div class="n" data-count="${sheet.totals.count}">0</div><div class="l">Students</div></div>
-      <div class="stat"><div class="n" data-count="${dresses.length}">0</div><div class="l">Dresses</div></div>
+      <div class="stat" style="${tintVars('members')}" onclick="go('members')"><div class="n" data-count="${users.length}">0</div><div class="l">Members</div></div>
+      <div class="stat" style="${tintVars('students')}"><div class="n" data-count="${sheet.totals.count}">0</div><div class="l">Students</div></div>
+      <div class="stat" style="${tintVars('dresses')}"><div class="n" data-count="${dresses.length}">0</div><div class="l">Dresses</div></div>
     </div>
     <div class="sec-title">Menu</div>
-    <div class="tiles">
-      ${[['students', '👩‍🎓', 'Students'], ['finance', '💳', 'Payments'], ['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['dresses', '👗', 'Dresses']]
-        .map(([p, e, t]) => `<div class="tile" onclick="go('${p}')"><div class="em">${e}</div><div class="t">${t}</div></div>`).join('')}
-    </div>
+    ${tilesHtml([['students', '👩‍🎓', 'Students'], ['finance', '💳', 'Payments'], ['courses', '🎬', 'Courses'], ['homework', '✎', 'Tasks'], ['quizzes', '📝', 'Quizzes'], ['dresses', '👗', 'Dresses']])}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
         <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
@@ -125,9 +122,9 @@ PAGES.home_admin = async (c) => {
     <div class="card">
       <div class="sec-title">Dresses money 👗</div>
       <div class="grid g3">
-        <div class="stat" onclick="go('dresses')"><div class="n" style="color:var(--ok)" data-count="${dPaid}" data-fmt="money">${money(0)}</div><div class="l">Deposits in</div></div>
-        <div class="stat" onclick="go('dresses')"><div class="n" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}" data-count="${dRem}" data-fmt="money">${money(0)}</div><div class="l">Remaining</div></div>
-        <div class="stat" onclick="go('dresses')"><div class="n" data-count="${dTotal}" data-fmt="money">${money(0)}</div><div class="l">Total value</div></div>
+        <div class="stat" style="--c1:#2f9d66;--c2:#7fd3a6;--glow:47,157,102" onclick="go('dresses')"><div class="n" style="color:var(--ok)" data-count="${dPaid}" data-fmt="money">${money(0)}</div><div class="l">Deposits in</div></div>
+        <div class="stat" style="--c1:#d24b62;--c2:#f0a3b0;--glow:210,75,98" onclick="go('dresses')"><div class="n" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}" data-count="${dRem}" data-fmt="money">${money(0)}</div><div class="l">Remaining</div></div>
+        <div class="stat" style="${tintVars('dresses')}" onclick="go('dresses')"><div class="n" data-count="${dTotal}" data-fmt="money">${money(0)}</div><div class="l">Total value</div></div>
       </div>
     </div></div>`;
   runCounters(c);
