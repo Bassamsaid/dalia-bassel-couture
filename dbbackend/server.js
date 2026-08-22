@@ -632,12 +632,38 @@ api['PUT /api/home-cover'] = async (req, res, user) => {
 };
 
 // ================= DALIA POSTS =================
-api['GET /api/dalia'] = async (req, res, user) => { if (!requireAuth(user, res)) return; send(res, 200, db.prepare('SELECT * FROM dalia_posts ORDER BY id DESC').all()); };
+api['GET /api/dalia'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const rows = db.prepare('SELECT * FROM dalia_posts ORDER BY id DESC').all();
+  rows.forEach((r) => {
+    r.media = postMedia(r.id);
+    // a post made before galleries existed still has its single cover photo
+    if (!r.media.length && r.image) r.media = [{ id: null, file: r.image, kind: 'image' }];
+  });
+  send(res, 200, rows);
+};
+function postMedia(postId) {
+  return db.prepare('SELECT id,file,kind FROM dalia_media WHERE post_id=? ORDER BY position,id').all(postId);
+}
+// Store the gallery for a post and keep dalia_posts.image pointing at the first photo.
+function setPostMedia(postId, media) {
+  let pos = db.prepare('SELECT COALESCE(MAX(position),-1) p FROM dalia_media WHERE post_id=?').get(postId).p;
+  (media || []).forEach((m) => {
+    const file = typeof m === 'string' ? m : m.file;
+    if (!file) return;
+    const saved = String(file).startsWith('data:') ? saveImage(file) : file;
+    const kind = (typeof m === 'object' && m.kind === 'video') || /\.(mp4|mov|webm)$/i.test(saved) ? 'video' : 'image';
+    db.prepare('INSERT INTO dalia_media (post_id,file,kind,position) VALUES (?,?,?,?)').run(postId, saved, kind, ++pos);
+  });
+  const cover = db.prepare("SELECT file FROM dalia_media WHERE post_id=? AND kind='image' ORDER BY position,id LIMIT 1").get(postId);
+  if (cover) db.prepare('UPDATE dalia_posts SET image=? WHERE id=?').run(cover.file, postId);
+}
 api['POST /api/dalia'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
   const r = db.prepare('INSERT INTO dalia_posts (title,subtitle,body,image,table_data,template,section) VALUES (?,?,?,?,?,?,?)').run(b.title || null, b.subtitle || null, b.body || null, img, b.table_data ? JSON.stringify(b.table_data) : null, b.template || 'below', b.section || 'studio');
+  setPostMedia(r.lastInsertRowid, b.media);
   notifyAll({ type: 'feed', title: '✦ New post from Dalia Bassel', body: b.title || b.subtitle || 'See the latest updates', link_page: 'dalia', link_id: r.lastInsertRowid, image: img, actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
@@ -647,9 +673,19 @@ api['PUT /api/dalia/:id'] = async (req, res, user, url, params) => {
   if (!c) return send(res, 404, {});
   const img = (b.image && b.image.startsWith('data:')) ? maybeImage(b.image) : (b.image ?? c.image);
   db.prepare('UPDATE dalia_posts SET title=?,subtitle=?,body=?,image=?,template=?,section=? WHERE id=?').run(b.title ?? c.title, b.subtitle ?? c.subtitle, b.body ?? c.body, img, b.template ?? c.template, b.section ?? c.section, params.id);
+  setPostMedia(params.id, b.media);
   send(res, 200, { ok: true });
 };
-api['DELETE /api/dalia/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dalia_posts WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/dalia/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dalia_posts WHERE id=?').run(params.id); db.prepare('DELETE FROM dalia_media WHERE post_id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/dalia-media/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const row = db.prepare('SELECT * FROM dalia_media WHERE id=?').get(params.id);
+  if (!row) return send(res, 404, { error: 'not found' });
+  db.prepare('DELETE FROM dalia_media WHERE id=?').run(params.id);
+  const cover = db.prepare("SELECT file FROM dalia_media WHERE post_id=? AND kind='image' ORDER BY position,id LIMIT 1").get(row.post_id);
+  db.prepare('UPDATE dalia_posts SET image=? WHERE id=?').run(cover ? cover.file : null, row.post_id);
+  send(res, 200, { ok: true });
+};
 
 // ================= DRESSES =================
 api['GET /api/dresses'] = async (req, res, user) => {
@@ -1166,6 +1202,30 @@ api['POST /api/expenses'] = async (req, res, user) => {
 api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM expenses WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 // ================= NOTIFICATIONS =================
+// Raw file upload — the body IS the file, so an HD video does not have to be
+// base64'd into JSON (which adds a third to its size) before it can be sent.
+const UPLOAD_MAX = 400 * 1024 * 1024;
+const EXT_OK = { mp4: '.mp4', mov: '.mov', webm: '.webm', jpg: '.jpg', jpeg: '.jpg', png: '.png', webp: '.webp', gif: '.gif' };
+function receiveUpload(req, res, user) {
+  if (!requireAuth(user, res)) return;
+  const url = new URL(req.url, 'http://x');
+  const ext = EXT_OK[String(url.searchParams.get('ext') || '').toLowerCase().replace('.', '')];
+  if (!ext) return send(res, 400, { error: 'Unsupported file type' });
+  const name = `${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`;
+  const dest = path.join(UPLOAD_DIR, name);
+  const out = fs.createWriteStream(dest);
+  let size = 0, failed = false;
+  const fail = (code, msg) => {
+    if (failed) return; failed = true;
+    out.destroy(); fs.unlink(dest, () => {});
+    req.destroy(); send(res, code, { error: msg });
+  };
+  req.on('data', (c) => { size += c.length; if (size > UPLOAD_MAX) fail(413, 'File is too large (400 MB max)'); });
+  req.on('error', () => fail(400, 'Upload failed'));
+  out.on('error', () => fail(500, 'Could not save the file'));
+  req.pipe(out);
+  out.on('close', () => { if (!failed) send(res, 200, { file: name, size }); });
+}
 // ================= CUSTOMER SERVICE CHAT =================
 const CHAT_TOPICS = ['dress', 'course', 'general'];
 const topicWord = { dress: 'a dress', course: 'the courses', general: 'the studio' };
@@ -1338,6 +1398,34 @@ function serveStatic(req, res, pathname) {
     filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
   }
   if (!path.resolve(filePath).startsWith(path.resolve(root))) return send(res, 403, { error: 'forbidden' });
+
+  // Uploaded media is streamed, and honours Range — without this iOS will not
+  // play a video inline, and a large file would be read wholly into memory.
+  if (pathname.startsWith('/uploads/')) {
+    return fs.stat(filePath, (err, st) => {
+      if (err || !st.isFile()) return send(res, 404, { error: 'not found' });
+      const type = MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+      const base = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=31536000, immutable' };
+      const range = req.headers.range;
+      const m = range && /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+      if (m) {
+        let start = m[1] ? parseInt(m[1], 10) : null;
+        let end = m[2] ? parseInt(m[2], 10) : null;
+        if (start === null) { start = Math.max(0, st.size - (end || 0)); end = st.size - 1; }   // suffix range
+        if (end === null || end >= st.size) end = st.size - 1;
+        if (Number.isNaN(start) || start > end || start >= st.size) {
+          return res.writeHead(416, { ...base, 'Content-Range': `bytes */${st.size}` }).end();
+        }
+        res.writeHead(206, { ...base, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
+        if (req.method === 'HEAD') return res.end();
+        return fs.createReadStream(filePath, { start, end }).on('error', () => res.end()).pipe(res);
+      }
+      res.writeHead(200, { ...base, 'Content-Length': st.size });
+      if (req.method === 'HEAD') return res.end();
+      fs.createReadStream(filePath).on('error', () => res.end()).pipe(res);
+    });
+  }
+
   fs.readFile(filePath, (err, data) => {
     if (err) {
       // SPA fallback
@@ -1359,6 +1447,9 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const pathname = url.pathname;
+    if (pathname === '/api/upload' && req.method === 'POST') {
+      return receiveUpload(req, res, getUser(req)); // streamed to disk, never buffered
+    }
     if (pathname.startsWith('/api/')) {
       const m = match(req.method, pathname);
       if (!m) return send(res, 404, { error: 'route not found' });

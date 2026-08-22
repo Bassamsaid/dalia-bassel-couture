@@ -104,6 +104,71 @@ function pickScans(cb, camera) {
 }
 window.pickScans = pickScans;
 
+/* Send a file straight to the server as raw bytes — no base64, so an HD video
+   keeps its size and we can show real progress. Resolves to the stored name. */
+function uploadFile(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const ext = (file.name.split('.').pop() || '').toLowerCase()
+      || (file.type.startsWith('video') ? 'mp4' : 'jpg');
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload?ext=' + encodeURIComponent(ext));
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      let r = {}; try { r = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status === 200 && r.file) resolve({ file: r.file, kind: (file.type || '').startsWith('video') ? 'video' : 'image' });
+      else reject(new Error(r.error || 'Upload failed'));
+    };
+    xhr.onerror = () => reject(new Error('Upload failed — check your connection'));
+    xhr.send(file);
+  });
+}
+/* Pick photos and/or videos. Photos are still compressed; videos go up untouched. */
+function pickMedia(cb, onProgress) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*,video/*'; inp.multiple = true;
+  inp.onchange = async () => {
+    for (const f of Array.from(inp.files || [])) {
+      try {
+        if (f.type.startsWith('video')) cb(await uploadFile(f, onProgress));
+        else await new Promise((done) => compressImage(f, async (b64) => {
+          const blob = await (await fetch(b64)).blob();
+          blob.name = 'photo.jpg';
+          cb(await uploadFile(new File([blob], 'photo.jpg', { type: 'image/jpeg' }), onProgress));
+          done();
+        }, 2200, 0.88));
+      } catch (e) { toast(e.message); }
+    }
+  };
+  inp.click();
+}
+window.uploadFile = uploadFile;
+window.pickMedia = pickMedia;
+
+/* A swipeable gallery: photos and inline video, snap-scrolled, with dots. */
+function gallery(media, opts = {}) {
+  const list = (media || []).filter((m) => m && m.file);
+  if (!list.length) return '';
+  const id = 'g' + Math.round(performance.now() * 1000) + '_' + list.length;
+  const slides = list.map((m) => m.kind === 'video'
+    ? `<div class="gl-slide"><video class="gl-video" src="/uploads/${esc(m.file)}" controls playsinline preload="metadata"
+         ${opts.poster ? `poster="/uploads/${esc(opts.poster)}"` : ''}></video></div>`
+    : `<div class="gl-slide"><img class="gl-img" src="/uploads/${esc(m.file)}" alt=""
+         onclick="lightbox('/uploads/${esc(m.file)}')"/></div>`).join('');
+  return `<div class="gl" data-n="${list.length}">
+    <div class="gl-track" id="${id}" onscroll="glScroll('${id}')">${slides}</div>
+    ${list.length > 1 ? `<div class="gl-dots" id="${id}_d">${list.map((m, i) =>
+      `<span class="gl-dot${i === 0 ? ' on' : ''}">${m.kind === 'video' ? '▶' : ''}</span>`).join('')}</div>` : ''}
+  </div>`;
+}
+window.gallery = gallery;
+window.glScroll = (id) => {
+  const t = document.getElementById(id), d = document.getElementById(id + '_d');
+  if (!t || !d) return;
+  const i = Math.round(t.scrollLeft / t.clientWidth);
+  [...d.children].forEach((x, n) => x.classList.toggle('on', n === i));
+};
+
 /* lightweight image cropper (drag to pan + zoom) -> cb(croppedDataUrl) */
 function cropImage(dataUrl, aspect, cb) {
   const FW = 300, FH = Math.round(FW / aspect); // frame (preview) size
