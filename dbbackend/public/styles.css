@@ -663,3 +663,21 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 /* upload progress */
 .up-bar{height:6px;border-radius:6px;background:var(--soft);overflow:hidden;margin-top:10px}
 .up-bar>span{display:block;height:100%;width:0;border-radius:6px;background:var(--grad);transition:width .2s}
+
+/* ===== Keep the layout still on phones and tablets =====
+   iOS Safari zooms in automatically when you tap a field smaller than 16px,
+   and the page then pans sideways. 16px on touch devices stops that. */
+@media (pointer: coarse) {
+  input, select, textarea, .btn { font-size: 16px; }
+  .btn.sm { font-size: 13px; }
+  input, select, textarea { padding: 12px 13px; }
+}
+/* nothing may drag the page sideways — clip does not create a scroll container,
+   so the sticky topbar keeps working */
+html, body { overflow-x: clip; max-width: 100%; }
+/* a flex item defaults to min-width:auto, so one wide child could push the
+   sheet past the screen and centring would then cut it off on both sides */
+.modal { min-width: 0; }
+.modal-back { overflow-x: hidden; }
+.modal > * { max-width: 100%; }
+label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
