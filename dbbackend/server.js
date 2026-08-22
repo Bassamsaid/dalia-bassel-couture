@@ -442,7 +442,12 @@ api['GET /api/homeworks'] = async (req, res, user) => {
   const studio = ['admin', 'manager', 'staff'].includes(user.role);
   const list = studio
     ? db.prepare('SELECT * FROM homeworks ORDER BY id DESC').all()
-    : db.prepare('SELECT * FROM homeworks WHERE round_id IS NULL OR round_id=? ORDER BY id DESC').all(user.round_id || -1);
+    // mirrors taskAudience: a task aimed at a group reaches that group, whatever
+    // round the student is filed under; only a task without a group follows rounds
+    : db.prepare(`SELECT * FROM homeworks WHERE
+        (group_id IS NOT NULL AND group_id=?)
+        OR (group_id IS NULL AND (round_id IS NULL OR round_id=?))
+        ORDER BY id DESC`).all(user.group_id || -1, user.round_id || -1);
   if (studio) {
     // how many of the students it was sent to have handed it in
     list.forEach((h) => {
@@ -460,9 +465,11 @@ api['GET /api/homeworks'] = async (req, res, user) => {
 };
 // Students a task was sent to: its round, or every student when it is for all rounds.
 function taskAudience(hw) {
-  return hw.round_id
-    ? db.prepare("SELECT id,name FROM users WHERE role='trainee' AND active=1 AND round_id=? ORDER BY name").all(hw.round_id)
-    : db.prepare("SELECT id,name FROM users WHERE role='trainee' AND active=1 ORDER BY name").all();
+  const cols = `SELECT u.id, u.name, u.group_id, (SELECT name FROM groups WHERE id=u.group_id) group_name
+    FROM users u WHERE u.role='trainee' AND u.active=1`;
+  if (hw.group_id) return db.prepare(`${cols} AND u.group_id=? ORDER BY u.name`).all(hw.group_id);
+  if (hw.round_id) return db.prepare(`${cols} AND u.round_id=? ORDER BY u.name`).all(hw.round_id);
+  return db.prepare(`${cols} ORDER BY u.name`).all();
 }
 function subImages(submissionId) {
   return db.prepare('SELECT id,image FROM submission_images WHERE submission_id=? ORDER BY position,id').all(submissionId);
@@ -470,10 +477,12 @@ function subImages(submissionId) {
 api['POST /api/homeworks'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
-  const r = db.prepare('INSERT INTO homeworks (round_id,title,measurements,instructions,due_date) VALUES (?,?,?,?,?)').run(b.round_id || null, b.title, b.measurements || null, b.instructions || null, b.due_date || null);
+  const mode = b.mode === 'online' ? 'online' : 'onsite';
+  const r = db.prepare('INSERT INTO homeworks (round_id,group_id,mode,title,measurements,instructions,due_date) VALUES (?,?,?,?,?,?,?)')
+    .run(b.round_id || null, b.group_id || null, mode, b.title, b.measurements || null, b.instructions || null, b.due_date || null);
   const hid = r.lastInsertRowid;
   const due = b.due_date ? ` · due ${b.due_date}` : '';
-  taskAudience({ round_id: b.round_id || null }).forEach((st) => notify(st.id, {
+  taskAudience({ round_id: b.round_id || null, group_id: b.group_id || null }).forEach((st) => notify(st.id, {
     type: 'task', title: `New task: ${b.title}`, body: `Upload your pattern photos${due}`,
     link_page: 'homework', link_id: hid, actor_name: user.name,
   }));
@@ -484,7 +493,9 @@ api['GET /api/homeworks/:id/submissions'] = async (req, res, user, url, params) 
   if (!requireStaffish(user, res)) return; // managers and staff follow the class too
   const hw = db.prepare('SELECT * FROM homeworks WHERE id=?').get(params.id);
   if (!hw) return send(res, 404, { error: 'Task not found' });
-  const submitted = db.prepare('SELECT s.*,u.name user_name FROM submissions s JOIN users u ON u.id=s.user_id WHERE homework_id=? ORDER BY s.submitted_at DESC').all(params.id);
+  const submitted = db.prepare(`SELECT s.*, u.name user_name, u.group_id,
+      (SELECT name FROM groups WHERE id=u.group_id) group_name
+    FROM submissions s JOIN users u ON u.id=s.user_id WHERE homework_id=? ORDER BY s.submitted_at DESC`).all(params.id);
   submitted.forEach((s) => { s.images = subImages(s.id); });
   const done = new Set(submitted.map((s) => s.user_id));
   const pending = taskAudience(hw).filter((st) => !done.has(st.id));

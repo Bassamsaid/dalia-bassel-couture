@@ -618,9 +618,10 @@ window.delVideo = (id) => confirmDel('Delete video?', async () => { await DEL('/
 PAGES.homework = async (c) => {
   if (!['admin', 'manager', 'staff'].includes(state.user.role)) return PAGES.homework_trainee(c);
   const canSend = state.user.role === 'admin';
-  const [hw, rounds] = await Promise.all([GET('/api/homeworks'), GET('/api/rounds')]);
+  const [hw, rounds, groups] = await Promise.all([GET('/api/homeworks'), GET('/api/rounds'), GET('/api/groups')]);
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
-  window._rounds = rounds;
+  const gMap = Object.fromEntries(groups.map((g) => [g.id, g.name]));
+  window._rounds = rounds; window._hwGroups = groups;
   c.innerHTML = title('Tasks (Patterns)', '') +
     `${canSend ? '<button class="btn" onclick="addHomework()">＋ Send task</button>' : ''}
     ${hw.length ? hw.map((h) => {
@@ -629,7 +630,7 @@ PAGES.homework = async (c) => {
       return `<div class="card">
       <div class="item" style="border-bottom:none;padding-bottom:4px"><div class="av">✎</div>
         <div class="main"><div class="nm">${esc(h.title)}</div>
-          <div class="sub">${h.round_id ? esc(rMap[h.round_id] || '') : 'All rounds'}${h.due_date ? ' · due ' + dt(h.due_date) : ''}</div></div>
+          <div class="sub">${h.mode === 'online' ? '💻 Online' : '🏛 Studio'} · ${h.round_id ? esc(rMap[h.round_id] || '') : 'All rounds'}${h.group_id ? ' · ' + esc(gMap[h.group_id] || '') : ''}${h.due_date ? ' · due ' + dt(h.due_date) : ''}</div></div>
         ${canSend ? `<button class="btn-icon" onclick="delHomework(${h.id})">🗑</button>` : ''}</div>
       <div class="prog" onclick="viewSubs(${h.id})">
         <div class="prog-top"><span class="prog-n">${done} of ${all}</span><span class="prog-l">handed in</span></div>
@@ -645,39 +646,100 @@ PAGES.homework = async (c) => {
   if (jump && hw.some((h) => h.id === jump)) viewSubs(jump);
 };
 window.addHomework = async () => {
-  const rounds = window._rounds || await GET('/api/rounds');
-  formModal('New task', [
-    { name: 'title', label: 'Title', required: true, placeholder: 'Basic bodice pattern' },
-    { name: 'round_id', label: 'Round', type: 'select', options: [{ value: '', label: 'All rounds' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
-    { name: 'measurements', label: 'Measurements sent', type: 'textarea', placeholder: 'Bust 90 / Waist 70 / Length 160 ...' },
-    { name: 'instructions', label: 'Instructions', type: 'textarea' },
-    { name: 'due_date', label: 'Due date', type: 'date' },
-  ], async (d) => { await POST('/api/homeworks', d); toast('Sent'); go('homework'); });
+  const [rounds, groups] = await Promise.all([
+    window._rounds ? Promise.resolve(window._rounds) : GET('/api/rounds'), GET('/api/groups'),
+  ]);
+  window._hwGroups = groups;
+  modal(`<h3>New task</h3>
+    <label>Title</label>
+    <input id="hTitle" placeholder="Basic bodice pattern" />
+    <label>Round</label>
+    <select id="hRound" onchange="hwFillGroups()">
+      <option value="">All rounds</option>
+      ${rounds.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join('')}
+    </select>
+    <label>Group</label>
+    <select id="hGroup" onchange="hwWho()"><option value="">Every group in the round</option></select>
+    <span class="hint" id="hWho">Everyone will get it</span>
+    <label>How is it taught?</label>
+    <select id="hMode">
+      <option value="onsite">🏛 In the studio (onsite)</option>
+      <option value="online">💻 Online</option>
+    </select>
+    <label>Measurements sent</label>
+    <textarea id="hMeas" placeholder="Bust 90 / Waist 70 / Length 160 ..."></textarea>
+    <label>Instructions</label>
+    <textarea id="hInstr"></textarea>
+    <label>Due date</label>
+    <input id="hDue" type="date" />
+    <button class="btn" style="margin-top:14px" id="hSend" onclick="sendHomework()">Send task</button>`);
+  hwFillGroups();
+};
+/* the group list only ever shows the groups inside the chosen round */
+window.hwFillGroups = () => {
+  const rid = $('#hRound').value;
+  const list = (window._hwGroups || []).filter((g) => !rid || String(g.round_id) === String(rid));
+  const sel = $('#hGroup');
+  sel.innerHTML = `<option value="">${rid ? 'Every group in this round' : 'Every group'}</option>` +
+    list.map((g) => `<option value="${g.id}">${esc(g.name)}${g.day ? ' · ' + dayEn(g.day) : ''}${g.time_slot ? ' · ' + esc(g.time_slot) : ''}</option>`).join('');
+  sel.disabled = !list.length;
+  hwWho();
+};
+window.hwWho = async () => {
+  const hint = $('#hWho'); if (!hint) return;
+  const rid = $('#hRound').value, gid = $('#hGroup').value;
+  const users = window._hwStudents || (window._hwStudents = await GET('/api/users?role=trainee'));
+  // same rule as the server: a chosen group decides on its own, otherwise the round does
+  const n = users.filter((u) => (gid ? String(u.group_id) === String(gid)
+    : (!rid || String(u.round_id) === String(rid)))).length;
+  hint.textContent = `${n} student${n === 1 ? '' : 's'} will get this task`;
+};
+window.sendHomework = async () => {
+  const title = $('#hTitle').value.trim();
+  if (!title) return toast('Give the task a title');
+  const btn = $('#hSend'); btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await POST('/api/homeworks', {
+      title, round_id: $('#hRound').value || null, group_id: $('#hGroup').value || null,
+      mode: $('#hMode').value, measurements: $('#hMeas').value, instructions: $('#hInstr').value,
+      due_date: $('#hDue').value || null,
+    });
+    closeModal(); toast('Sent ✓'); go('homework');
+  } catch (e) { btn.disabled = false; btn.textContent = 'Send task'; toast(e.message); }
 };
 window.delHomework = (id) => confirmDel('Delete task?', async () => { await DEL('/api/homeworks/' + id); go('homework'); });
 window.viewSubs = async (id) => {
   const r = await GET(`/api/homeworks/${id}/submissions`);
   const canGrade = ['admin', 'manager'].includes(state.user.role);
   const pct = r.expected ? Math.round((r.submitted.length / r.expected) * 100) : 0;
+  const gName = r.homework.group_id ? ((window._hwGroups || []).find((g) => g.id === r.homework.group_id) || {}).name : null;
   modal(`<h3>${esc(r.homework.title)}</h3>
-    <div class="prog" style="margin:0 0 4px">
+    <div class="sub muted" style="margin-top:-8px">${r.homework.mode === 'online' ? '💻 Online' : '🏛 In the studio'}${gName ? ' · ' + esc(gName) : ''}</div>
+    <div class="prog" style="margin:8px 0 4px">
       <div class="prog-top"><span class="prog-n">${r.submitted.length} of ${r.expected}</span><span class="prog-l">handed in · ${pct}%</span></div>
       <div class="prog-bar"><span style="width:${pct}%"></span></div>
     </div>
     <div class="sec-title">Handed in (${r.submitted.length})</div>
-    ${r.submitted.length ? r.submitted.map((s) => `<div class="sub-row">
-        <div class="item" style="border-bottom:none;padding:8px 0">
-          <div class="av">${esc(initials(s.user_name))}</div>
-          <div class="main"><div class="nm">${esc(s.user_name)}</div>
-            <div class="sub">${dt(s.submitted_at)} · ${s.images.length} photo${s.images.length === 1 ? '' : 's'}${s.grade ? ' · ' + esc(s.grade) : ''}</div></div>
-          ${canGrade ? `<button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button>` : ''}</div>
+    ${r.submitted.length ? r.submitted.map((s) => `<div class="sub-row done">
+        <div class="st-row">
+          <span class="av">${esc(initials(s.user_name))}</span>
+          <span class="st-txt"><span class="nm">${esc(s.user_name)}</span>
+            <span class="st-grp">${esc(s.group_name || 'No group')}</span>
+            <span class="st-when">${dt(s.submitted_at)} · ${s.images.length} photo${s.images.length === 1 ? '' : 's'}${s.grade ? ' · ' + esc(s.grade) : ''}</span></span>
+          ${canGrade ? `<button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button>`
+            : '<span class="st-tick">✓</span>'}
+        </div>
         ${s.images.length ? `<div class="scan-strip">${s.images.map((im) => `
           <img class="scan-thumb" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(s.user_name)}')" alt=""/>`).join('')}</div>` : ''}
         ${s.note ? `<div class="hint">“${esc(s.note)}”</div>` : ''}
       </div>`).join('') : '<div class="hint">Nobody has handed in yet</div>'}
     <div class="sec-title">Still waiting (${r.pending.length})</div>
-    ${r.pending.length ? `<div class="pending-wrap">${r.pending.map((u) => `<span class="chip">${esc(u.name)}</span>`).join('')}</div>`
-      : '<div class="hint">Everyone has handed in 🎉</div>'}`);
+    ${r.pending.length ? r.pending.map((u) => `<div class="st-row waiting">
+        <span class="av">${esc(initials(u.name))}</span>
+        <span class="st-txt"><span class="nm">${esc(u.name)}</span>
+          <span class="st-grp">${esc(u.group_name || 'No group')}</span></span>
+        <span class="st-dot"></span>
+      </div>`).join('') : '<div class="hint">Everyone has handed in 🎉</div>'}`);
 };
 window.gradeSub = (id, cur) => formModal('Grade submission', [
   { name: 'grade', label: 'Grade', value: cur },

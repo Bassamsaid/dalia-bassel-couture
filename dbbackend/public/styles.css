@@ -528,8 +528,20 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 
 .sub-row{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:6px}
 .sub-row:last-of-type{border-bottom:none}
-.pending-wrap{display:flex;flex-wrap:wrap;gap:7px}
-.pending-wrap .chip{cursor:default;font-size:11.5px;padding:6px 12px}
+/* one student per line, with her group beside her */
+.st-row{display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid var(--line)}
+.st-row:last-child{border-bottom:none}
+.st-row .av{width:38px;height:38px;flex:0 0 auto;border-radius:50%;background:var(--soft);color:var(--purple-d);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-family:var(--serif);font-size:14px}
+.st-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.st-txt .nm{font-size:14px;font-weight:700;color:var(--ink)}
+.st-grp{font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--purple-d)}
+.st-when{font-size:11.5px;color:var(--muted);font-weight:600}
+.st-tick{flex:0 0 auto;color:var(--ok);font-size:17px;font-weight:800;padding-inline-end:4px}
+.st-dot{flex:0 0 auto;width:9px;height:9px;border-radius:50%;background:var(--warn);opacity:.6;margin-inline-end:6px}
+.st-row.waiting .av{background:#f6eed9;color:var(--warn)}
+.st-row.waiting .st-grp{color:var(--muted)}
+.sub-row.done .st-row{border-bottom:none;padding-bottom:2px}
 
 /* ===== The two houses: a branded block per business ===== */
 .home-lux .brand-group{border-radius:19px;overflow:hidden;border:1px solid var(--line);margin-bottom:18px;

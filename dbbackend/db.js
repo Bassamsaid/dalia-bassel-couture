@@ -497,6 +497,10 @@ db.exec(`CREATE TABLE IF NOT EXISTS dalia_media (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS idx_dalia_media ON dalia_media(post_id, position)');
+
+// A task can be aimed at one group inside a round, and says how it is taught.
+try { db.exec('ALTER TABLE homeworks ADD COLUMN group_id INTEGER'); } catch (e) { /* column exists */ }
+try { db.exec("ALTER TABLE homeworks ADD COLUMN mode TEXT DEFAULT 'onsite'"); } catch (e) { /* column exists */ } // online | onsite
 try { db.exec('ALTER TABLE purchase_invoices ADD COLUMN vendor_id INTEGER'); } catch (e) { /* column exists */ } // link a material invoice to a vendor (unified vendor spend)
 try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch (e) { /* column exists */ } // profile photo (uploaded filename)
 // invited = the studio added this email but the person has not set a password yet.
