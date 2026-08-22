@@ -165,8 +165,9 @@ PAGES.students = async (c) => {
   window._students = { users, rounds, groups };
   const filter = window._stF || 'all';
   const list = users.filter((u) => filter === 'all' || u.round_id == filter);
+  const canEditStudents = ['admin', 'manager'].includes(state.user.role); // staff: view-only
   c.innerHTML = title('Students', '') +
-    `<button class="btn" onclick="editStudent()">＋ Add student</button>
+    `${canEditStudents ? '<button class="btn" onclick="editStudent()">＋ Add student</button>' : ''}
      <div class="filters" style="margin-top:12px">
        <span class="chip ${filter === 'all' ? 'active' : ''}" onclick="stFilter('all')">All (${users.length})</span>
        ${rounds.map((r) => `<span class="chip ${filter == r.id ? 'active' : ''}" onclick="stFilter(${r.id})">${esc(r.name)}</span>`).join('')}
@@ -176,7 +177,7 @@ PAGES.students = async (c) => {
        <div class="item" data-name="${esc((u.name || '').toLowerCase())}" style="cursor:pointer" onclick="viewStudent(${u.id})">
          <div class="av">${esc(initials(u.name))}</div>
          <div class="main"><div class="nm">${esc(u.name)}</div>
-           <div class="sub">${u.phone ? esc(u.phone) + ' · ' : ''}${rMap[u.round_id] ? esc(rMap[u.round_id]) : 'No round'}${gMap[u.group_id] ? ' · ' + esc(gMap[u.group_id]) : ''}</div></div>
+           <div class="sub">${u.governorate ? esc(u.governorate) + ' · ' : ''}${u.phone ? esc(u.phone) + ' · ' : ''}${rMap[u.round_id] ? esc(rMap[u.round_id]) : 'No round'}${gMap[u.group_id] ? ' · ' + esc(gMap[u.group_id]) : ''}</div></div>
          <span class="muted" style="font-size:20px">›</span>
        </div>`).join('') : empty('No students yet')}</div>`;
   if (window._stSearch) liveSearch(window._stSearch, '#studentsList');
@@ -186,16 +187,17 @@ window.viewStudent = async (id) => {
   const u = window._students.users.find((x) => x.id === id);
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   const gMap = Object.fromEntries(groups.map((g) => [g.id, g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '')]));
-  const isAdmin = state.user.role === 'admin';
-  const pays = isAdmin ? await GET('/api/payments?user_id=' + id) : [];
-  const fin = isAdmin ? ((await GET('/api/finance/sheet')).rows.find((r) => r.id === id) || { total_fee: 0, paid: 0, remaining: 0 }) : null;
+  const canSeeMoney = ['admin', 'manager'].includes(state.user.role); // course money: admin + manager
+  const canEdit = canSeeMoney; // staff view-only
+  const pays = canSeeMoney ? await GET('/api/payments?user_id=' + id) : [];
+  const fin = canSeeMoney ? ((await GET('/api/finance/sheet')).rows.find((r) => r.id === id) || { total_fee: 0, paid: 0, remaining: 0 }) : null;
   modal(`
     <div style="text-align:center;margin-bottom:6px">
       <div class="av" style="width:64px;height:64px;font-size:22px;margin:0 auto 8px">${esc(initials(u.name))}</div>
       <div class="serif" style="font-size:22px;font-weight:700">${esc(u.name)}</div>
       <div class="muted" style="font-size:13px">${rMap[u.round_id] || 'No round'}${gMap[u.group_id] ? ' · ' + esc(gMap[u.group_id]) : ''}</div>
     </div>
-    ${isAdmin ? `<div class="grid g3" style="margin:12px 0">
+    ${canSeeMoney ? `<div class="grid g3" style="margin:12px 0">
       <div class="stat"><div class="n">${money(fin.total_fee)}</div><div class="l">Total</div></div>
       <div class="stat"><div class="n" style="color:var(--ok)">${money(fin.paid)}</div><div class="l">Paid</div></div>
       <div class="stat"><div class="n" style="color:${fin.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(fin.remaining)}</div><div class="l">Remaining</div></div>
@@ -205,14 +207,14 @@ window.viewStudent = async (id) => {
       ${u.phone ? `<div class="item"><div class="main"><div class="sub">Phone</div><div class="nm">${esc(u.phone)}</div></div></div>` : ''}
       ${u.email ? `<div class="item"><div class="main"><div class="sub">Email (login)</div><div class="nm">${esc(u.email)}</div></div></div>` : ''}
     </div>
-    ${isAdmin ? `<div class="sec-title">Payments (${pays.length})</div>
+    ${canSeeMoney ? `<div class="sec-title">Payments (${pays.length})</div>
     <div class="card" style="box-shadow:none;margin:0">${pays.length ? pays.map((p) => `<div class="item">
       <div class="av">${p.image ? `<img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : '💵'}</div>
       <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`).join('') : '<div class="hint">No payments yet</div>'}</div>` : ''}
-    <div class="row" style="margin-top:14px">
-      ${isAdmin ? `<button class="btn ghost" onclick="closeModal();addPaymentFor(${id})">＋ Payment</button>` : ''}
-      <button class="btn sec" onclick="closeModal();editStudent(${id})">Edit</button>
-    </div>`);
+    ${(canSeeMoney || canEdit) ? `<div class="row" style="margin-top:14px">
+      ${canSeeMoney ? `<button class="btn ghost" onclick="closeModal();addPaymentFor(${id})">＋ Payment</button>` : ''}
+      ${canEdit ? `<button class="btn sec" onclick="closeModal();editStudent(${id})">Edit</button>` : ''}
+    </div>` : ''}`);
 };
 window.addPaymentFor = async (id) => {
   window._fin = window._fin || { users: await GET('/api/users?role=trainee') };
@@ -246,7 +248,7 @@ window.delStudent = (id) => confirmDel('Delete this student and all their data?'
 
 /* ============ FINANCE (sheet + payments + reminders) ============ */
 PAGES.finance = async (c) => {
-  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💳'); return; }
+  if (!['admin', 'manager'].includes(state.user.role)) { c.innerHTML = empty('Managers only', '💳'); return; }
   const [sheet, payments, reminders, users] = await Promise.all([
     GET('/api/finance/sheet'), GET('/api/payments'), GET('/api/reminders'), GET('/api/users?role=trainee'),
   ]);
@@ -456,16 +458,16 @@ PAGES.round = async (c) => {
   const finRows = sheet.rows.filter((r) => r.round_id === id);
   const gcnt = (gid) => students.filter((u) => u.group_id === gid).length;
   const isAdmin = state.user.role === 'admin';
-  let tab = window._roundTab || 'students';
-  if (tab === 'pay' && !isAdmin) tab = 'students'; // Payments are admin-only
-  const tabs = [['students', 'Students'], ['groups', 'Groups'], ...(isAdmin ? [['pay', 'Payments']] : []), ['videos', 'Videos'], ['att', 'Attendance'], ['quiz', 'Quizzes']];
+  const canSeeMoney = ['admin', 'manager'].includes(state.user.role); // course money: admin + manager (NOT staff)
+  const tab = window._roundTab || 'students';
+  const tabs = [['students', 'Students'], ['groups', 'Groups'], ['pay', 'Payments'], ['videos', 'Videos'], ['att', 'Attendance'], ['quiz', 'Quizzes']];
   let inner = '';
   if (tab === 'students') {
     const payMap = {}; finRows.forEach((r) => { payMap[r.id] = r; });
     const payStatus = (uid) => { const r = payMap[uid]; if (!r || !r.total_fee) return null; if (r.remaining <= 0) return { t: 'Paid', c: 'ok' }; if (r.paid > 0) return { t: 'Partial', c: 'warn' }; return { t: 'Unpaid', c: 'bad' }; };
     const govs = [...new Set(students.map((s) => s.governorate).filter(Boolean))].sort();
     const gf = window._roundGov || 'all';
-    const pf = isAdmin ? (window._roundPay || 'all') : 'all';
+    const pf = window._roundPay || 'all';
     let list = students.slice();
     if (gf !== 'all') list = list.filter((s) => (s.governorate || '') === gf);
     if (pf !== 'all') list = list.filter((s) => { const p = payStatus(s.id); return p && p.t.toLowerCase() === pf; });
@@ -476,13 +478,13 @@ PAGES.round = async (c) => {
         <select onchange="setRoundGov(this.value)" style="width:auto;padding:6px 8px;font-size:12px;margin-inline-start:auto">
           <option value="all">All governorates</option>${govs.map((g) => `<option value="${esc(g)}" ${gf === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
         <button class="btn ${window._roundSortGov ? '' : 'ghost'} sm" onclick="toggleGovSort()">Sort by gov.</button></div>
-      ${isAdmin ? `<div class="filters" style="margin:0 2px 6px">${[['all', 'All'], ['paid', 'Paid'], ['partial', 'Partial'], ['unpaid', 'Unpaid']].map(([k, l]) => `<span class="chip ${pf === k ? 'active' : ''}" onclick="setRoundPay('${k}')">${l}</span>`).join('')}</div>` : ''}
+      <div class="filters" style="margin:0 2px 6px">${[['all', 'All'], ['paid', 'Paid'], ['partial', 'Partial'], ['unpaid', 'Unpaid']].map(([k, l]) => `<span class="chip ${pf === k ? 'active' : ''}" onclick="setRoundPay('${k}')">${l}</span>`).join('')}</div>
       <input placeholder="🔍 Search student by name" value="${esc(window._roundSearch || '')}" oninput="window._roundSearch=this.value; liveSearch(this.value,'#roundStudentsList')" style="width:100%;padding:9px 12px;margin:0 0 8px" />
       <div class="card" id="roundStudentsList">${list.length ? list.map((u) => { const p = payStatus(u.id); const pr = payMap[u.id]; return `<div class="item" data-name="${esc((u.name || '').toLowerCase())}" style="cursor:pointer" onclick="viewStudent(${u.id})">
         <div class="av">${esc(initials(u.name))}</div>
-        <div class="main"><div class="nm">${esc(u.name)}${(isAdmin && p) ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
+        <div class="main"><div class="nm">${esc(u.name)}${p ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
           <div class="sub">${u.governorate ? esc(u.governorate) + ' · ' : ''}${u.phone ? esc(u.phone) : 'no phone'}</div></div>
-        ${isAdmin ? (pr && pr.remaining > 0 ? `<div style="text-align:end;white-space:nowrap"><div style="color:var(--bad);font-weight:700;font-size:13px">${money(pr.remaining)}</div><div class="muted" style="font-size:10px">remaining</div></div>` : (pr && pr.total_fee ? `<div style="color:var(--ok);font-weight:700;font-size:13px;white-space:nowrap">✓ Paid</div>` : '')) : ''}
+        ${pr && pr.remaining > 0 ? `<div style="text-align:end;white-space:nowrap"><div style="color:var(--bad);font-weight:700;font-size:13px">${money(pr.remaining)}</div><div class="muted" style="font-size:10px">remaining</div></div>` : (pr && pr.total_fee ? `<div style="color:var(--ok);font-weight:700;font-size:13px;white-space:nowrap">✓ Paid</div>` : '')}
         <span class="muted" style="font-size:20px">›</span></div>`; }).join('') : empty('No students in this round')}</div>`;
   } else if (tab === 'groups') {
     inner = `<button class="btn" onclick="addGroup(${id})">＋ Group</button>
@@ -509,10 +511,10 @@ PAGES.round = async (c) => {
       <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Day</th><th>In</th><th>Out</th></tr></thead>
       <tbody>${attendance.length ? attendance.map((a) => `<tr><td>${esc(a.user_name)}</td><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="4" class="muted">No attendance yet</td></tr>'}</tbody></table></div></div>`;
   } else {
-    inner = `${isAdmin ? '<button class="btn" onclick="newQuiz()">＋ New quiz</button>' : ''}
+    inner = `${canSeeMoney ? `<button class="btn" onclick="newQuiz(${id})">＋ New quiz</button>` : ''}
       <div style="margin-top:12px">${qList.length ? qList.map((q) => `<div class="card"><div class="item"><div class="av">📝</div>
         <div class="main"><div class="nm">${esc(q.title)} <span class="badge">${q.ref_code}</span></div><div class="sub">${q.questions_count} questions · ${q.duration_min} min</div></div>
-        <button class="btn sm sec" onclick="quizResults(${q.id},'${esc(q.title).replace(/'/g, "\\'")}')">Results</button>${isAdmin ? `<button class="btn-icon" onclick="delQuiz(${q.id})">🗑</button>` : ''}</div></div>`).join('') : empty('No quizzes yet', '📝')}</div>`;
+        <button class="btn sm sec" onclick="quizResults(${q.id},'${esc(q.title).replace(/'/g, "\\'")}')">Results</button>${canSeeMoney ? `<button class="btn-icon" onclick="delQuiz(${q.id})">🗑</button>` : ''}</div></div>`).join('') : empty('No quizzes yet', '📝')}</div>`;
   }
   c.innerHTML = title(round.name, '') +
     `<div class="sub muted" style="margin:-8px 2px 10px">${round.kind === 'online' ? 'Online Course' : 'In‑person'}${round.start_date ? ' · Starts ' + dt(round.start_date) : ''}</div>
@@ -774,8 +776,8 @@ window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/a
 
 /* ============ DRESSES ============ */
 PAGES.dresses = async (c) => {
-  if (state.user.role === 'staff') return PAGES.mydresses(c, { title: 'Dresses' }); // staff: read-only view of all dresses
-  if (state.user.role !== 'admin' && state.user.role !== 'manager') return PAGES.mydresses(c); // customer: own only
+  if (!['admin', 'manager', 'staff'].includes(state.user.role)) return PAGES.mydresses(c); // customers: own only
+  const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: browse + read-only detail
   const [dresses, customers, allUsers] = await Promise.all([GET('/api/dresses'), GET('/api/users?role=customer'), GET('/api/users')]);
   const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   window._dressRef = { customers, staff };
@@ -799,7 +801,7 @@ PAGES.dresses = async (c) => {
   });
   const statuses = [['all', 'All'], ['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']];
   c.innerHTML = title('Dresses', '') +
-    `<button class="btn" onclick="addDress()">＋ Book a dress</button>
+    `${canEdit ? '<button class="btn" onclick="addDress()">＋ Book a dress</button>' : ''}
     <div class="filters" style="margin-top:12px">${statuses.map(([k, l]) => `<span class="chip ${f.status === k && !f.assigned ? 'active' : ''}" onclick="dressFilter('status','${k}')">${l}</span>`).join('')}
       <span class="chip ${f.assigned ? 'active' : ''}" onclick="dressFilter('assigned','x')">👤 Assigned</span></div>
     <div class="row" style="margin:0 0 12px;align-items:center;gap:8px">
@@ -842,11 +844,14 @@ window.addDress = () => {
 window.openDress = (id) => {
   const d = window._dresses.find((x) => x.id === id);
   const staff = (window._dressRef && window._dressRef.staff) || [];
+  const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: read-only
+  const ro = canEdit ? '' : ' readonly';
+  const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
   modal(`<h3>${esc(d.customer_name)}</h3>
-    <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}" />
-    <label>Phone</label><input id="dPhone_${id}" type="tel" inputmode="tel" value="${esc(d.phone || '')}" />
-    <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}" />
-    <label>Notes</label><textarea id="dNote_${id}">${esc(d.note || '')}</textarea>
+    <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}"${ro} />
+    <label>Phone</label><input id="dPhone_${id}" type="tel" inputmode="tel" value="${esc(d.phone || '')}"${ro} />
+    <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}"${ro} />
+    <label>Notes</label><textarea id="dNote_${id}"${ro}>${esc(d.note || '')}</textarea>
     ${state.user.role === 'admin' ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label><input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" />` : ''}
     <button class="btn sec" style="margin-top:10px" onclick="openMeasurements(${id})">📐 Measurements</button>
     ${['admin', 'manager'].includes(state.user.role) ? `<div class="sec-title">Materials for this dress 🧵</div>
@@ -862,29 +867,31 @@ window.openDress = (id) => {
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
       <button class="btn sec sm" style="margin-top:6px" onclick="addDressPayment(${id})">＋ Add payment / deposit</button>` : ''}
     <div class="sec-title">Status</div>
-    <select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    ${canEdit ? `<select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+      : `<span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span>`}
     <div class="sec-title">Assigned staff</div>
-    <select id="assignSel_${id}" onchange="saveAssign(${id})" style="width:100%"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    ${canEdit ? `<select id="assignSel_${id}" onchange="saveAssign(${id})" style="width:100%"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`
+      : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
     <div class="sec-title">Fittings</div>
     ${d.fittings.length ? d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div>
       <div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div>
-      <button class="btn-icon" onclick="delFitting(${f.id},${id})">🗑</button></div>`).join('') : '<div class="hint">No fittings scheduled</div>'}
-    <button class="btn ghost sm" style="margin-top:8px" onclick="addFitting(${id})">＋ Fitting date</button>
-    <div class="sec-title">Dress photos ${d.images.length > 1 ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
+      ${canEdit ? `<button class="btn-icon" onclick="delFitting(${f.id},${id})">🗑</button>` : ''}</div>`).join('') : '<div class="hint">No fittings scheduled</div>'}
+    ${canEdit ? `<button class="btn ghost sm" style="margin-top:8px" onclick="addFitting(${id})">＋ Fitting date</button>` : ''}
+    <div class="sec-title">Dress photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
     <div class="dphotos" id="dphotos_${id}">${d.images.map((im, i) => `<div class="dphoto" data-id="${im.id}">
-      <img class="thumb" style="aspect-ratio:3/4;pointer-events:none" src="/uploads/${esc(im.image)}" />
+      <img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
       ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
-      <button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button></div>`).join('')}</div>
-    <button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>
+      ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
+    ${canEdit ? `<button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>` : ''}
     <div class="sec-title">Client updates 💬</div>
     <div id="dupd_${id}"><div class="hint">Loading…</div></div>
     <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 Send an update / photo to the client</button>
-    <div class="divider"></div>
+    ${canEdit ? `<div class="divider"></div>
     <div class="row">
       <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
       <button class="btn danger" onclick="delDress(${id})">Delete booking</button>
-    </div>`);
-  wireDressPhotos(id);
+    </div>` : ''}`);
+  if (canEdit) wireDressPhotos(id);
   loadDressUpdates(id);
   if (['admin', 'manager'].includes(state.user.role)) loadDressMaterials(id);
   if (state.user.role === 'admin') loadDressPayments(id);
@@ -959,13 +966,15 @@ window.openMeasurements = (id) => {
   const d = window._dresses.find((x) => x.id === id) || {};
   let m = {}; try { m = JSON.parse(d.measurements || '{}'); } catch (e) {}
   window._measImg = d.measure_image || null;
+  const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: view-only
+  const ro = canEdit ? '' : ' readonly';
   modal(`<h3>Measurements — ${esc(d.customer_name || '')}</h3>
-    <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" inputmode="decimal" step="0.5" value="${m[k] != null ? m[k] : ''}" /></div>`).join('')}
-      <div><label>Fit</label><select id="ms_fit"><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
+    <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" inputmode="decimal" step="0.5" value="${m[k] != null ? m[k] : ''}"${ro} /></div>`).join('')}
+      <div><label>Fit</label><select id="ms_fit" ${canEdit ? '' : 'disabled'}><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
     </div>
-    <label>Note</label><textarea id="ms_note">${esc(d.measure_note || '')}</textarea>
-    <div class="row" style="margin-top:8px"><button class="btn ghost sm" onclick="pickMeasImg()">📷 Reference photo</button><span class="hint" id="msImgLbl">${d.measure_image ? 'Selected ✓' : 'None'}</span></div>
-    <div class="row" style="margin-top:14px"><button class="btn" onclick="saveMeasurements(${id})">Save</button>
+    <label>Note</label><textarea id="ms_note"${ro}>${esc(d.measure_note || '')}</textarea>
+    ${canEdit ? `<div class="row" style="margin-top:8px"><button class="btn ghost sm" onclick="pickMeasImg()">📷 Reference photo</button><span class="hint" id="msImgLbl">${d.measure_image ? 'Selected ✓' : 'None'}</span></div>` : (d.measure_image ? `<div class="ref" style="margin-top:8px"><img class="thumb" style="max-width:200px" src="/uploads/${esc(d.measure_image)}" onclick="lightbox('/uploads/${esc(d.measure_image)}')"/></div>` : '')}
+    <div class="row" style="margin-top:14px">${canEdit ? `<button class="btn" onclick="saveMeasurements(${id})">Save</button>` : ''}
       <button class="btn sec" onclick="printMeasurements(${id})">🖨 PDF</button></div>`);
 };
 window.pickMeasImg = () => pickImage((b64) => { window._measImg = b64; const el = document.getElementById('msImgLbl'); if (el) el.textContent = 'Selected ✓'; });

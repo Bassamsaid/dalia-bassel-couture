@@ -226,7 +226,7 @@ function requireAuth(user, res) { if (!user) { send(res, 401, { error: 'unauthor
 
 // ================= ADMIN: USERS / STUDENTS =================
 api['GET /api/users'] = async (req, res, user, url) => {
-  if (!requireManager(user, res)) return;
+  if (!requireStaffish(user, res)) return; // staff may view students (money stripped below)
   const role = url.searchParams.get('role');
   const round = url.searchParams.get('round_id');
   let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,off_days,created_at FROM users WHERE 1=1';
@@ -234,7 +234,9 @@ api['GET /api/users'] = async (req, res, user, url) => {
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
   q += ' ORDER BY name';
-  send(res, 200, db.prepare(q).all(...args));
+  const rows = db.prepare(q).all(...args);
+  if (user.role === 'staff') rows.forEach((r) => { delete r.base_salary; }); // no money for staff
+  send(res, 200, rows);
 };
 api['POST /api/users'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
@@ -462,7 +464,7 @@ api['GET /api/quizzes'] = async (req, res, user) => {
   send(res, 200, list);
 };
 api['POST /api/quizzes'] = async (req, res, user) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return; // admin + manager can create quizzes
   const b = await readBody(req);
   const ref = b.ref_code || 'Q-' + crypto.randomBytes(3).toString('hex').toUpperCase();
   const r = db.prepare('INSERT INTO quizzes (round_id,title,ref_code,duration_min,active) VALUES (?,?,?,?,?)').run(b.round_id || null, b.title, ref, b.duration_min || 15, b.active ?? 1);
@@ -473,7 +475,7 @@ api['POST /api/quizzes'] = async (req, res, user) => {
   send(res, 200, { id: qid, ref_code: ref });
 };
 api['DELETE /api/quizzes/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM quizzes WHERE id=?').run(params.id);
   db.prepare('DELETE FROM quiz_questions WHERE quiz_id=?').run(params.id);
   db.prepare('DELETE FROM quiz_attempts WHERE quiz_id=?').run(params.id);
