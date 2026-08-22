@@ -1065,19 +1065,45 @@ window.openDress = (id) => {
   const d = window._dresses.find((x) => x.id === id);
   const staff = (window._dressRef && window._dressRef.staff) || [];
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: read-only
+  const isAdmin = state.user.role === 'admin';
   const ro = canEdit ? '' : ' readonly';
   const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
-  modal(`<h3>${esc(d.customer_name)}</h3>
+
+  const pane = (key, html) => `<div class="dpane" data-pane="${key}">${html}</div>`;
+
+  const details = pane('details', `
     <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}"${ro} />
     <label>Phone</label><input id="dPhone_${id}" type="tel" inputmode="tel" value="${esc(d.phone || '')}"${ro} />
     <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}"${ro} />
     <label>Notes</label><textarea id="dNote_${id}"${ro}>${esc(d.note || '')}</textarea>
-    ${state.user.role === 'admin' ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label><input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" />` : ''}
-    <button class="btn sec" style="margin-top:10px" onclick="openMeasurements(${id})">📐 Measurements</button>
-    ${['admin', 'manager'].includes(state.user.role) ? `<div class="sec-title">Materials for this dress 🧵</div>
-      <div id="dmat_${id}"><div class="hint">Loading…</div></div>
-      <button class="btn sec sm" style="margin-top:6px" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>` : ''}
-    ${state.user.role === 'admin' ? `<div class="sec-title">Pricing & deposits 💰 <span class="hint">(admin only)</span></div>
+    <label>Status</label>
+    ${canEdit ? `<select id="statSel_${id}" onchange="saveDressStatus(${id})">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`
+      : `<span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span>`}
+    <label>Assigned staff</label>
+    ${canEdit ? `<select id="assignSel_${id}" onchange="saveAssign(${id})"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`
+      : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
+    ${canEdit ? `<div class="divider"></div>
+      <div class="row">
+        <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
+        <button class="btn danger" onclick="delDress(${id})">Delete booking</button>
+      </div>` : ''}`);
+
+  const measure = pane('measure', `
+    <p class="hint">Every measurement for this gown, in one sheet.</p>
+    <button class="btn sec" onclick="openMeasurements(${id})">📐 Open the measurement sheet</button>`);
+
+  const photos = pane('photos', `
+    <div class="sec-title">Dress photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
+    <div class="dphotos" id="dphotos_${id}">${d.images.map((im, i) => `<div class="dphoto" data-id="${im.id}">
+      <img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
+      ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
+      ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
+    ${canEdit ? `<button class="btn ghost sm" style="margin-top:10px" onclick="addDressImg(${id})">＋ Photo</button>` : ''}`);
+
+  const moneyPane = isAdmin || canEdit ? pane('money', `
+    ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
+      <input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" />
+      <div class="sec-title">Pricing & deposits 💰</div>
       <div class="card" style="box-shadow:none;margin:0 0 8px">
         ${kv('Material cost', money(d.material_cost || 0), 'bad')}
         ${kv('Profit', money(d.profit || 0), (d.profit || 0) >= 0 ? 'ok' : 'bad')}
@@ -1086,36 +1112,53 @@ window.openDress = (id) => {
       </div>
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
       <button class="btn sec sm" style="margin-top:6px" onclick="addDressPayment(${id})">＋ Add payment / deposit</button>` : ''}
-    <div class="sec-title">Status</div>
-    ${canEdit ? `<select id="statSel_${id}" onchange="saveDressStatus(${id})" style="width:100%">${[['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']].map(([k, l]) => `<option value="${k}" ${d.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`
-      : `<span class="badge ${d.status === 'delivered' ? 'ok' : 'warn'}">${stEn[d.status] || d.status}</span>`}
-    <div class="sec-title">Assigned staff</div>
-    ${canEdit ? `<select id="assignSel_${id}" onchange="saveAssign(${id})" style="width:100%"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`
-      : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
+    ${canEdit ? `<div class="sec-title">Materials for this dress 🧵</div>
+      <div id="dmat_${id}"><div class="hint">Loading…</div></div>
+      <button class="btn sec sm" style="margin-top:6px" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>` : ''}`) : '';
+
+  const client = pane('client', `
     <div class="sec-title">Fittings</div>
     ${d.fittings.length ? d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div>
       <div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div>
       ${canEdit ? `<button class="btn-icon" onclick="delFitting(${f.id},${id})">🗑</button>` : ''}</div>`).join('') : '<div class="hint">No fittings scheduled</div>'}
     ${canEdit ? `<button class="btn ghost sm" style="margin-top:8px" onclick="addFitting(${id})">＋ Fitting date</button>` : ''}
-    <div class="sec-title">Dress photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
-    <div class="dphotos" id="dphotos_${id}">${d.images.map((im, i) => `<div class="dphoto" data-id="${im.id}">
-      <img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
-      ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
-      ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
-    ${canEdit ? `<button class="btn ghost sm" style="margin-top:8px" onclick="addDressImg(${id})">＋ Photo</button>` : ''}
     <div class="sec-title">Client updates 💬</div>
     <div id="dupd_${id}"><div class="hint">Loading…</div></div>
-    <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 Send an update / photo to the client</button>
-    ${canEdit ? `<div class="divider"></div>
-    <div class="row">
-      <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
-      <button class="btn danger" onclick="delDress(${id})">Delete booking</button>
-    </div>` : ''}`);
+    <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 Send an update / photo to the client</button>`);
+
+  const tabs = [
+    ['details', '📋', 'Details'],
+    ['measure', '📐', 'Measurements'],
+    ['photos', '📷', `Photos${d.images.length ? ' (' + d.images.length + ')' : ''}`],
+    ...(moneyPane ? [['money', '💰', 'Money']] : []),
+    ['client', '💬', `Client${d.fittings.length ? ' (' + d.fittings.length + ')' : ''}`],
+  ];
+  const firstTab = tabs.some(([k]) => k === window._dressTab) ? window._dressTab : 'details';
+
+  modal(`<h3>${esc(d.customer_name)}</h3>
+    <div class="sub muted" style="margin-top:-8px">${d.delivery_date ? 'Delivery ' + dt(d.delivery_date) : 'No delivery date'} · ${stEn[d.status] || d.status}</div>
+    <div class="dtabs" id="dtabs_${id}">
+      ${tabs.map(([k, ic, label]) => `<button class="dtab${k === firstTab ? ' on' : ''}" data-tab="${k}" onclick="dressTab(${id},'${k}')">
+        <span class="dtab-ic">${ic}</span>${esc(label)}</button>`).join('')}
+    </div>
+    <div class="dpanes" id="dpanes_${id}">${details}${measure}${photos}${moneyPane}${client}</div>`);
+  dressTab(id, firstTab);
   if (canEdit) wireDressPhotos(id);
   loadDressUpdates(id);
-  if (['admin', 'manager'].includes(state.user.role)) loadDressMaterials(id);
-  if (state.user.role === 'admin') loadDressPayments(id);
+  if (canEdit) loadDressMaterials(id);
+  if (isAdmin) loadDressPayments(id);
 };
+/* switch tab: panes stay in the DOM so their loaders keep working */
+window.dressTab = (id, key) => {
+  window._dressTab = key;
+  const bar = document.getElementById('dtabs_' + id), panes = document.getElementById('dpanes_' + id);
+  if (!bar || !panes) return;
+  [...bar.children].forEach((b) => b.classList.toggle('on', b.dataset.tab === key));
+  [...panes.children].forEach((p) => p.classList.toggle('on', p.dataset.pane === key));
+  const active = bar.querySelector('.dtab.on');
+  if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+};
+
 async function loadDressMaterials(id) {
   const box = document.getElementById('dmat_' + id); if (!box) return;
   try {
