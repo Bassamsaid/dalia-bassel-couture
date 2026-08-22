@@ -253,7 +253,26 @@ function attScreen(c, att, titleTxt) {
     const el = document.getElementById('ckElapsed'); if (el && el.dataset.since) el.textContent = elapsedSince(el.dataset.since);
   }, 20000);
 }
-window.doAttCheck = async () => { const r = await POST('/api/attendance/check'); toast(r.action === 'in' ? 'Checked in ✓' : r.action === 'out' ? 'Checked out ✓' : 'Done'); go(state.page); };
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Location not supported on this device'));
+    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  });
+}
+window.doAttCheck = async () => {
+  const cfg = window._cfg || {};
+  let body = {};
+  if (cfg.geo_enabled === '1' && cfg.geo_lat) {
+    toast('Getting your location…');
+    try { const pos = await getPosition(); body = { lat: pos.coords.latitude, lng: pos.coords.longitude }; }
+    catch (e) { toast(e.code === 1 ? 'Please allow location to check in' : 'Could not get your location — try again'); return; }
+  }
+  try {
+    const r = await POST('/api/attendance/check', body);
+    toast(r.action === 'in' ? 'Checked in ✓' : r.action === 'out' ? 'Checked out ✓' : 'Done');
+    go(state.page);
+  } catch (e) { toast(e.message); }
+};
 
 /* ============ STAFF HOME (attendance) ============ */
 PAGES.home_staff = async (c) => {

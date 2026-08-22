@@ -721,8 +721,23 @@ api['GET /api/attendance'] = async (req, res, user, url) => {
   }
   send(res, 200, db.prepare('SELECT * FROM attendance WHERE user_id=? ORDER BY date DESC').all(user.id));
 };
+function haversine(lat1, lon1, lat2, lon2) { // metres between two lat/lng points
+  const R = 6371000, toR = (d) => d * Math.PI / 180;
+  const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
 api['POST /api/attendance/check'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
+  const b = await readBody(req);
+  // geofence: if enabled, the check must happen within the studio radius
+  const cfg = {}; db.prepare('SELECT key,value FROM settings').all().forEach((r) => { cfg[r.key] = r.value; });
+  if (cfg.geo_enabled === '1' && cfg.geo_lat && cfg.geo_lng) {
+    if (b.lat == null || b.lng == null) return send(res, 400, { error: 'Location needed — turn on location and try again' });
+    const dist = haversine(Number(cfg.geo_lat), Number(cfg.geo_lng), Number(b.lat), Number(b.lng));
+    const radius = Number(cfg.geo_radius) || 150;
+    if (dist > radius) return send(res, 403, { error: `You are ${Math.round(dist)}m from the studio — you must be within ${radius}m to check in/out` });
+  }
   const today = new Date().toISOString().slice(0, 10);
   const now = new Date().toTimeString().slice(0, 5);
   let rec = db.prepare('SELECT * FROM attendance WHERE user_id=? AND date=?').get(user.id, today);

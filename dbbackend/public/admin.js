@@ -1442,7 +1442,7 @@ PAGES.config = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
   const s = await GET('/api/settings');
   const tab = window._cfgTab || 'academy';
-  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['payment', 'Payment']];
+  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment']];
   let inner = '';
   if (tab === 'academy') {
     inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
@@ -1456,6 +1456,21 @@ PAGES.config = async (c) => {
       <label>Overtime multiplier (×)</label><input id="cfg_overtime_mult" type="number" inputmode="decimal" step="0.1" value="${esc(s.overtime_mult || '1.5')}" />
       <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace deducts at the hourly rate; overtime pays at the multiplier. Each staff's paid weekly off-days are set on their profile.</div>
       <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month','check_in_time','check_out_time','late_grace_min','overtime_mult'])">Save</button></div>`;
+  } else if (tab === 'location') {
+    inner = `<div class="card">
+      <label>Require location for check-in / out</label>
+      <select id="cfg_geo_enabled"><option value="0" ${s.geo_enabled !== '1' ? 'selected' : ''}>No — allow from anywhere</option><option value="1" ${s.geo_enabled === '1' ? 'selected' : ''}>Yes — only at the studio</option></select>
+      <label style="margin-top:10px">Studio location</label>
+      <input id="cfg_geo_lat" type="hidden" value="${esc(s.geo_lat || '')}" />
+      <input id="cfg_geo_lng" type="hidden" value="${esc(s.geo_lng || '')}" />
+      <div class="row" style="align-items:center;gap:8px">
+        <button class="btn sec" onclick="captureGeo()">📍 Use my current location</button>
+        <span class="hint" id="geoCoords" style="flex:2">${s.geo_lat ? '📍 ' + esc(s.geo_lat) + ', ' + esc(s.geo_lng) : 'Not set'}</span>
+      </div>
+      <label style="margin-top:10px">Allowed radius (metres)</label>
+      <input id="cfg_geo_radius" type="number" inputmode="numeric" value="${esc(s.geo_radius || '150')}" />
+      <div class="hint" style="margin-top:6px">Stand at the studio, tap "Use my current location", and set a radius (e.g. 150 m). Then staff & students can only check in/out within that radius. Set to "No" to allow from anywhere.</div>
+      <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save</button></div>`;
   } else {
     inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
       <div class="hint" style="margin-top:6px">Shown next to all amounts across the app.</div>
@@ -1465,6 +1480,17 @@ PAGES.config = async (c) => {
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="cfgTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.cfgTab = (t) => { window._cfgTab = t; go('config'); };
+window.captureGeo = async () => {
+  toast('Getting location…');
+  try {
+    const pos = await getPosition(); // defined in portal.js
+    const lat = pos.coords.latitude.toFixed(6), lng = pos.coords.longitude.toFixed(6);
+    document.getElementById('cfg_geo_lat').value = lat;
+    document.getElementById('cfg_geo_lng').value = lng;
+    document.getElementById('geoCoords').textContent = `📍 ${lat}, ${lng} (±${Math.round(pos.coords.accuracy)}m)`;
+    toast('Location captured ✓ — now Save');
+  } catch (e) { toast(e && e.code === 1 ? 'Please allow location access' : 'Could not get location'); }
+};
 window.saveCfg = async (keys) => {
   const body = {};
   keys.forEach((k) => { const el = document.getElementById('cfg_' + k); if (el) body[k] = el.value; });
