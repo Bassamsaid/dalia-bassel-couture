@@ -275,6 +275,7 @@ const NAV = {
     ['homework', 'Tasks', '✎'],
     ['quizzes', 'Quizzes', '📝'],
     ['notes', 'Notes', '📌'],
+    ['chats', 'Customer service', '💬'],
     ['dalia', 'Dalia', '✦'],
     ['dresses', 'Dresses', '👗'],
     ['purchases', 'Purchases', '🧾'],
@@ -292,6 +293,7 @@ const NAV = {
     ['quizzes', 'Quizzes', '📝'],
     ['notes', 'Notes', '📌'],
     ['mypay', 'Account', '💳'],
+    ['help', 'Customer service', '💬'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
@@ -305,6 +307,7 @@ const NAV = {
     ['purchases', 'Purchases', '🧾'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
+    ['chats', 'Customer service', '💬'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
@@ -315,11 +318,13 @@ const NAV = {
     ['students', 'Students', '👩‍🎓'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
+    ['chats', 'Customer service', '💬'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
   customer: [
     ['mydresses', 'My Dresses', '👗'],
+    ['help', 'Customer service', '💬'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
@@ -331,8 +336,8 @@ const BOTTOM = {
   manager: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['courses', 'Courses', '🎬'], ['dalia', 'Dalia', '✦']],
   trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
   staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['courses', 'Courses', '🎬'], ['dalia', 'Dalia', '✦']],
-  customer: [['mydresses', 'My Dresses', '👗'], ['dalia', 'Dalia Bassel', '✦']],
-  visitor: [['dalia', 'Dalia Bassel', '✦'], ['about', 'About', 'ℹ']],
+  customer: [['mydresses', 'My Dresses', '👗'], ['help', 'Customer service', '💬'], ['dalia', 'Dalia Bassel', '✦']],
+  visitor: [['dalia', 'Dalia Bassel', '✦'], ['help', 'Customer service', '💬'], ['about', 'About', 'ℹ']],
 };
 
 function renderApp() {
@@ -548,6 +553,8 @@ const TILE_TINT = {
   about:    ['#6b6478', '#b6aec6', '107,100,120'],
   rounds:   ['#5b21b6', '#a78bfa', '91,33,182'],
   clients:  ['#c2185b', '#f0a3c6', '194,24,91'],
+  help:     ['#0f766e', '#5eead4', '15,118,110'],
+  chats:    ['#0f766e', '#5eead4', '15,118,110'],
   dressmoney: ['#b3873a', '#e8c477', '179,135,58'],
   staff:    ['#0f766e', '#5eead4', '15,118,110'],
 };
@@ -646,7 +653,7 @@ function timeago(s) {
   const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
   return String(s).slice(0, 10);
 }
-const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬' };
+const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬', chat: '💬', task: '✎', submission: '📥' };
 async function refreshNotifBadge() {
   try {
     const { unread } = await GET('/api/notifications/count');
@@ -685,6 +692,7 @@ window.openNotif = (page, id) => {
     return;
   }
   if (page === 'homework' && id) window._openTaskAfter = id; // land on that task's hand-in list
+  if ((page === 'chats' || page === 'help') && id) window._openChatAfter = id; // open that conversation
   const target = PAGES[page] ? page : 'notifications';
   go(target);
 };

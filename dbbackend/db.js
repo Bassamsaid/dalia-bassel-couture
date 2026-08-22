@@ -460,6 +460,31 @@ try { db.exec("ALTER TABLE dalia_posts ADD COLUMN template TEXT DEFAULT 'below'"
 try { db.exec('ALTER TABLE dalia_posts ADD COLUMN subtitle TEXT'); } catch (e) { /* column exists */ }
 // which house a post belongs to: studio (general news) | academy | couture
 try { db.exec("ALTER TABLE dalia_posts ADD COLUMN section TEXT DEFAULT 'studio'"); } catch (e) { /* column exists */ }
+
+// Customer service: one thread per enquiry, filed under the part of the studio it is about.
+// topic: dress (couture) | course (academy) | general (visitors and everything else)
+db.exec(`CREATE TABLE IF NOT EXISTS chat_threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  topic TEXT NOT NULL DEFAULT 'general',
+  subject TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  thread_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  from_studio INTEGER NOT NULL DEFAULT 0,
+  body TEXT,
+  image TEXT,
+  seen_by_studio INTEGER NOT NULL DEFAULT 0,
+  seen_by_user INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+db.exec('CREATE INDEX IF NOT EXISTS idx_chat_thread ON chat_messages(thread_id, id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_chat_topic ON chat_threads(topic, last_at)');
 try { db.exec('ALTER TABLE purchase_invoices ADD COLUMN vendor_id INTEGER'); } catch (e) { /* column exists */ } // link a material invoice to a vendor (unified vendor spend)
 try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch (e) { /* column exists */ } // profile photo (uploaded filename)
 // invited = the studio added this email but the person has not set a password yet.

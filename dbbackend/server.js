@@ -1166,6 +1166,91 @@ api['POST /api/expenses'] = async (req, res, user) => {
 api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM expenses WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
 // ================= NOTIFICATIONS =================
+// ================= CUSTOMER SERVICE CHAT =================
+const CHAT_TOPICS = ['dress', 'course', 'general'];
+const topicWord = { dress: 'a dress', course: 'the courses', general: 'the studio' };
+const isStudio = (u) => ['admin', 'manager', 'staff'].includes(u.role);
+
+function threadRow(t) {
+  const last = db.prepare('SELECT body,from_studio,created_at FROM chat_messages WHERE thread_id=? ORDER BY id DESC LIMIT 1').get(t.id);
+  return { ...t, last_body: last ? last.body : null, last_from_studio: last ? last.from_studio : 0 };
+}
+
+// Studio sees every thread; anyone else sees only their own.
+api['GET /api/chats'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  if (isStudio(user)) {
+    const rows = db.prepare(`SELECT t.*, u.name user_name, u.role user_role,
+        (SELECT COUNT(*) FROM chat_messages m WHERE m.thread_id=t.id AND m.from_studio=0 AND m.seen_by_studio=0) unread
+      FROM chat_threads t JOIN users u ON u.id=t.user_id ORDER BY t.last_at DESC`).all();
+    return send(res, 200, { threads: rows.map(threadRow), studio: true });
+  }
+  const rows = db.prepare(`SELECT t.*,
+      (SELECT COUNT(*) FROM chat_messages m WHERE m.thread_id=t.id AND m.from_studio=1 AND m.seen_by_user=0) unread
+    FROM chat_threads t WHERE t.user_id=? ORDER BY t.last_at DESC`).all(user.id);
+  send(res, 200, { threads: rows.map(threadRow), studio: false });
+};
+
+// Start an enquiry. The first message goes with it.
+api['POST /api/chats'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const b = await readBody(req);
+  const topic = CHAT_TOPICS.includes(b.topic) ? b.topic : 'general';
+  const body = (b.body || '').trim();
+  if (!body) return send(res, 400, { error: 'Write your message first' });
+  const tid = db.prepare('INSERT INTO chat_threads (user_id,topic,subject) VALUES (?,?,?)').run(user.id, topic, b.subject || null).lastInsertRowid;
+  db.prepare('INSERT INTO chat_messages (thread_id,user_id,from_studio,body,image,seen_by_user) VALUES (?,?,0,?,?,1)').run(tid, user.id, body, maybeImage(b.image));
+  notifyRoles(['admin', 'manager', 'staff'], {
+    type: 'chat', title: `${user.name} asks about ${topicWord[topic]}`,
+    body: body.slice(0, 90), link_page: 'chats', link_id: tid, actor_name: user.name,
+  }, user.id);
+  send(res, 200, { id: tid });
+};
+
+// The conversation. Opening it marks the other side's messages as seen.
+api['GET /api/chats/:id'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  const t = db.prepare('SELECT t.*,u.name user_name,u.role user_role FROM chat_threads t JOIN users u ON u.id=t.user_id WHERE t.id=?').get(params.id);
+  if (!t) return send(res, 404, { error: 'not found' });
+  if (!isStudio(user) && t.user_id !== user.id) return send(res, 403, { error: 'forbidden' });
+  if (isStudio(user)) db.prepare('UPDATE chat_messages SET seen_by_studio=1 WHERE thread_id=? AND from_studio=0').run(t.id);
+  else db.prepare('UPDATE chat_messages SET seen_by_user=1 WHERE thread_id=? AND from_studio=1').run(t.id);
+  const messages = db.prepare(`SELECT m.*, u.name author_name FROM chat_messages m JOIN users u ON u.id=m.user_id
+    WHERE m.thread_id=? ORDER BY m.id`).all(t.id);
+  send(res, 200, { thread: t, messages, studio: isStudio(user) });
+};
+
+api['POST /api/chats/:id/messages'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  const t = db.prepare('SELECT * FROM chat_threads WHERE id=?').get(params.id);
+  if (!t) return send(res, 404, { error: 'not found' });
+  const studio = isStudio(user);
+  if (!studio && t.user_id !== user.id) return send(res, 403, { error: 'forbidden' });
+  const b = await readBody(req);
+  const body = (b.body || '').trim();
+  const img = maybeImage(b.image);
+  if (!body && !img) return send(res, 400, { error: 'Write a message first' });
+  db.prepare('INSERT INTO chat_messages (thread_id,user_id,from_studio,body,image,seen_by_studio,seen_by_user) VALUES (?,?,?,?,?,?,?)')
+    .run(t.id, user.id, studio ? 1 : 0, body || null, img, studio ? 1 : 0, studio ? 0 : 1);
+  db.prepare("UPDATE chat_threads SET last_at=datetime('now'), status='open' WHERE id=?").run(t.id);
+  if (studio) {
+    notify(t.user_id, { type: 'chat', title: `Dalia Bassel replied`, body: (body || 'Sent a photo').slice(0, 90), link_page: 'help', link_id: t.id, actor_name: user.name });
+  } else {
+    notifyRoles(['admin', 'manager', 'staff'], {
+      type: 'chat', title: `${user.name} · ${topicWord[t.topic]}`, body: (body || 'Sent a photo').slice(0, 90),
+      link_page: 'chats', link_id: t.id, actor_name: user.name,
+    }, user.id);
+  }
+  send(res, 200, { ok: true });
+};
+
+api['PUT /api/chats/:id'] = async (req, res, user, url, params) => {
+  if (!requireStaffish(user, res)) return;
+  const b = await readBody(req);
+  db.prepare('UPDATE chat_threads SET status=? WHERE id=?').run(b.status === 'closed' ? 'closed' : 'open', params.id);
+  send(res, 200, { ok: true });
+};
+
 api['GET /api/notifications'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
   const items = db.prepare('SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 80').all(user.id);

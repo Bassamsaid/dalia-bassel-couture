@@ -66,6 +66,7 @@ PAGES.home_trainee = async (c) => {
       ['quizzes', '📝', 'Quizzes', newQuiz ? `${big(newQuiz)} new` : 'Nothing new'],
       ['notes', '📌', 'Notes', `${big(notes.length)} notes`],
       ['mypay', '💳', 'Account', `${big(money(paid))} paid`],
+      ['help', '💬', 'Customer service', 'Ask the studio'],
       ['about', 'ℹ', 'About', 'The academy'],
     ].filter(([p]) => !isHidden(p)))}
     ${notes.length ? `<div class="sec-title">Latest notes</div>${notes.slice(0, 3).map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>${n.body ? `<div style="font-size:13px">${esc(n.body)}</div>` : ''}</div>`).join('')}` : ''}</div>`;
@@ -443,3 +444,97 @@ window.sendDressNote = (id) => formModal('Note about the dress', [
   { name: 'body', label: 'Note', type: 'textarea' },
   { name: 'image', label: 'Photo (optional)', type: 'image' },
 ], async (d) => { await POST('/api/dresses/' + id + '/updates', d); toast('Sent ✅'); closeModal(); go(state.page); });
+
+
+/* ============ CUSTOMER SERVICE — the customer's side ============ */
+const TOPIC_META = {
+  dress:   { icon: '👗', label: 'Dresses',  hint: 'Bookings, fittings, your gown', c: 'clients' },
+  course:  { icon: '🎓', label: 'Courses',  hint: 'Rounds, fees, joining', c: 'students' },
+  general: { icon: '✦', label: 'Anything else', hint: 'Visiting, prices, directions', c: 'about' },
+};
+
+window.TOPIC_META = TOPIC_META;
+/* the button under the feed: customers start an enquiry, the studio opens its inbox */
+window.askStudio = (topic) => {
+  if (['admin', 'manager', 'staff'].includes(state.user.role)) return go('chats');
+  newChat(topic);
+};
+
+PAGES.help = async (c) => {
+  const { threads } = await GET('/api/chats');
+  window._threads = threads;
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' + title('Customer service', '') +
+    `<div class="card"><div class="nm serif" style="font-size:17px">How can we help?</div>
+      <div class="sub muted" style="margin-top:4px">Write to us and the studio answers here. Pick what it is about.</div>
+      <div class="ask-row">
+        ${Object.entries(TOPIC_META).map(([k, m]) => `<button class="ask-btn" style="${tintVars(m.c)}" onclick="newChat('${k}')">
+          <span class="ask-ic">${m.icon}</span><span class="ask-t">${m.label}</span><span class="ask-h">${m.hint}</span></button>`).join('')}
+      </div>
+    </div>
+    ${threads.length ? `<div class="sec-title">Your conversations</div>${threads.map(chatRowHtml).join('')}` : ''}
+    </div>`;
+  if (window._openChatAfter) { const id = window._openChatAfter; window._openChatAfter = null; openChat(id); }
+};
+
+function chatRowHtml(t) {
+  const m = TOPIC_META[t.topic] || TOPIC_META.general;
+  return `<div class="chat-row" style="${tintVars(m.c)}" onclick="openChat(${t.id})">
+    <span class="rail"></span>
+    <span class="ic">${m.icon}</span>
+    <span class="txt"><span class="nm">${esc(t.subject || m.label)}${t.status === 'closed' ? ' <span class="badge">closed</span>' : ''}</span>
+      <span class="meta">${esc((t.last_body || '').slice(0, 60) || 'No messages yet')}</span>
+      <span class="when">${dt(t.last_at)}</span></span>
+    ${t.unread ? `<span class="chat-badge">${t.unread}</span>` : '<span class="chev">›</span>'}
+  </div>`;
+}
+
+window.newChat = (topic) => {
+  const m = TOPIC_META[topic] || TOPIC_META.general;
+  modal(`<h3>${m.icon} ${m.label}</h3>
+    <p class="hint" style="margin-top:-6px">${esc(m.hint)}</p>
+    <label>What do you need?</label>
+    <input id="cSub" placeholder="${topic === 'dress' ? 'Book a fitting' : topic === 'course' ? 'Join the next round' : 'A question'}" />
+    <label>Your message</label>
+    <textarea id="cBody" style="min-height:110px" placeholder="Write here..."></textarea>
+    <button class="btn" style="margin-top:12px" id="cSend" onclick="sendNewChat('${topic}')">Send to the studio</button>`);
+};
+window.sendNewChat = async (topic) => {
+  const body = $('#cBody').value.trim();
+  if (!body) return toast('Write your message first');
+  const btn = $('#cSend'); btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await POST('/api/chats', { topic, subject: $('#cSub').value.trim(), body });
+    closeModal(); toast('Sent ✓'); window._openChatAfter = r.id; go('help');
+  } catch (e) { btn.disabled = false; btn.textContent = 'Send to the studio'; toast(e.message); }
+};
+
+window.openChat = async (id) => {
+  const r = await GET('/api/chats/' + id);
+  const m = TOPIC_META[r.thread.topic] || TOPIC_META.general;
+  const who = r.studio ? r.thread.user_name : 'Dalia Bassel';
+  modal(`<h3>${m.icon} ${esc(r.thread.subject || m.label)}</h3>
+    <div class="sub muted" style="margin-top:-8px">${esc(r.studio ? `${r.thread.user_name} · ${roleLabel(r.thread.user_role)}` : 'Dalia Bassel studio')}</div>
+    <div class="chat-log" id="chatLog">${r.messages.map((x) => `
+      <div class="upd ${x.from_studio ? 'upd-studio' : 'upd-client'}">
+        <div class="upd-h">${esc(x.from_studio ? (r.studio ? x.author_name : 'Dalia Bassel') : (r.studio ? x.author_name : 'You'))} · ${dt(x.created_at)}</div>
+        ${x.image ? `<img class="thumb" style="aspect-ratio:4/3;margin:4px 0" src="/uploads/${esc(x.image)}" onclick="lightbox('/uploads/${esc(x.image)}')"/>` : ''}
+        ${x.body ? `<div class="upd-b">${esc(x.body)}</div>` : ''}
+      </div>`).join('')}</div>
+    <textarea id="chatMsg" style="min-height:76px" placeholder="Write a reply..."></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn ghost sm" onclick="chatPic(${id})">📷 Photo</button>
+      <button class="btn" id="chatSend" onclick="sendChat(${id})">Send</button>
+    </div>
+    ${r.studio ? `<button class="btn sec sm" style="margin-top:10px" onclick="closeThread(${id},'${r.thread.status === 'closed' ? 'open' : 'closed'}')">${r.thread.status === 'closed' ? 'Reopen' : 'Mark as handled'}</button>` : ''}`);
+  const log = $('#chatLog'); if (log) log.scrollTop = log.scrollHeight;
+  refreshNotifBadge();
+};
+window.chatPic = (id) => pickImage(async (b64) => { await POST(`/api/chats/${id}/messages`, { image: b64 }); openChat(id); });
+window.sendChat = async (id) => {
+  const box = $('#chatMsg'); const body = box.value.trim();
+  if (!body) return toast('Write a message first');
+  const btn = $('#chatSend'); btn.disabled = true;
+  try { await POST(`/api/chats/${id}/messages`, { body }); await openChat(id); if (window._chatsRefresh) window._chatsRefresh(); }
+  catch (e) { btn.disabled = false; toast(e.message); }
+};
+window.closeThread = async (id, status) => { await PUT('/api/chats/' + id, { status }); closeModal(); toast('Saved'); go(state.page); };

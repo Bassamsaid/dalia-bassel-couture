@@ -103,6 +103,9 @@ PAGES.home_admin = async (c) => {
     GET('/api/finance/sheet'), GET('/api/rounds'), GET('/api/dresses'), GET('/api/reminders'), GET('/api/about'), GET('/api/users'),
     GET('/api/homeworks'), GET('/api/quizzes'), GET('/api/videos'),
   ]);
+  const chats = await GET('/api/chats').catch(() => ({ threads: [] }));
+  const chatCount = chats.threads.length;
+  const chatUnread = chats.threads.reduce((a, t) => a + (t.unread || 0), 0);
   const dueSoon = reminders.filter((r) => !r.done).length;
   const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
   const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
@@ -152,6 +155,7 @@ PAGES.home_admin = async (c) => {
     ${navList([
       ['members', '👥', 'Members', `${big(users.length)} registered · ${big(visitors)} visitor${visitors === 1 ? '' : 's'}`],
       ['staff', '🧵', 'Team', `${big(team)} in the studio`],
+      ['chats', '💬', 'Customer service', chatUnread ? `${big(chatUnread)} new message${chatUnread === 1 ? '' : 's'}` : `${big(chatCount)} conversation${chatCount === 1 ? '' : 's'}`],
     ])}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
@@ -819,6 +823,17 @@ PAGES.dalia = async (c) => {
     })}
     ${of('studio').length || admin ? `<div class="sec-title">Studio news</div>
       ${feed(of('studio'), admin ? 'Nothing general yet.' : '')}` : ''}
+    <div class="reach">
+      <div class="reach-h">Talk to the studio</div>
+      <div class="reach-s">Tell us what you need and we answer you inside the app.</div>
+      <div class="reach-btns">
+        <button class="reach-btn dress" onclick="askStudio('dress')">
+          <span class="rb-ic">👗</span><span class="rb-t">Book a dress</span><span class="rb-h">Appointment or fitting</span></button>
+        <button class="reach-btn course" onclick="askStudio('course')">
+          <span class="rb-ic">🎓</span><span class="rb-t">Ask about the courses</span><span class="rb-h">Rounds, fees, joining</span></button>
+      </div>
+      <button class="btn sec" style="margin-top:10px" onclick="go('${['admin', 'manager', 'staff'].includes(state.user.role) ? 'chats' : 'help'}')">All my conversations</button>
+    </div>
     </div>`;
 };
 function renderDaliaPost(p, admin) {
@@ -1618,3 +1633,45 @@ window.togglePerm = async (role, page, currentlyHidden) => {
   await PUT('/api/permissions', { role, page, visible: currentlyHidden ? 1 : 0 });
   toast('Updated'); go('permissions');
 };
+
+
+/* ============ CUSTOMER SERVICE — the studio's inbox ============ */
+PAGES.chats = async (c) => {
+  const { threads } = await GET('/api/chats');
+  window._chatsRefresh = () => go('chats');
+  const groups = [
+    { key: 'dress', name: 'Daliessa', kind: 'Couture', c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
+      blurb: 'Bookings, fittings and gown questions' },
+    { key: 'course', name: 'Dalia Bassel', kind: 'Academy', c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
+      blurb: 'Rounds, fees and joining the course' },
+    { key: 'general', name: 'Visitors', kind: 'General', c1: '#0f766e', c2: '#5eead4', glow: '15,118,110',
+      blurb: 'Everything else that comes in' },
+  ];
+  const total = threads.reduce((a, t) => a + (t.unread || 0), 0);
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' + title('Customer service', '') +
+    `<div class="card"><div class="nm serif" style="font-size:17px">${total ? `${total} new message${total === 1 ? '' : 's'}` : 'Nothing new'}</div>
+      <div class="sub muted" style="margin-top:4px">${threads.length} conversation${threads.length === 1 ? '' : 's'} in total</div></div>
+    ${groups.map((g) => {
+      const list = threads.filter((t) => (t.topic || 'general') === g.key);
+      const unread = list.reduce((a, t) => a + (t.unread || 0), 0);
+      return brandGroup({
+        name: g.name, kind: g.kind, c1: g.c1, c2: g.c2, glow: g.glow,
+        summary: `${list.length} conversation${list.length === 1 ? '' : 's'}${unread ? ` · ${unread} new` : ''} — ${g.blurb}`,
+        content: list.length ? list.map(studioChatRow).join('') : '<div class="hint" style="padding:12px 2px">Nothing here yet</div>',
+      });
+    }).join('')}
+    </div>`;
+  if (window._openChatAfter) { const id = window._openChatAfter; window._openChatAfter = null; openChat(id); }
+};
+
+function studioChatRow(t) {
+  const m = (window.TOPIC_META || {})[t.topic] || { icon: '✦' };
+  return `<div class="chat-row studio" onclick="openChat(${t.id})">
+    <span class="ic">${esc(initials(t.user_name))}</span>
+    <span class="txt">
+      <span class="nm">${esc(t.user_name)} <span class="badge">${esc(roleLabel(t.user_role))}</span>${t.status === 'closed' ? ' <span class="badge ok">handled</span>' : ''}</span>
+      <span class="meta">${t.last_from_studio ? '↩ ' : ''}${esc((t.last_body || '').slice(0, 62) || 'No messages yet')}</span>
+      <span class="when">${esc(t.subject || '')}${t.subject ? ' · ' : ''}${dt(t.last_at)}</span></span>
+    ${t.unread ? `<span class="chat-badge">${t.unread}</span>` : '<span class="chev">›</span>'}
+  </div>`;
+}
