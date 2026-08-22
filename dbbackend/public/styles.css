@@ -710,3 +710,28 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .dpane.on{display:block}
 .dpanes{padding-top:4px}
 .dpane > .sec-title:first-child{margin-top:14px}
+
+/* ===== A dress on its own screen ===== */
+.home-lux .dress-head{border-radius:19px;overflow:hidden;border:1px solid var(--line);margin-bottom:4px;
+  background:rgba(255,255,255,.8);box-shadow:var(--shadow-sm);
+  backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
+  animation:rise .4s ease both}
+.home-lux .dh-photo{aspect-ratio:16/10;background-size:cover;background-position:center;cursor:pointer;background-color:var(--soft)}
+.home-lux .dh-photo.dh-none{display:flex;align-items:center;justify-content:center;font-size:44px;cursor:default}
+.home-lux .dh-body{padding:16px 16px 17px}
+.home-lux .dh-name{font-family:var(--serif);font-size:23px;font-weight:700;letter-spacing:.4px;color:var(--ink)}
+.home-lux .dh-sub{font-size:12.5px;color:var(--muted);font-weight:600;margin-top:6px}
+.home-lux .dh-note{font-size:14px;color:#3a3040;margin-top:9px;line-height:1.6}
+/* the tab bar on a page, not in a sheet */
+.home-lux .dtabs{margin:14px 0 0;padding:0 0 12px}
+.home-lux .dpanes.card{padding:4px 15px 17px;margin-top:12px}
+
+/* the consultation brief */
+.brief-card{border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin:12px 0 4px;
+  background:linear-gradient(150deg,rgba(255,255,255,.9),rgba(243,238,252,.7))}
+.bf-head{font-size:10px;letter-spacing:3px;text-transform:uppercase;font-weight:700;color:var(--purple-d);margin-bottom:9px}
+.bf-row{display:flex;gap:12px;justify-content:space-between;align-items:baseline;
+  padding:6px 0;border-bottom:1px solid var(--line)}
+.bf-row:last-child{border-bottom:none}
+.bf-k{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:700;flex:0 0 auto}
+.bf-v{font-size:13.5px;font-weight:700;color:var(--ink);text-align:end}

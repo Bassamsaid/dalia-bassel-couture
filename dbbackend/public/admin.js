@@ -1061,14 +1061,27 @@ window.addDress = () => {
     { name: 'cover_image', label: 'Dress photo', type: 'image' },
   ], async (d) => { await POST('/api/dresses', d); toast('Booked'); go('dresses'); });
 };
-window.openDress = (id) => {
+/* Opening a dress leaves the list and goes to its own screen. */
+window.openDress = (id) => { window._dressId = id; go('dress'); };
+
+PAGES.dress = async (c) => {
+  const id = window._dressId;
+  if (!id) return go('dresses');
+  // arriving straight from a notification or a refresh: fetch what the list would have held
+  if (!window._dresses || !window._dresses.some((x) => x.id === id)) {
+    const [dresses, allUsers] = await Promise.all([GET('/api/dresses'), GET('/api/users')]);
+    window._dresses = dresses;
+    window._dressRef = { customers: allUsers.filter((u) => u.role === 'customer'),
+      staff: allUsers.filter((u) => u.role === 'staff' || u.role === 'manager') };
+  }
   const d = window._dresses.find((x) => x.id === id);
+  if (!d) return go('dresses');
   const staff = (window._dressRef && window._dressRef.staff) || [];
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: read-only
   const isAdmin = state.user.role === 'admin';
   const ro = canEdit ? '' : ' readonly';
   const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
-
+  const stCls = { open: 'warn', in_progress: '', delivered: 'ok' };
   const pane = (key, html) => `<div class="dpane" data-pane="${key}">${html}</div>`;
 
   const details = pane('details', `
@@ -1093,14 +1106,15 @@ window.openDress = (id) => {
     <button class="btn sec" onclick="openMeasurements(${id})">📐 Open the measurement sheet</button>`);
 
   const photos = pane('photos', `
-    <div class="sec-title">Dress photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
+    ${d.images.length ? gallery(d.images.map((im) => ({ file: im.image, kind: 'image' }))) : ''}
+    <div class="sec-title">All photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
     <div class="dphotos" id="dphotos_${id}">${d.images.map((im, i) => `<div class="dphoto" data-id="${im.id}">
       <img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
       ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
       ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
     ${canEdit ? `<button class="btn ghost sm" style="margin-top:10px" onclick="addDressImg(${id})">＋ Photo</button>` : ''}`);
 
-  const moneyPane = isAdmin || canEdit ? pane('money', `
+  const moneyPane = canEdit ? pane('money', `
     ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
       <input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" />
       <div class="sec-title">Pricing & deposits 💰</div>
@@ -1111,10 +1125,11 @@ window.openDress = (id) => {
         ${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}
       </div>
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
-      <button class="btn sec sm" style="margin-top:6px" onclick="addDressPayment(${id})">＋ Add payment / deposit</button>` : ''}
-    ${canEdit ? `<div class="sec-title">Materials for this dress 🧵</div>
-      <div id="dmat_${id}"><div class="hint">Loading…</div></div>
-      <button class="btn sec sm" style="margin-top:6px" onclick="closeModal();newPurchase(${id})">＋ Add material purchase</button>` : ''}`) : '';
+      <button class="btn sec sm" style="margin-top:6px" onclick="addDressPayment(${id})">＋ Add payment / deposit</button>` : ''}`) : '';
+
+  const materials = canEdit ? pane('materials', `
+    <div id="dmat_${id}"><div class="hint">Loading…</div></div>
+    <button class="btn sec sm" style="margin-top:10px" onclick="newPurchase(${id})">＋ Add material purchase</button>`) : '';
 
   const client = pane('client', `
     <div class="sec-title">Fittings</div>
@@ -1127,27 +1142,40 @@ window.openDress = (id) => {
     <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 Send an update / photo to the client</button>`);
 
   const tabs = [
-    ['details', '📋', 'Details'],
-    ['measure', '📐', 'Measurements'],
+    ['details', '📋', 'Client info'],
     ['photos', '📷', `Photos${d.images.length ? ' (' + d.images.length + ')' : ''}`],
-    ...(moneyPane ? [['money', '💰', 'Money']] : []),
+    ['measure', '📐', 'Measurements'],
+    ...(moneyPane ? [['money', '💰', 'Fees']] : []),
+    ...(materials ? [['materials', '🧵', 'Purchases']] : []),
     ['client', '💬', `Client${d.fittings.length ? ' (' + d.fittings.length + ')' : ''}`],
   ];
   const firstTab = tabs.some(([k]) => k === window._dressTab) ? window._dressTab : 'details';
 
-  modal(`<h3>${esc(d.customer_name)}</h3>
-    <div class="sub muted" style="margin-top:-8px">${d.delivery_date ? 'Delivery ' + dt(d.delivery_date) : 'No delivery date'} · ${stEn[d.status] || d.status}</div>
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
+    `<div class="dress-head">
+      ${d.cover_image ? `<div class="dh-photo" style="background-image:url('/uploads/${esc(d.cover_image)}')" onclick="dressTab(${id},'photos')"></div>`
+        : '<div class="dh-photo dh-none">👗</div>'}
+      <div class="dh-body">
+        <div class="dh-name">${esc(d.customer_name)}</div>
+        <div class="dh-sub">${d.delivery_date ? 'Delivery ' + dt(d.delivery_date) : 'No delivery date'}
+          · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
+        ${d.note ? `<div class="dh-note">${esc(d.note)}</div>` : ''}
+        <div class="dh-sub">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}</div>
+      </div>
+    </div>
     <div class="dtabs" id="dtabs_${id}">
       ${tabs.map(([k, ic, label]) => `<button class="dtab${k === firstTab ? ' on' : ''}" data-tab="${k}" onclick="dressTab(${id},'${k}')">
         <span class="dtab-ic">${ic}</span>${esc(label)}</button>`).join('')}
     </div>
-    <div class="dpanes" id="dpanes_${id}">${details}${measure}${photos}${moneyPane}${client}</div>`);
+    <div class="dpanes card" id="dpanes_${id}">${details}${photos}${measure}${moneyPane}${materials}${client}</div>
+    </div>`;
   dressTab(id, firstTab);
   if (canEdit) wireDressPhotos(id);
   loadDressUpdates(id);
   if (canEdit) loadDressMaterials(id);
   if (isAdmin) loadDressPayments(id);
 };
+
 /* switch tab: panes stay in the DOM so their loaders keep working */
 window.dressTab = (id, key) => {
   window._dressTab = key;
@@ -1221,7 +1249,7 @@ window.saveDressDetails = async (id) => {
   const priceEl = document.getElementById('dPrice_' + id);
   if (priceEl) body.price = Number(priceEl.value) || 0;
   await PUT('/api/dresses/' + id, body);
-  toast('Changes saved'); closeModal(); window._dresses = await GET('/api/dresses'); go('dresses');
+  toast('Changes saved'); refreshDress(id);
 };
 
 /* ---- Dress measurements editor + printable PDF sheet ---- */
@@ -1536,8 +1564,8 @@ window.delFitting = async (fid, id) => { await DEL('/api/fittings/' + fid); refr
 window.addDressImg = (id) => pickImages(async (b64) => { await POST(`/api/dresses/${id}/images`, { image: b64 }); toast('Photo added'); refreshDress(id); });
 window.delDress = (id) => confirmDel('Delete dress booking?', async () => { await DEL('/api/dresses/' + id); closeModal(); go('dresses'); });
 async function refreshDress(id) { window._dresses = await GET('/api/dresses'); openDress(id); }
-window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); window._dresses = await GET('/api/dresses'); go('dresses'); };
-window.saveDressStatus = async (id) => { await PUT('/api/dresses/' + id, { status: document.getElementById('statSel_' + id).value }); toast('Saved'); window._dresses = await GET('/api/dresses'); go('dresses'); };
+window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); refreshDress(id); };
+window.saveDressStatus = async (id) => { await PUT('/api/dresses/' + id, { status: document.getElementById('statSel_' + id).value }); toast('Saved'); refreshDress(id); };
 
 /* ============ STAFF HR ============ */
 PAGES.staff = async (c) => {
@@ -1811,7 +1839,7 @@ function studioChatRow(t) {
     <span class="ic">${esc(initials(t.user_name))}</span>
     <span class="txt">
       <span class="nm">${esc(t.user_name)} <span class="badge">${esc(roleLabel(t.user_role))}</span>${t.status === 'closed' ? ' <span class="badge ok">handled</span>' : ''}</span>
-      <span class="meta">${t.last_from_studio ? '↩ ' : ''}${esc((t.last_body || '').slice(0, 62) || 'No messages yet')}</span>
+      <span class="meta">${t.brief_line ? esc(t.brief_line) : (t.last_from_studio ? '↩ ' : '') + esc((t.last_body || '').slice(0, 62) || 'No messages yet')}</span>
       <span class="when">${esc(t.subject || '')}${t.subject ? ' · ' : ''}${dt(t.last_at)}</span></span>
     ${t.unread ? `<span class="chat-badge">${t.unread}</span>` : '<span class="chev">›</span>'}
   </div>`;

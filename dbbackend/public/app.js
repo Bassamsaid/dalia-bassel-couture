@@ -752,8 +752,9 @@ PAGES.notifications = async (c) => {
 window.openNotif = (page, id) => {
   if (!page) return;
   if (page === 'dress') {
+    if (['admin', 'manager', 'staff'].includes(state.user.role)) { window._dressId = id; return go('dress'); }
     window._openDressAfter = id;
-    go(['admin', 'manager'].includes(state.user.role) ? 'dresses' : (state.user.role === 'staff' ? 'dresses' : 'mydresses'));
+    go('mydresses');
     return;
   }
   if (page === 'homework' && id) window._openTaskAfter = id; // land on that task's hand-in list

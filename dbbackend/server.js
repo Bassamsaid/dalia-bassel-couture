@@ -1244,7 +1244,9 @@ const isStudio = (u) => ['admin', 'manager', 'staff'].includes(u.role);
 
 function threadRow(t) {
   const last = db.prepare('SELECT body,from_studio,created_at FROM chat_messages WHERE thread_id=? ORDER BY id DESC LIMIT 1').get(t.id);
-  return { ...t, last_body: last ? last.body : null, last_from_studio: last ? last.from_studio : 0 };
+  let brief = null; try { brief = t.brief ? JSON.parse(t.brief) : null; } catch (e) {}
+  return { ...t, brief, brief_line: briefLine(brief),
+    last_body: last ? last.body : null, last_from_studio: last ? last.from_studio : 0 };
 }
 
 // Studio sees every thread; anyone else sees only their own.
@@ -1263,17 +1265,34 @@ api['GET /api/chats'] = async (req, res, user) => {
 };
 
 // Start an enquiry. The first message goes with it.
+// A one-line read of a dress brief, for the inbox and the notification
+function briefLine(brief) {
+  if (!brief) return '';
+  const bits = [
+    { bridal: 'Bridal gown', evening: 'Evening gown' }[brief.garment],
+    { first: 'first look', second: 'second look', both: 'both looks' }[brief.look],
+    brief.event_date,
+    { openair: 'open air', indoor: 'indoor venue' }[brief.venue],
+    { day: 'daytime', night: 'evening' }[brief.daytime],
+  ].filter(Boolean);
+  return bits.join(' · ');
+}
 api['POST /api/chats'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
   const b = await readBody(req);
   const topic = CHAT_TOPICS.includes(b.topic) ? b.topic : 'general';
   const body = (b.body || '').trim();
-  if (!body) return send(res, 400, { error: 'Write your message first' });
-  const tid = db.prepare('INSERT INTO chat_threads (user_id,topic,subject) VALUES (?,?,?)').run(user.id, topic, b.subject || null).lastInsertRowid;
-  db.prepare('INSERT INTO chat_messages (thread_id,user_id,from_studio,body,image,seen_by_user) VALUES (?,?,0,?,?,1)').run(tid, user.id, body, maybeImage(b.image));
+  const brief = b.brief && typeof b.brief === 'object' ? b.brief : null;
+  if (!body && !brief) return send(res, 400, { error: 'Write your message first' });
+  const media = (b.media || []).filter((m) => m && m.file).slice(0, 12);
+  const tid = db.prepare('INSERT INTO chat_threads (user_id,topic,subject,brief) VALUES (?,?,?,?)')
+    .run(user.id, topic, b.subject || null, brief ? JSON.stringify(brief) : null).lastInsertRowid;
+  db.prepare('INSERT INTO chat_messages (thread_id,user_id,from_studio,body,image,media,seen_by_user) VALUES (?,?,0,?,?,?,1)')
+    .run(tid, user.id, body || null, maybeImage(b.image), media.length ? JSON.stringify(media) : null);
+  const line = briefLine(brief);
   notifyRoles(['admin', 'manager', 'staff'], {
     type: 'chat', title: `${user.name} asks about ${topicWord[topic]}`,
-    body: body.slice(0, 90), link_page: 'chats', link_id: tid, actor_name: user.name,
+    body: (line || body).slice(0, 90), link_page: 'chats', link_id: tid, actor_name: user.name,
   }, user.id);
   send(res, 200, { id: tid });
 };
@@ -1288,6 +1307,8 @@ api['GET /api/chats/:id'] = async (req, res, user, url, params) => {
   else db.prepare('UPDATE chat_messages SET seen_by_user=1 WHERE thread_id=? AND from_studio=1').run(t.id);
   const messages = db.prepare(`SELECT m.*, u.name author_name FROM chat_messages m JOIN users u ON u.id=m.user_id
     WHERE m.thread_id=? ORDER BY m.id`).all(t.id);
+  messages.forEach((m) => { try { m.media = m.media ? JSON.parse(m.media) : []; } catch (e) { m.media = []; } });
+  try { t.brief = t.brief ? JSON.parse(t.brief) : null; } catch (e) { t.brief = null; }
   send(res, 200, { thread: t, messages, studio: isStudio(user) });
 };
 
@@ -1300,9 +1321,10 @@ api['POST /api/chats/:id/messages'] = async (req, res, user, url, params) => {
   const b = await readBody(req);
   const body = (b.body || '').trim();
   const img = maybeImage(b.image);
-  if (!body && !img) return send(res, 400, { error: 'Write a message first' });
-  db.prepare('INSERT INTO chat_messages (thread_id,user_id,from_studio,body,image,seen_by_studio,seen_by_user) VALUES (?,?,?,?,?,?,?)')
-    .run(t.id, user.id, studio ? 1 : 0, body || null, img, studio ? 1 : 0, studio ? 0 : 1);
+  if (!body && !img && !(b.media || []).length) return send(res, 400, { error: 'Write a message first' });
+  const media = (b.media || []).filter((m) => m && m.file).slice(0, 12);
+  db.prepare('INSERT INTO chat_messages (thread_id,user_id,from_studio,body,image,media,seen_by_studio,seen_by_user) VALUES (?,?,?,?,?,?,?,?)')
+    .run(t.id, user.id, studio ? 1 : 0, body || null, img, media.length ? JSON.stringify(media) : null, studio ? 1 : 0, studio ? 0 : 1);
   db.prepare("UPDATE chat_threads SET last_at=datetime('now'), status='open' WHERE id=?").run(t.id);
   if (studio) {
     notify(t.user_id, { type: 'chat', title: `Dalia Bassel replied`, body: (body || 'Sent a photo').slice(0, 90), link_page: 'help', link_id: t.id, actor_name: user.name });

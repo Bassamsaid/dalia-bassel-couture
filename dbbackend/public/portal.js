@@ -482,21 +482,103 @@ function chatRowHtml(t) {
     <span class="rail"></span>
     <span class="ic">${m.icon}</span>
     <span class="txt"><span class="nm">${esc(t.subject || m.label)}${t.status === 'closed' ? ' <span class="badge">closed</span>' : ''}</span>
-      <span class="meta">${esc((t.last_body || '').slice(0, 60) || 'No messages yet')}</span>
+      <span class="meta">${esc(t.brief_line || (t.last_body || '').slice(0, 60) || 'No messages yet')}</span>
       <span class="when">${dt(t.last_at)}</span></span>
     ${t.unread ? `<span class="chat-badge">${t.unread}</span>` : '<span class="chev">›</span>'}
   </div>`;
 }
 
+/* A dress enquiry is a consultation brief — everything the atelier needs
+   before the first fitting. Courses and general questions stay a note. */
+const BRIEF = {
+  garment: ['What are we making?', [['bridal', '👰 Bridal gown'], ['evening', '✨ Evening gown']]],
+  look:    ['Which look?', [['first', 'First look — the ceremony'], ['second', 'Second look — the reception'], ['both', 'Both looks']]],
+  venue:   ['Where is it held?', [['openair', '🌤 Open air'], ['indoor', '🏛 Indoor venue']]],
+  daytime: ['Time of day', [['day', '☀️ Daytime'], ['night', '🌙 Evening']]],
+  role:    ['Your role on the day', [['bride', 'The bride'], ['bride_sister', "Bride's sister"], ['groom_sister', "Groom's sister"],
+             ['bride_friend', "Bride's friend"], ['bridesmaid', 'Bridesmaid'], ['other', 'Other']]],
+};
 window.newChat = (topic) => {
+  if (topic === 'dress') return dressBrief();
   const m = TOPIC_META[topic] || TOPIC_META.general;
   modal(`<h3>${m.icon} ${m.label}</h3>
     <p class="hint" style="margin-top:-6px">${esc(m.hint)}</p>
     <label>What do you need?</label>
-    <input id="cSub" placeholder="${topic === 'dress' ? 'Book a fitting' : topic === 'course' ? 'Join the next round' : 'A question'}" />
+    <input id="cSub" placeholder="${topic === 'course' ? 'Join the next round' : 'A question'}" />
     <label>Your message</label>
     <textarea id="cBody" style="min-height:110px" placeholder="Write here..."></textarea>
     <button class="btn" style="margin-top:12px" id="cSend" onclick="sendNewChat('${topic}')">Send to the studio</button>`);
+};
+function briefSelect(key) {
+  const [label, opts] = BRIEF[key];
+  return `<label>${esc(label)}</label>
+    <select id="b_${key}"${key === 'garment' ? ' onchange="briefLookToggle()"' : ''}>
+      ${opts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}
+    </select>`;
+}
+window.dressBrief = () => {
+  window._briefMedia = [];
+  modal(`<h3>👗 Your dress</h3>
+    <p class="hint" style="margin-top:-6px">Tell us about the occasion and we will come back with a date for your first consultation.</p>
+    <label>When is the occasion?</label>
+    <input id="b_event_date" type="date" />
+    ${briefSelect('garment')}
+    <div id="lookWrap">${briefSelect('look')}</div>
+    ${briefSelect('venue')}
+    ${briefSelect('daytime')}
+    ${briefSelect('role')}
+    <label>Where are you based?</label>
+    <input id="b_area" placeholder="Area or district — so we can plan the fittings" />
+    <label>Inspiration</label>
+    <p class="hint" style="margin-top:-2px">Photos of what you have in mind — add as many as you like.</p>
+    <button class="btn ghost sm" onclick="briefAdd()">＋ Add photos</button>
+    <div class="up-bar hidden" id="bUp"><span id="bUpFill"></span></div>
+    <div id="bMedia" class="scan-grid" style="margin-top:12px"></div>
+    <label>Or a link</label>
+    <input id="b_link" type="url" inputmode="url" placeholder="Pinterest, Instagram, a saved post..." />
+    <label>Anything else we should know?</label>
+    <textarea id="cBody" style="min-height:90px" placeholder="Fabrics you love, a colour, a deadline..."></textarea>
+    <button class="btn" style="margin-top:14px" id="cSend" onclick="sendDressBrief()">Send to the studio</button>`);
+  briefLookToggle(); briefPaint();
+};
+/* the look question only makes sense for a bridal gown */
+window.briefLookToggle = () => {
+  const w = $('#lookWrap'); if (!w) return;
+  w.style.display = $('#b_garment').value === 'bridal' ? '' : 'none';
+};
+window.briefAdd = () => {
+  const bar = $('#bUp'), fill = $('#bUpFill');
+  pickMedia((m) => { window._briefMedia.push(m); if (bar) bar.classList.add('hidden'); briefPaint(); },
+    (pct) => { if (bar && fill) { bar.classList.remove('hidden'); fill.style.width = Math.round(pct * 100) + '%'; } });
+};
+window.briefDel = (i) => { window._briefMedia.splice(i, 1); briefPaint(); };
+function briefPaint() {
+  const g = $('#bMedia'); if (!g) return;
+  g.innerHTML = window._briefMedia.map((m, i) => `<div class="scan-cell">
+      ${m.kind === 'video' ? `<video src="/uploads/${esc(m.file)}" muted playsinline preload="metadata"></video><span class="scan-play">▶</span>`
+        : `<img src="/uploads/${esc(m.file)}" alt=""/>`}
+      <button class="scan-del" onclick="briefDel(${i})" aria-label="Remove">✕</button>
+    </div>`).join('') || '<div class="scan-empty">No photos yet — optional</div>';
+}
+window.sendDressBrief = async () => {
+  const garment = $('#b_garment').value;
+  const brief = {
+    event_date: $('#b_event_date').value || null,
+    garment,
+    look: garment === 'bridal' ? $('#b_look').value : null,
+    venue: $('#b_venue').value,
+    daytime: $('#b_daytime').value,
+    role: $('#b_role').value,
+    area: $('#b_area').value.trim() || null,
+    link: $('#b_link').value.trim() || null,
+  };
+  const subject = (garment === 'bridal' ? 'Bridal gown' : 'Evening gown') + (brief.event_date ? ' · ' + brief.event_date : '');
+  const btn = $('#cSend'); btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await POST('/api/chats', { topic: 'dress', subject, brief,
+      body: $('#cBody').value.trim(), media: window._briefMedia });
+    closeModal(); toast('Sent ✓'); window._openChatAfter = r.id; go('help');
+  } catch (e) { btn.disabled = false; btn.textContent = 'Send to the studio'; toast(e.message); }
 };
 window.sendNewChat = async (topic) => {
   const body = $('#cBody').value.trim();
@@ -508,15 +590,41 @@ window.sendNewChat = async (topic) => {
   } catch (e) { btn.disabled = false; btn.textContent = 'Send to the studio'; toast(e.message); }
 };
 
+const BRIEF_WORD = {
+  garment: { bridal: 'Bridal gown', evening: 'Evening gown' },
+  look: { first: 'First look — ceremony', second: 'Second look — reception', both: 'Both looks' },
+  venue: { openair: 'Open air', indoor: 'Indoor venue' },
+  daytime: { day: 'Daytime', night: 'Evening' },
+  role: { bride: 'The bride', bride_sister: "Bride's sister", groom_sister: "Groom's sister",
+    bride_friend: "Bride's friend", bridesmaid: 'Bridesmaid', other: 'Other' },
+};
+/* the consultation brief, read at a glance */
+function briefCard(b) {
+  if (!b) return '';
+  const row = (k, v) => v ? `<div class="bf-row"><span class="bf-k">${esc(k)}</span><span class="bf-v">${esc(v)}</span></div>` : '';
+  return `<div class="brief-card">
+    <div class="bf-head">The brief</div>
+    ${row('Occasion', b.event_date ? dt(b.event_date) : null)}
+    ${row('Garment', BRIEF_WORD.garment[b.garment])}
+    ${row('Look', BRIEF_WORD.look[b.look])}
+    ${row('Venue', BRIEF_WORD.venue[b.venue])}
+    ${row('Time of day', BRIEF_WORD.daytime[b.daytime])}
+    ${row('Her role', BRIEF_WORD.role[b.role])}
+    ${row('Based in', b.area)}
+    ${b.link ? `<div class="bf-row"><span class="bf-k">Inspiration</span>
+      <a class="bf-v" href="${esc(b.link)}" target="_blank" rel="noopener">Open the link ↗</a></div>` : ''}
+  </div>`;
+}
 window.openChat = async (id) => {
   const r = await GET('/api/chats/' + id);
   const m = TOPIC_META[r.thread.topic] || TOPIC_META.general;
-  const who = r.studio ? r.thread.user_name : 'Dalia Bassel';
   modal(`<h3>${m.icon} ${esc(r.thread.subject || m.label)}</h3>
     <div class="sub muted" style="margin-top:-8px">${esc(r.studio ? `${r.thread.user_name} · ${roleLabel(r.thread.user_role)}` : 'Dalia Bassel studio')}</div>
+    ${briefCard(r.thread.brief)}
     <div class="chat-log" id="chatLog">${r.messages.map((x) => `
       <div class="upd ${x.from_studio ? 'upd-studio' : 'upd-client'}">
         <div class="upd-h">${esc(x.from_studio ? (r.studio ? x.author_name : 'Dalia Bassel') : (r.studio ? x.author_name : 'You'))} · ${dt(x.created_at)}</div>
+        ${(x.media || []).length ? gallery(x.media) : ''}
         ${x.image ? `<img class="thumb" style="aspect-ratio:4/3;margin:4px 0" src="/uploads/${esc(x.image)}" onclick="lightbox('/uploads/${esc(x.image)}')"/>` : ''}
         ${x.body ? `<div class="upd-b">${esc(x.body)}</div>` : ''}
       </div>`).join('')}</div>
