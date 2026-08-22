@@ -471,6 +471,48 @@ window.liveSearch = (q, sel) => {
 function title(t, icon) { return `<div class="page-title">${icon || ''} ${esc(t)}</div>`; }
 function empty(msg, em = '—') { return `<div class="empty"><div class="em">${em}</div>${esc(msg)}</div>`; }
 
+/* ---------- animated dress watermark (sits behind a screen's content) ---------- */
+const DRESS_PATH = 'M68 34 L100 60 L132 34 C140 62 124 100 118 130 C152 172 180 240 184 286 '
+  + 'C150 300 50 300 16 286 C20 240 48 172 82 130 C76 100 60 62 68 34 Z';
+function dressWatermark() {
+  return `<div class="dress-wm" aria-hidden="true">
+    <svg viewBox="0 0 200 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs><linearGradient id="dwmG" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#7c3aed"/><stop offset=".5" stop-color="#a24fd6"/><stop offset="1" stop-color="#e24a8b"/>
+      </linearGradient></defs>
+      <path class="dwm-fill" d="${DRESS_PATH}" fill="url(#dwmG)"/>
+      <path class="dwm-stroke" d="${DRESS_PATH}" stroke="url(#dwmG)" stroke-width="1.5" stroke-linejoin="round" stroke-opacity=".5"/>
+      <g class="dwm-detail" stroke="url(#dwmG)" stroke-width="1.1" stroke-linecap="round" stroke-opacity=".34">
+        <path d="M70 37 Q100 45 130 37"/>
+        <path d="M82 130 Q100 137 118 130"/>
+        <path d="M100 137 L100 290"/>
+        <path d="M92 141 Q76 212 56 288"/>
+        <path d="M108 141 Q124 212 144 288"/>
+      </g>
+    </svg>
+  </div>`;
+}
+
+/* ---------- count-up for stat numbers: <div class="n" data-count="70000" data-fmt="money"> ---------- */
+function runCounters(root) {
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  (root || document).querySelectorAll('[data-count]').forEach((el) => {
+    const to = Number(el.dataset.count || 0);
+    const fmt = el.dataset.fmt === 'money' ? money : (v) => Number(v).toLocaleString('en-US');
+    if (reduce || !to) { el.textContent = fmt(to); return; }
+    const dur = 900; let t0 = null;
+    const step = (t) => {
+      if (t0 === null) t0 = t;
+      const p = Math.min(1, (t - t0) / dur);
+      el.textContent = fmt(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
+window.dressWatermark = dressWatermark;
+window.runCounters = runCounters;
+
 const PAGES = {};
 
 /* ---------- printable payment receipt (students + clients) ---------- */

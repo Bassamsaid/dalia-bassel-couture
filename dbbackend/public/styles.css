@@ -320,3 +320,62 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .fp-hero .hero-ov .ttl{color:#fff;margin:0}
 .fp-hero .hero-ov .sub2{color:#fff;opacity:.9;margin:2px 0 0}
 .fp-text .ttl{font-size:22px}
+
+/* ===== Home: animated dress watermark + luxe motion ===== */
+@keyframes wmSway{0%,100%{transform:rotate(-1.6deg) translateY(0)}50%{transform:rotate(1.6deg) translateY(-12px)}}
+@keyframes wmDraw{to{stroke-dashoffset:0}}
+@keyframes wmGlow{0%,100%{opacity:.1}50%{opacity:.16}}
+@keyframes tileIn{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes tileShine{0%{left:-75%}17%{left:135%}100%{left:135%}}
+@keyframes emFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes lineGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* the watermark sits behind the whole screen, under topbar/bottomnav */
+.dress-wm{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;opacity:0;animation:fadeIn 1s ease .15s forwards}
+.dress-wm svg{width:min(80vw,410px);height:auto;transform-origin:50% 5%;
+  animation:wmSway 10s ease-in-out infinite;filter:drop-shadow(0 20px 44px rgba(124,58,237,.12))}
+.dress-wm .dwm-fill{animation:wmGlow 7s ease-in-out infinite}
+.dress-wm .dwm-stroke{stroke-dasharray:1000;stroke-dashoffset:1000;animation:wmDraw 2.8s cubic-bezier(.3,.7,.3,1) .3s forwards}
+.dress-wm .dwm-detail{opacity:0;animation:fadeIn 1.1s ease 1.7s forwards}
+
+/* content floats above the watermark, frosted so the dress reads through */
+.home-lux{position:relative;z-index:1}
+.home-lux .card,.home-lux .tile{background:rgba(255,255,255,.72);
+  backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2)}
+.home-lux .stat{background:linear-gradient(135deg,rgba(255,255,255,.8) 0%,rgba(243,238,252,.6) 100%);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.home-lux .sec-title::after{content:"";flex:1;height:1px;transform-origin:left;
+  background:linear-gradient(90deg,var(--line),rgba(233,228,242,0));animation:lineGrow .7s ease .2s both}
+
+/* menu tiles: staggered entrance, light sweep, floating icon */
+.home-lux .tiles>.tile:nth-child(1){--d:.05s}
+.home-lux .tiles>.tile:nth-child(2){--d:.11s}
+.home-lux .tiles>.tile:nth-child(3){--d:.17s}
+.home-lux .tiles>.tile:nth-child(4){--d:.23s}
+.home-lux .tiles>.tile:nth-child(5){--d:.29s}
+.home-lux .tiles>.tile:nth-child(6){--d:.35s}
+.home-lux .tile{position:relative;overflow:hidden;
+  animation:tileIn .55s cubic-bezier(.2,.8,.2,1) var(--d,0s) both}
+.home-lux .tile::after{content:"";position:absolute;top:0;left:-75%;width:42%;height:100%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.85),transparent);transform:skewX(-18deg);
+  animation:tileShine 7s ease-in-out calc(var(--d,0s) + 1.4s) infinite}
+.home-lux .tile .em{transition:background .25s,transform .25s,box-shadow .25s;
+  animation:emFloat 3.8s ease-in-out calc(var(--d,0s) * 8) infinite}
+.home-lux .tile:hover{border-color:transparent;box-shadow:0 16px 32px rgba(124,58,237,.18)}
+.home-lux .tile:hover .em{background:var(--grad);transform:scale(1.08);box-shadow:0 8px 18px rgba(124,58,237,.3)}
+.home-lux .tile:active .em{transform:scale(.94)}
+
+/* stat cards ride in with the same rhythm */
+.home-lux .grid>.stat:nth-child(1){--d:.04s}
+.home-lux .grid>.stat:nth-child(2){--d:.1s}
+.home-lux .grid>.stat:nth-child(3){--d:.16s}
+.home-lux .grid>.stat{animation:tileIn .5s cubic-bezier(.2,.8,.2,1) var(--d,0s) both}
+
+@media (prefers-reduced-motion:reduce){
+  .dress-wm,.dress-wm *,.home-lux .tile,.home-lux .tile::after,.home-lux .tile .em,
+  .home-lux .grid>.stat,.home-lux .sec-title::after{animation:none!important}
+  .dress-wm{opacity:1}
+  .dress-wm .dwm-stroke{stroke-dashoffset:0}
+  .dress-wm .dwm-detail{opacity:1}
+}

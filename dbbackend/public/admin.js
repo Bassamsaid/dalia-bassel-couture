@@ -106,12 +106,12 @@ PAGES.home_admin = async (c) => {
   const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
   const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
   const dRem = dresses.reduce((a, x) => a + (x.remaining || 0), 0);
-  c.innerHTML = title('Welcome, Dalia', '') +
+  c.innerHTML = dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
     heroBanner(about, true) + `
     <div class="grid g3" style="margin-bottom:14px">
-      <div class="stat" onclick="go('members')"><div class="n">${users.length}</div><div class="l">Members</div></div>
-      <div class="stat"><div class="n">${sheet.totals.count}</div><div class="l">Students</div></div>
-      <div class="stat"><div class="n">${dresses.length}</div><div class="l">Dresses</div></div>
+      <div class="stat" onclick="go('members')"><div class="n" data-count="${users.length}">0</div><div class="l">Members</div></div>
+      <div class="stat"><div class="n" data-count="${sheet.totals.count}">0</div><div class="l">Students</div></div>
+      <div class="stat"><div class="n" data-count="${dresses.length}">0</div><div class="l">Dresses</div></div>
     </div>
     <div class="sec-title">Menu</div>
     <div class="tiles">
@@ -125,11 +125,12 @@ PAGES.home_admin = async (c) => {
     <div class="card">
       <div class="sec-title">Dresses money 👗</div>
       <div class="grid g3">
-        <div class="stat" onclick="go('dresses')"><div class="n" style="color:var(--ok)">${money(dPaid)}</div><div class="l">Deposits in</div></div>
-        <div class="stat" onclick="go('dresses')"><div class="n" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}">${money(dRem)}</div><div class="l">Remaining</div></div>
-        <div class="stat" onclick="go('dresses')"><div class="n">${money(dTotal)}</div><div class="l">Total value</div></div>
+        <div class="stat" onclick="go('dresses')"><div class="n" style="color:var(--ok)" data-count="${dPaid}" data-fmt="money">${money(0)}</div><div class="l">Deposits in</div></div>
+        <div class="stat" onclick="go('dresses')"><div class="n" style="color:${dRem ? 'var(--bad)' : 'var(--ok)'}" data-count="${dRem}" data-fmt="money">${money(0)}</div><div class="l">Remaining</div></div>
+        <div class="stat" onclick="go('dresses')"><div class="n" data-count="${dTotal}" data-fmt="money">${money(0)}</div><div class="l">Total value</div></div>
       </div>
-    </div>`;
+    </div></div>`;
+  runCounters(c);
 };
 window.markReminder = async (id) => { await PUT('/api/reminders/' + id, { done: 1 }); toast('Done'); go('home'); };
 
