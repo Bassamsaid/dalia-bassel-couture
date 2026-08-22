@@ -554,3 +554,26 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 
 /* the block's own figures, closed off by a hairline */
 .home-lux .bg-figs{border-top:1px solid var(--line);padding:14px 10px 15px;background:rgba(255,255,255,.4)}
+
+/* ===== The studio header on the Dalia page ===== */
+.home-lux .studio-head{border-radius:20px;overflow:hidden;border:1px solid var(--line);margin-bottom:18px;
+  background:rgba(255,255,255,.8);box-shadow:var(--shadow);
+  backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
+  animation:rise .45s ease both}
+.home-lux .sh-photo{aspect-ratio:16/10;background-size:cover;background-position:center;cursor:pointer}
+.home-lux .sh-body{padding:20px 18px 22px}
+.home-lux .sh-eyebrow{font-size:10px;letter-spacing:4px;text-transform:uppercase;font-weight:700;color:var(--purple-d)}
+.home-lux .sh-name{font-family:var(--serif);font-size:30px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;line-height:1.1;margin-top:8px;color:var(--ink)}
+.home-lux .sh-kind{font-size:11px;letter-spacing:3.5px;text-transform:uppercase;font-weight:700;
+  color:var(--muted);margin-top:7px}
+.home-lux .sh-intro{font-size:14.5px;line-height:1.75;color:#3a3040;margin-top:14px;white-space:pre-wrap;
+  max-width:60ch}
+.home-lux .sh-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}
+.home-lux .sh-pill{font-size:11.5px;font-weight:700;letter-spacing:.3px;padding:7px 13px;border-radius:20px;
+  background:var(--soft);color:var(--purple-d)}
+
+/* posts sitting inside a house block */
+.home-lux .bg-body{padding:14px 13px 4px}
+.home-lux .bg-body .feed-post{box-shadow:none;border-color:var(--line)}
+.home-lux .bg-body .feed-post:last-child{margin-bottom:12px}

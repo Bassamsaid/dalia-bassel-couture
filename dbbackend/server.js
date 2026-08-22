@@ -637,7 +637,7 @@ api['POST /api/dalia'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
-  const r = db.prepare('INSERT INTO dalia_posts (title,subtitle,body,image,table_data,template) VALUES (?,?,?,?,?,?)').run(b.title || null, b.subtitle || null, b.body || null, img, b.table_data ? JSON.stringify(b.table_data) : null, b.template || 'below');
+  const r = db.prepare('INSERT INTO dalia_posts (title,subtitle,body,image,table_data,template,section) VALUES (?,?,?,?,?,?,?)').run(b.title || null, b.subtitle || null, b.body || null, img, b.table_data ? JSON.stringify(b.table_data) : null, b.template || 'below', b.section || 'studio');
   notifyAll({ type: 'feed', title: '✦ New post from Dalia Bassel', body: b.title || b.subtitle || 'See the latest updates', link_page: 'dalia', link_id: r.lastInsertRowid, image: img, actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
@@ -646,7 +646,7 @@ api['PUT /api/dalia/:id'] = async (req, res, user, url, params) => {
   const b = await readBody(req); const c = db.prepare('SELECT * FROM dalia_posts WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
   const img = (b.image && b.image.startsWith('data:')) ? maybeImage(b.image) : (b.image ?? c.image);
-  db.prepare('UPDATE dalia_posts SET title=?,subtitle=?,body=?,image=?,template=? WHERE id=?').run(b.title ?? c.title, b.subtitle ?? c.subtitle, b.body ?? c.body, img, b.template ?? c.template, params.id);
+  db.prepare('UPDATE dalia_posts SET title=?,subtitle=?,body=?,image=?,template=?,section=? WHERE id=?').run(b.title ?? c.title, b.subtitle ?? c.subtitle, b.body ?? c.body, img, b.template ?? c.template, b.section ?? c.section, params.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/dalia/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dalia_posts WHERE id=?').run(params.id); send(res, 200, { ok: true }); };

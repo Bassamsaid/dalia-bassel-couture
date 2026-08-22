@@ -458,6 +458,8 @@ try { db.exec("ALTER TABLE absences ADD COLUMN status TEXT DEFAULT 'confirmed'")
 try { db.exec('ALTER TABLE users ADD COLUMN off_days TEXT'); } catch (e) { /* column exists */ } // paid weekly off-days (comma weekday names)
 try { db.exec("ALTER TABLE dalia_posts ADD COLUMN template TEXT DEFAULT 'below'"); } catch (e) { /* column exists */ } // below | side | hero | text
 try { db.exec('ALTER TABLE dalia_posts ADD COLUMN subtitle TEXT'); } catch (e) { /* column exists */ }
+// which house a post belongs to: studio (general news) | academy | couture
+try { db.exec("ALTER TABLE dalia_posts ADD COLUMN section TEXT DEFAULT 'studio'"); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE purchase_invoices ADD COLUMN vendor_id INTEGER'); } catch (e) { /* column exists */ } // link a material invoice to a vendor (unified vendor spend)
 try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch (e) { /* column exists */ } // profile photo (uploaded filename)
 // invited = the studio added this email but the person has not set a password yet.

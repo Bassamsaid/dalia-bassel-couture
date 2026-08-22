@@ -584,7 +584,7 @@ function brandGroup(o) {
       <div class="bg-kind">${esc(o.kind)}</div>
       ${o.summary ? `<div class="bg-sum">${o.summary}</div>` : ''}
     </div>
-    ${navList(o.rows, true)}
+    ${o.content !== undefined ? `<div class="bg-body">${o.content}</div>` : navList(o.rows, true)}
     ${figs ? `<div class="bg-figs"><div class="fig-row"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}
   </div>`;
 }
