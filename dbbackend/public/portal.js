@@ -621,17 +621,11 @@ window.openChat = async (id) => {
   modal(`<h3>${m.icon} ${esc(r.thread.subject || m.label)}</h3>
     <div class="sub muted" style="margin-top:-8px">${esc(r.studio ? `${r.thread.user_name} · ${roleLabel(r.thread.user_role)}` : 'Dalia Bassel studio')}</div>
     ${briefCard(r.thread.brief)}
-    <div class="chat-log" id="chatLog">${r.messages.map((x) => `
-      <div class="upd ${x.from_studio ? 'upd-studio' : 'upd-client'}">
-        <div class="upd-h">${esc(x.from_studio ? (r.studio ? x.author_name : 'Dalia Bassel') : (r.studio ? x.author_name : 'You'))} · ${dt(x.created_at)}</div>
-        ${(x.media || []).length ? gallery(x.media) : ''}
-        ${x.image ? `<img class="thumb" style="aspect-ratio:4/3;margin:4px 0" src="/uploads/${esc(x.image)}" onclick="lightbox('/uploads/${esc(x.image)}')"/>` : ''}
-        ${x.body ? `<div class="upd-b">${esc(x.body)}</div>` : ''}
-      </div>`).join('')}</div>
-    <textarea id="chatMsg" style="min-height:76px" placeholder="Write a reply..."></textarea>
-    <div class="row" style="margin-top:8px">
-      <button class="btn ghost sm" onclick="chatPic(${id})">📷 Photo</button>
-      <button class="btn" id="chatSend" onclick="sendChat(${id})">Send</button>
+    <div class="chat-log" id="chatLog">${chatBubbles(r)}</div>
+    <div class="composer">
+      <button class="comp-ic" onclick="chatPic(${id})" aria-label="Send a photo">📷</button>
+      <textarea id="chatMsg" class="comp-in" rows="1" placeholder="Message…" oninput="growComposer(this)"></textarea>
+      <button class="comp-send" id="chatSend" onclick="sendChat(${id})" aria-label="Send">↑</button>
     </div>
     ${r.studio ? `<button class="btn sec sm" style="margin-top:10px" onclick="closeThread(${id},'${r.thread.status === 'closed' ? 'open' : 'closed'}')">${r.thread.status === 'closed' ? 'Reopen' : 'Mark as handled'}</button>` : ''}`);
   const log = $('#chatLog'); if (log) log.scrollTop = log.scrollHeight;
@@ -646,3 +640,43 @@ window.sendChat = async (id) => {
   catch (e) { btn.disabled = false; toast(e.message); }
 };
 window.closeThread = async (id, status) => { await PUT('/api/chats/' + id, { status }); closeModal(); toast('Saved'); go(state.page); };
+
+
+/* ---------- chat bubbles ---------- */
+const _asDate = (s) => new Date(String(s).replace(' ', 'T') + (String(s).endsWith('Z') ? '' : 'Z'));
+const hm = (s) => { const d = _asDate(s); return isNaN(d) ? '' :
+  d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
+function dayLabel(s) {
+  const d = _asDate(s); if (isNaN(d)) return '';
+  const day = d.toISOString().slice(0, 10);
+  const t = new Date(); const todayStr = t.toISOString().slice(0, 10);
+  const y = new Date(t.getTime() - 86400000).toISOString().slice(0, 10);
+  if (day === todayStr) return 'Today';
+  if (day === y) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+function chatBubbles(r) {
+  if (!r.messages.length) return '<div class="chat-empty">No messages yet</div>';
+  let lastDay = '', out = '';
+  r.messages.forEach((x, i) => {
+    const day = String(x.created_at).slice(0, 10);
+    if (day !== lastDay) { out += `<div class="chat-day"><span>${esc(dayLabel(x.created_at))}</span></div>`; lastDay = day; }
+    const mine = r.studio ? !!x.from_studio : !x.from_studio;
+    const prev = r.messages[i - 1];
+    const sameAsPrev = prev && !!prev.from_studio === !!x.from_studio && String(prev.created_at).slice(0, 10) === day;
+    const who = x.from_studio ? (r.studio ? x.author_name : 'Dalia Bassel') : (r.studio ? x.author_name : 'You');
+    const media = (x.media || []).map((m) => m.file ? m : null).filter(Boolean);
+    out += `<div class="msg ${mine ? 'mine' : 'theirs'}${sameAsPrev ? ' cont' : ''}">
+      ${!mine && !sameAsPrev ? `<span class="msg-ava">${esc(initials(who))}</span>` : '<span class="msg-ava blank"></span>'}
+      <div class="bub">
+        ${!sameAsPrev ? `<div class="bub-who">${esc(who)}</div>` : ''}
+        ${media.length ? `<div class="bub-media">${gallery(media)}</div>` : ''}
+        ${x.image ? `<img class="bub-img" src="/uploads/${esc(x.image)}" onclick="lightbox('/uploads/${esc(x.image)}')" alt=""/>` : ''}
+        ${x.body ? `<div class="bub-t">${esc(x.body)}</div>` : ''}
+        <span class="bub-time">${esc(hm(x.created_at))}</span>
+      </div>
+    </div>`;
+  });
+  return out;
+}
+window.growComposer = (el) => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; };

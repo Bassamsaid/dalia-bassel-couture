@@ -506,6 +506,10 @@ try { db.exec("ALTER TABLE homeworks ADD COLUMN mode TEXT DEFAULT 'onsite'"); } 
 // can bring several inspiration photos.
 try { db.exec('ALTER TABLE chat_threads ADD COLUMN brief TEXT'); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE chat_messages ADD COLUMN media TEXT'); } catch (e) { /* column exists */ }
+
+// An invitation link: one token that lets a client set her own password and get in.
+try { db.exec('ALTER TABLE users ADD COLUMN invite_token TEXT'); } catch (e) { /* column exists */ }
+try { db.exec('ALTER TABLE users ADD COLUMN invite_expires TEXT'); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE purchase_invoices ADD COLUMN vendor_id INTEGER'); } catch (e) { /* column exists */ } // link a material invoice to a vendor (unified vendor spend)
 try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch (e) { /* column exists */ } // profile photo (uploaded filename)
 // invited = the studio added this email but the person has not set a password yet.

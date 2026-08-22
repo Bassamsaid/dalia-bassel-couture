@@ -1237,6 +1237,77 @@ function receiveUpload(req, res, user) {
   req.pipe(out);
   out.on('close', () => { if (!failed) send(res, 200, { file: name, size }); });
 }
+// ---- Client invitations ----
+function appOrigin(req) {
+  const host = req.headers.host || '';
+  // behind Railway the proxy tells us; locally there is no header and no TLS
+  const fwd = (req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  const proto = fwd || (/^(localhost|127\.|\[::1\])/.test(host) ? 'http' : 'https');
+  return `${proto}://${host}`;
+}
+function makeInvite(userId) {
+  const token = crypto.randomBytes(24).toString('hex');
+  const expires = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  db.prepare('UPDATE users SET invite_token=?,invite_expires=? WHERE id=?').run(token, expires, userId);
+  return token;
+}
+
+// Give the client of a dress her own way in: link (or create) her account and mint a link.
+api['POST /api/dresses/:id/invite-client'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req);
+  const email = String(b.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return send(res, 400, { error: 'Enter a valid email' });
+  const dress = db.prepare('SELECT * FROM dresses WHERE id=?').get(params.id);
+  if (!dress) return send(res, 404, { error: 'Dress not found' });
+
+  let client = db.prepare('SELECT * FROM users WHERE lower(email)=?').get(email);
+  if (!client) {
+    const id = db.prepare('INSERT INTO users (name,email,password_hash,role,invited) VALUES (?,?,?,?,1)')
+      .run(b.name || dress.customer_name, email, hashPassword(crypto.randomBytes(9).toString('hex')), 'customer').lastInsertRowid;
+    client = db.prepare('SELECT * FROM users WHERE id=?').get(id);
+  } else if (client.role === 'visitor') {
+    db.prepare("UPDATE users SET role='customer' WHERE id=?").run(client.id); // she is a client now
+  }
+  db.prepare('UPDATE dresses SET customer_user_id=? WHERE id=?').run(client.id, dress.id);
+
+  const token = makeInvite(client.id);
+  const link = `${appOrigin(req)}/?invite=${token}`;
+  let emailed = false, mailError = null;
+  const gUser = process.env.GMAIL_USER, gPass = process.env.GMAIL_APP_PASSWORD;
+  if (gUser && gPass) {
+    try {
+      await smtpSend({ user: gUser, pass: gPass, to: email, subject: 'Dalia Bassel — your dress',
+        text: `Dear ${client.name},\n\nYou can now follow your dress with us — the fittings, the photos and every update.\n\nOpen this link and choose a password:\n${link}\n\nThe link works for 14 days.\n\nDalia Bassel Couture` });
+      emailed = true;
+    } catch (e) { mailError = e.message; }
+  }
+  send(res, 200, { link, emailed, mail_error: mailError, client: { id: client.id, name: client.name, email } });
+};
+
+// She opens the link, picks a password, and is in. No auth needed — the token is the proof.
+api['POST /api/invite/accept'] = async (req, res) => {
+  const b = await readBody(req);
+  const token = String(b.token || '').trim();
+  const password = String(b.password || '');
+  if (!token) return send(res, 400, { error: 'This link is not valid' });
+  if (password.length < 6) return send(res, 400, { error: 'Choose a password of at least 6 characters' });
+  const u = db.prepare('SELECT * FROM users WHERE invite_token=?').get(token);
+  if (!u || !u.active) return send(res, 400, { error: 'This link is not valid any more' });
+  if (u.invite_expires && new Date(u.invite_expires) < new Date()) return send(res, 400, { error: 'This link has expired — ask the studio for a new one' });
+  db.prepare('UPDATE users SET password_hash=?,invited=0,invite_token=NULL,invite_expires=NULL WHERE id=?').run(hashPassword(password), u.id);
+  const sid = crypto.randomBytes(24).toString('hex');
+  db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(sid, u.id);
+  send(res, 200, { ok: true }, { 'Set-Cookie': `sid=${sid}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax` });
+};
+// Who is this link for? Shown on the set-a-password screen.
+api['GET /api/invite/:token'] = async (req, res, user, url, params) => {
+  const u = db.prepare('SELECT name,email,invite_expires,active FROM users WHERE invite_token=?').get(params.token);
+  if (!u || !u.active) return send(res, 404, { error: 'This link is not valid any more' });
+  if (u.invite_expires && new Date(u.invite_expires) < new Date()) return send(res, 410, { error: 'This link has expired' });
+  send(res, 200, { name: u.name, email: u.email });
+};
+
 // ================= CUSTOMER SERVICE CHAT =================
 const CHAT_TOPICS = ['dress', 'course', 'general'];
 const topicWord = { dress: 'a dress', course: 'the courses', general: 'the studio' };

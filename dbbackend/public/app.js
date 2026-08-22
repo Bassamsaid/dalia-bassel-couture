@@ -249,6 +249,8 @@ function isHidden(page) {
 
 /* ---------- boot ---------- */
 async function boot() {
+  const invite = new URLSearchParams(location.search).get('invite');
+  if (invite) return renderInvite(invite);   // she arrived on her invitation link
   try {
     const { user } = await GET('/api/me');
     if (user) { state.user = user; await loadPerms(); await loadConfig(); renderApp(); }
@@ -256,6 +258,48 @@ async function boot() {
   } catch (e) { renderAuth(); }
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
+
+/* The invitation screen: she chooses a password, and nothing else. */
+async function renderInvite(token) {
+  const brand = `<div class="brand-mark">DB</div>
+    <h1 class="brand-title">Dalia Bassel</h1>
+    <p class="brand-sub">Haute Couture · Est 2019</p>`;
+  const shell = (inner) => { document.body.innerHTML = `<div class="auth-wrap"><div class="auth-card">${brand}${inner}</div></div>`; };
+  shell('<div class="spinner"></div>');
+  let who;
+  try { who = await GET('/api/invite/' + encodeURIComponent(token)); }
+  catch (e) {
+    return shell(`<p class="err">${esc(e.message)}</p>
+      <button class="btn" style="margin-top:14px" onclick="location.href='/'">Go to sign in</button>`);
+  }
+  shell(`<div style="text-align:start">
+      <p class="hint" style="text-align:center;margin:0 0 18px">Welcome, <b>${esc(who.name)}</b> — choose a password and your dress is waiting for you.</p>
+      <label>Your email</label>
+      <input value="${esc(who.email || '')}" readonly />
+      <label>Choose a password</label>
+      <input id="ivPass" type="password" placeholder="at least 6 characters" autocomplete="new-password" />
+      <label>Type it again</label>
+      <input id="ivPass2" type="password" autocomplete="new-password" />
+      <div class="err hidden" id="ivErr"></div>
+      <button class="btn" style="margin-top:18px" id="ivBtn">Set my password</button>
+    </div>`);
+  $('#ivBtn').onclick = async () => {
+    const a = $('#ivPass').value, b = $('#ivPass2').value, err = $('#ivErr');
+    const fail = (m) => { err.textContent = m; err.classList.remove('hidden'); };
+    if (a.length < 6) return fail('Choose a password of at least 6 characters');
+    if (a !== b) return fail('The two passwords are not the same');
+    const btn = $('#ivBtn'); btn.disabled = true; btn.textContent = 'Just a moment…';
+    try {
+      await POST('/api/invite/accept', { token, password: a });
+      history.replaceState({}, '', '/');            // drop the token from the address bar
+      state.user = (await GET('/api/me')).user;
+      window._forceStart = state.user.role === 'customer' ? 'mydresses' : null; // she came for her dress
+      await loadPerms(); await loadConfig();
+      renderApp();
+    } catch (e) { btn.disabled = false; btn.textContent = 'Set my password'; fail(e.message); }
+  };
+}
+window.renderInvite = renderInvite;
 
 /* ---------- auth ---------- */
 function renderAuth(mode) {
@@ -437,6 +481,7 @@ function renderApp() {
   // restore the last screen after a refresh (so reload keeps you where you were)
   // default landing = the Dalia feed (falls back to the first nav item)
   let start = state.nav.some(([k]) => k === 'dalia') && !isHidden('dalia') ? 'dalia' : state.nav[0][0];
+  if (window._forceStart && state.nav.some(([k]) => k === window._forceStart)) { start = window._forceStart; window._forceStart = null; }
   try {
     const route = JSON.parse(localStorage.getItem('dalia_route') || 'null');
     if (route && route.page && PAGES[route.page]) {

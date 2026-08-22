@@ -1095,6 +1095,13 @@ PAGES.dress = async (c) => {
     <label>Assigned staff</label>
     ${canEdit ? `<select id="assignSel_${id}" onchange="saveAssign(${id})"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`
       : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
+    ${canEdit ? `<div class="sec-title">Her own access 🔑</div>
+      <p class="hint" style="margin-top:-4px">Send her a link. She picks a password and follows her dress — the fittings, the photos and every update. She sees nothing else.</p>
+      <label>Her email</label>
+      <input id="dInviteMail_${id}" type="email" inputmode="email" placeholder="client@email.com"
+        value="${esc((window._dressRef.customers.find((u) => u.id === d.customer_user_id) || {}).email || '')}" />
+      <button class="btn sec" style="margin-top:10px" onclick="inviteClient(${id})">📨 Send her the invitation</button>
+      <div id="dInvite_${id}"></div>` : ''}
     ${canEdit ? `<div class="divider"></div>
       <div class="row">
         <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
@@ -1865,3 +1872,36 @@ function studioChatRow(t) {
     ${t.unread ? `<span class="chat-badge">${t.unread}</span>` : '<span class="chev">›</span>'}
   </div>`;
 }
+
+
+/* Give a client her own way in to follow her dress */
+window.inviteClient = async (id) => {
+  const email = document.getElementById('dInviteMail_' + id).value.trim();
+  if (!email || !email.includes('@')) return toast('Enter her email first');
+  const box = document.getElementById('dInvite_' + id);
+  box.innerHTML = '<div class="hint">Preparing her link…</div>';
+  try {
+    const r = await POST(`/api/dresses/${id}/invite-client`, { email });
+    const wa = `https://wa.me/?text=${encodeURIComponent(`Your dress with Dalia Bassel — open this link and choose a password: ${r.link}`)}`;
+    box.innerHTML = `<div class="invite-out">
+      <div class="iv-state">${r.emailed ? '✓ Emailed to ' + esc(email) : '📋 Link ready — send it to her'}</div>
+      ${r.emailed ? '' : `<div class="hint">${r.mail_error ? 'The email did not go out: ' + esc(r.mail_error) : 'Email sending is not set up, so send the link yourself.'}</div>`}
+      <div class="iv-link" id="ivLink_${id}">${esc(r.link)}</div>
+      <div class="row" style="margin-top:9px">
+        <button class="btn sec sm" onclick="copyInvite(${id})">Copy link</button>
+        <a class="btn ghost sm" href="${wa}" target="_blank" rel="noopener" style="text-decoration:none">Send on WhatsApp</a>
+      </div>
+      <div class="hint" style="margin-top:8px">The link works for 14 days.</div>
+    </div>`;
+    window._dresses = await GET('/api/dresses');
+  } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+};
+window.copyInvite = async (id) => {
+  const text = document.getElementById('ivLink_' + id).textContent;
+  try { await navigator.clipboard.writeText(text); toast('Link copied ✓'); }
+  catch (e) {
+    const r = document.createRange(); r.selectNode(document.getElementById('ivLink_' + id));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    toast('Press and hold to copy');
+  }
+};
