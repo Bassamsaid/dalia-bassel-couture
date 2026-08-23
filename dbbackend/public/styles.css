@@ -958,3 +958,12 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .sp-hint{font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:700}
 @keyframes spShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
 .sp-ring.sp-shake{animation:spShake .35s ease both;border-color:var(--bad);color:var(--bad)}
+
+/* the studio pin, once it is set */
+.geo-pin{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:12px;padding:11px 13px;
+  border-radius:12px;background:var(--soft);border:1px solid var(--line)}
+.gp-dot{font-size:15px;line-height:1}
+.gp-txt{flex:1;min-width:0;font-size:13px;font-weight:700;color:var(--ink);
+  font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.gp-open{font-size:12px;font-weight:700;white-space:nowrap}
+.hint.err{color:var(--bad);font-weight:700}

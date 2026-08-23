@@ -1951,20 +1951,34 @@ PAGES.config = async (c) => {
       <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace deducts at the hourly rate; overtime pays at the multiplier. Each staff's paid weekly off-days are set on their profile.</div>
       <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month','check_in_time','check_out_time','late_grace_min','overtime_mult'])">Save</button></div>`;
   } else if (tab === 'location') {
+    const gLat = esc(s.geo_lat || ''), gLng = esc(s.geo_lng || '');
     inner = `<div class="card">
-      <label>Require location for check-in / out</label>
-      <select id="cfg_geo_enabled"><option value="0" ${s.geo_enabled !== '1' ? 'selected' : ''}>No — allow from anywhere</option><option value="1" ${s.geo_enabled === '1' ? 'selected' : ''}>Yes — only at the studio</option></select>
-      <label style="margin-top:10px">Studio location</label>
-      <input id="cfg_geo_lat" type="hidden" value="${esc(s.geo_lat || '')}" />
-      <input id="cfg_geo_lng" type="hidden" value="${esc(s.geo_lng || '')}" />
-      <div class="row" style="align-items:center;gap:8px">
-        <button class="btn sec" onclick="captureGeo()">📍 Use my current location</button>
-        <span class="hint" id="geoCoords" style="flex:2">${s.geo_lat ? '📍 ' + esc(s.geo_lat) + ', ' + esc(s.geo_lng) : 'Not set'}</span>
+        <label style="margin:0 0 7px">The studio pin</label>
+        <div class="geo-pin" id="geoPin">${geoPinHtml(gLat, gLng)}</div>
+
+        <label style="margin-top:18px">1 · I'm at the studio now</label>
+        <button class="btn sec" style="margin-top:6px" onclick="captureGeo()">Use my current location</button>
+
+        <label style="margin-top:18px">2 · Paste a Google Maps link</label>
+        <input id="geoPaste" placeholder="https://www.google.com/maps/@30.0444,31.2357,17z" />
+        <button class="btn sec" style="margin-top:8px" onclick="geoFromLink()">Read the pin from this link</button>
+        <div class="hint" id="geoPasteHint" style="margin-top:6px">On Google Maps, long-press the exact spot, then Share → Copy link — or copy the address bar from the desktop site.</div>
+
+        <label style="margin-top:18px">3 · Type the coordinates</label>
+        <div class="row" style="gap:8px">
+          <div style="flex:1;min-width:0"><label>Latitude</label><input id="cfg_geo_lat" inputmode="decimal" value="${gLat}" oninput="geoEcho()" placeholder="30.044400" /></div>
+          <div style="flex:1;min-width:0"><label>Longitude</label><input id="cfg_geo_lng" inputmode="decimal" value="${gLng}" oninput="geoEcho()" placeholder="31.235700" /></div>
+        </div>
       </div>
-      <label style="margin-top:10px">Allowed radius (metres)</label>
-      <input id="cfg_geo_radius" type="number" inputmode="numeric" value="${esc(s.geo_radius || '150')}" />
-      <div class="hint" style="margin-top:6px">Stand at the studio, tap "Use my current location", and set a radius (e.g. 150 m). Then staff & students can only check in/out within that radius. Set to "No" to allow from anywhere.</div>
-      <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save</button></div>`;
+
+      <div class="card" style="margin-top:12px">
+        <label style="margin-top:0">Require location for check-in / out</label>
+        <select id="cfg_geo_enabled"><option value="0" ${s.geo_enabled !== '1' ? 'selected' : ''}>No — allow from anywhere</option><option value="1" ${s.geo_enabled === '1' ? 'selected' : ''}>Yes — only at the studio</option></select>
+        <label style="margin-top:12px">Allowed radius (metres)</label>
+        <input id="cfg_geo_radius" type="number" inputmode="numeric" value="${esc(s.geo_radius || '150')}" />
+        <div class="hint" style="margin-top:6px">Staff & students can only check in or out inside a circle this wide around the pin. Set the switch to “No” to allow from anywhere.</div>
+        <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save the pin & the rule</button>
+      </div>`;
   } else {
     inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
       <div class="hint" style="margin-top:6px">Shown next to all amounts across the app.</div>
@@ -1974,15 +1988,67 @@ PAGES.config = async (c) => {
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="cfgTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.cfgTab = (t) => { window._cfgTab = t; go('config'); };
+window.geoPinHtml = (lat, lng) => {
+  if (!lat || !lng) return `<span class="gp-dot">📍</span><span class="gp-txt" style="opacity:.6">No pin set yet — choose one of the three ways below.</span>`;
+  const q = encodeURIComponent(lat + ',' + lng);
+  return `<span class="gp-dot">📍</span><span class="gp-txt">${esc(lat)}, ${esc(lng)}</span>` +
+    `<a class="gp-open" href="https://www.google.com/maps?q=${q}" target="_blank" rel="noopener">Check on the map ↗</a>`;
+};
+window.geoEcho = () => {
+  const lat = (document.getElementById('cfg_geo_lat') || {}).value || '';
+  const lng = (document.getElementById('cfg_geo_lng') || {}).value || '';
+  const pin = document.getElementById('geoPin');
+  if (pin) pin.innerHTML = geoPinHtml(lat.trim(), lng.trim());
+};
+window.setGeo = (lat, lng) => {
+  document.getElementById('cfg_geo_lat').value = lat;
+  document.getElementById('cfg_geo_lng').value = lng;
+  geoEcho();
+};
+/* Pull "lat,lng" out of whatever Google Maps handed the user. */
+window.parseLatLng = (text) => {
+  const t = String(text || '').trim();
+  if (!t) return null;
+  const ok = (a, b) => {
+    const la = parseFloat(a), ln = parseFloat(b);
+    if (!isFinite(la) || !isFinite(ln)) return null;
+    if (Math.abs(la) > 90 || Math.abs(ln) > 180) return null;
+    return { lat: la.toFixed(6), lng: ln.toFixed(6) };
+  };
+  const N = '(-?\\d{1,3}(?:\\.\\d+)?)';
+  let m = t.match(new RegExp('!3d' + N + '.*?!4d' + N));           // place pages
+  if (m) return ok(m[1], m[2]);
+  m = t.match(new RegExp('@' + N + ',' + N));                       // /maps/@lat,lng,17z
+  if (m) return ok(m[1], m[2]);
+  m = t.match(new RegExp('[?&](?:q|ll|sll|daddr|center|destination)=' + N + '(?:,|%2C)\\s*' + N, 'i'));
+  if (m) return ok(m[1], m[2]);
+  m = t.match(new RegExp('^' + N + '\\s*,\\s*' + N + '$'));          // plain "30.04, 31.23"
+  if (m) return ok(m[1], m[2]);
+  return null;
+};
+window.geoFromLink = () => {
+  const el = document.getElementById('geoPaste'), hint = document.getElementById('geoPasteHint');
+  const raw = (el.value || '').trim();
+  const hit = parseLatLng(raw);
+  if (hit) {
+    setGeo(hit.lat, hit.lng);
+    hint.className = 'hint';
+    hint.textContent = 'Pin read from the link ✓ — now press Save below.';
+    toast('Pin set ✓ — now Save');
+    return;
+  }
+  hint.className = 'hint err';
+  hint.textContent = /goo\.gl|maps\.app|g\.co/i.test(raw)
+    ? 'This is a short link and hides the coordinates. Open it in the browser first, then copy the long link that appears — or read the pin off the map and type it in below.'
+    : 'No coordinates in this text. It should carry something like @30.0444,31.2357 — or just type the two numbers below.';
+  buzz();
+};
 window.captureGeo = async () => {
   toast('Getting location…');
   try {
     const pos = await getPosition(); // defined in portal.js
-    const lat = pos.coords.latitude.toFixed(6), lng = pos.coords.longitude.toFixed(6);
-    document.getElementById('cfg_geo_lat').value = lat;
-    document.getElementById('cfg_geo_lng').value = lng;
-    document.getElementById('geoCoords').textContent = `📍 ${lat}, ${lng} (±${Math.round(pos.coords.accuracy)}m)`;
-    toast('Location captured ✓ — now Save');
+    setGeo(pos.coords.latitude.toFixed(6), pos.coords.longitude.toFixed(6));
+    toast(`Location captured (±${Math.round(pos.coords.accuracy)}m) ✓ — now Save`);
   } catch (e) { toast(e && e.code === 1 ? 'Please allow location access' : 'Could not get location'); }
 };
 window.saveCfg = async (keys) => {
