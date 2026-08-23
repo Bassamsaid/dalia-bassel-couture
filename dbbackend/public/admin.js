@@ -924,19 +924,35 @@ PAGES.dalia = async (c) => {
       : `<div class="card"><div class="hint" style="padding:10px 2px">${admin
           ? (pick === 'all' ? 'Nothing posted yet — start with ＋ New post.' : 'Nothing here yet — add a post and pick this section.')
           : 'Nothing here yet — check back soon.'}</div></div>`}
-    <div class="reach">
-      <div class="reach-h">Talk to the studio</div>
-      <div class="reach-s">Tell us what you need and we answer you inside the app.</div>
-      <div class="reach-btns">
-        <button class="reach-btn dress" onclick="askStudio('dress')">
-          <span class="rb-ic">👗</span><span class="rb-t">Book a dress</span><span class="rb-h">Appointment or fitting</span></button>
-        <button class="reach-btn course" onclick="askStudio('course')">
-          <span class="rb-ic">🎓</span><span class="rb-t">Ask about the courses</span><span class="rb-h">Rounds, fees, joining</span></button>
-      </div>
-      <button class="btn sec" style="margin-top:10px" onclick="go('${['admin', 'manager', 'staff'].includes(state.user.role) ? 'chats' : 'help'}')">All my conversations</button>
-    </div>
+    ${reachBlock(pick)}
     </div>`;
 };
+
+/* The way in matches whichever house you are reading */
+function reachBlock(pick) {
+  const studio = ['admin', 'manager', 'staff'].includes(state.user.role);
+  if (studio) return `<div class="reach">
+      <div class="reach-h">Customer service</div>
+      <div class="reach-s">Everything clients, students and visitors have written to the studio.</div>
+      <button class="btn" style="margin-top:14px" onclick="go('chats')">Open the inbox</button>
+    </div>`;
+  const dress = `<button class="reach-btn dress" onclick="askStudio('dress')">
+      <span class="rb-ic">👗</span><span class="rb-t">Book a dress</span><span class="rb-h">Appointment or fitting</span></button>`;
+  const course = `<button class="reach-btn course" onclick="askStudio('course')">
+      <span class="rb-ic">🎓</span><span class="rb-t">Ask about the courses</span><span class="rb-h">Rounds, fees, joining</span></button>`;
+  const only = { couture: dress, academy: course };
+  const heads = {
+    couture: ['Order your dress', 'Tell us about the occasion and we come back with a date for your first consultation.'],
+    academy: ['Join the academy', 'Ask about the next round, the fees and how to enrol.'],
+  };
+  const [h, sub] = heads[pick] || ['Talk to the studio', 'Tell us what you need and we answer you inside the app.'];
+  return `<div class="reach">
+    <div class="reach-h">${esc(h)}</div>
+    <div class="reach-s">${esc(sub)}</div>
+    <div class="reach-btns">${only[pick] || (dress + course)}</div>
+    <button class="btn sec" style="margin-top:10px" onclick="go('help')">All my conversations</button>
+  </div>`;
+}
 window.daliaHouse = (k) => { window._daliaHouse = k; go('dalia'); };
 
 function renderDaliaPost(p, admin) {
