@@ -706,6 +706,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
   if (['admin', 'manager', 'staff'].includes(user.role)) list = db.prepare(base + ' ORDER BY d.id DESC').all();
   else list = db.prepare(base + ' WHERE d.customer_user_id=? ORDER BY d.id DESC').all(user.id);
   list.forEach((d) => {
+    try { d.brief = d.brief ? JSON.parse(d.brief) : null; } catch (e) { d.brief = null; }
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
     d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY position, id').all(d.id);
     d.unread = db.prepare("SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0 AND link_page='dress' AND link_id=?").get(user.id, d.id).c;
@@ -728,8 +729,9 @@ api['POST /api/dresses'] = async (req, res, user) => {
   const b = await readBody(req);
   const cover = maybeImage(b.cover_image);
   const price = user.role === 'admin' ? (b.price || 0) : 0; // only admin sets price
-  const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image,assigned_to,price) VALUES (?,?,?,?,?,?,?,?,?)').run(
-    b.customer_name, b.customer_user_id || null, b.phone || null, b.delivery_date || null, b.status || 'open', b.note || null, cover, b.assigned_to || null, price);
+  const r = db.prepare('INSERT INTO dresses (customer_name,customer_user_id,phone,delivery_date,status,note,cover_image,assigned_to,price,brief) VALUES (?,?,?,?,?,?,?,?,?,?)').run(
+    b.customer_name, b.customer_user_id || null, b.phone || null, b.delivery_date || null, b.status || 'open', b.note || null, cover, b.assigned_to || null, price,
+    b.brief && typeof b.brief === 'object' ? JSON.stringify(b.brief) : null);
   const did = r.lastInsertRowid;
   notifyRoles('admin', { type: 'dress', title: `New dress: ${b.customer_name}`, body: `${user.name} added a new dress booking`, link_page: 'dress', link_id: did, actor_name: user.name }, user.id);
   if (b.assigned_to) notify(b.assigned_to, { type: 'assign', title: `You were assigned a dress: ${b.customer_name}`, body: `${user.name} assigned you a new dress`, link_page: 'dress', link_id: did, actor_name: user.name });
@@ -743,8 +745,9 @@ api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   const price = (user.role === 'admin' && b.price != null) ? b.price : c.price; // only admin edits price
   const measImg = (b.measure_image && b.measure_image.startsWith('data:')) ? maybeImage(b.measure_image) : (b.measure_image ?? c.measure_image);
   const meas = b.measurements != null ? (typeof b.measurements === 'string' ? b.measurements : JSON.stringify(b.measurements)) : c.measurements;
-  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=? WHERE id=?').run(
-    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, params.id);
+  const brief = b.brief && typeof b.brief === 'object' ? JSON.stringify(b.brief) : c.brief;
+  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=?,brief=? WHERE id=?').run(
+    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, brief, params.id);
   // --- notifications on status / assignment changes ---
   const did = Number(params.id);
   const stLabel = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };

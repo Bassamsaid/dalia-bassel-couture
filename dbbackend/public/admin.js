@@ -1062,7 +1062,7 @@ PAGES.dresses = async (c) => {
   });
   const statuses = [['all', 'All'], ['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']];
   c.innerHTML = title('Dresses', '') +
-    `${canEdit ? '<button class="btn" onclick="addDress()">＋ Book a dress</button>' : ''}
+    `${canEdit ? '<button class="btn" onclick="addDress()">＋ Register a dress</button>' : ''}
     <div class="filters" style="margin-top:12px">${statuses.map(([k, l]) => `<span class="chip ${f.status === k && !f.assigned ? 'active' : ''}" onclick="dressFilter('status','${k}')">${l}</span>`).join('')}
       <span class="chip ${f.assigned ? 'active' : ''}" onclick="dressFilter('assigned','x')">👤 Assigned</span></div>
     <div class="row" style="margin:0 0 12px;align-items:center;gap:8px">
@@ -1089,19 +1089,102 @@ window.dressFilter = (k, v) => {
   else f[k] = v;
   window._dressF = f; go('dresses');
 };
-window.addDress = () => {
-  const { customers, staff } = window._dressRef;
-  formModal('Book a dress', [
-    { name: 'customer_name', label: 'Client name', required: true },
-    { name: 'phone', label: 'Phone' },
-    { name: 'delivery_date', label: 'Delivery date', type: 'date' },
-    { name: 'status', label: 'Status', type: 'select', options: [{ value: 'open', label: 'New' }, { value: 'in_progress', label: 'In progress' }, { value: 'delivered', label: 'Delivered' }] },
-    { name: 'assigned_to', label: 'Assign to (staff)', type: 'select', options: [{ value: '', label: '— unassigned —' }, ...(staff || []).map((s) => ({ value: s.id, label: s.name + (s.role === 'manager' ? ' (Manager)' : '') }))] },
-    { name: 'customer_user_id', label: 'Link to client account (optional)', type: 'select', options: [{ value: '', label: '—' }, ...customers.map((u) => ({ value: u.id, label: u.name + (u.email ? ' · ' + u.email : '') }))] },
-    { name: 'note', label: 'Notes', type: 'textarea' },
-    { name: 'cover_image', label: 'Dress photo', type: 'image' },
-  ], async (d) => { await POST('/api/dresses', d); toast('Booked'); go('dresses'); });
+/* Registering a dress is a screen with two tabs — not a wizard */
+window.addDress = () => { window._newDressTab = 'dress'; go('newdress'); };
+
+PAGES.newdress = async (c) => {
+  const ref = window._dressRef || {};
+  const customers = ref.customers || (await GET('/api/users')).filter((u) => u.role === 'customer');
+  const staff = ref.staff || [];
+  const tab = window._newDressTab === 'occasion' ? 'occasion' : 'dress';
+  window._newDressCover = window._newDressCover || null;
+
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' + title('Register a dress', '') +
+    `<div class="dtabs">
+      <button class="dtab${tab === 'dress' ? ' on' : ''}" onclick="newDressTab('dress')"><span class="dtab-ic">👗</span>The dress</button>
+      <button class="dtab${tab === 'occasion' ? ' on' : ''}" onclick="newDressTab('occasion')"><span class="dtab-ic">✨</span>The occasion</button>
+    </div>
+    <div class="card" style="padding:4px 15px 18px">
+      <div class="dpane${tab === 'dress' ? ' on' : ''}" data-pane="dress">
+        <label>Client name</label><input id="nd_name" placeholder="Her name" />
+        <label>Phone</label><input id="nd_phone" type="tel" inputmode="tel" />
+        <label>Delivery date</label><input id="nd_date" type="date" />
+        <label>Status</label>
+        <select id="nd_status">
+          <option value="open">New</option><option value="in_progress">In progress</option><option value="delivered">Delivered</option>
+        </select>
+        <label>Assign to</label>
+        <select id="nd_assigned"><option value="">— unassigned —</option>
+          ${staff.map((x) => `<option value="${x.id}">${esc(x.name)}${x.role === 'manager' ? ' (Manager)' : ''}</option>`).join('')}</select>
+        <label>Link to a client account <span class="hint">(optional)</span></label>
+        <select id="nd_client"><option value="">—</option>
+          ${customers.map((u) => `<option value="${u.id}">${esc(u.name)}${u.email ? ' · ' + esc(u.email) : ''}</option>`).join('')}</select>
+        <label>Notes</label><textarea id="nd_note" placeholder="Navy evening gown, low back..."></textarea>
+        <label>Dress photo</label>
+        <button class="btn ghost sm" onclick="ndPic()">📷 Add a photo</button>
+        <div id="nd_prev" style="margin-top:10px"></div>
+      </div>
+      <div class="dpane${tab === 'occasion' ? ' on' : ''}" data-pane="occasion">
+        <p class="hint">The same questions a client answers when she writes to you — so the atelier knows what it is making before the first fitting.</p>
+        ${briefFields(window._newDressBrief, 'nd_')}
+      </div>
+    </div>
+    <button class="btn" id="ndSave" onclick="saveNewDress()">Register the dress</button>
+    <button class="btn sec" style="margin-top:10px" onclick="go('dresses')">Cancel</button>
+    </div>`;
+  briefLookToggle('nd_');
+  ndPaint();
 };
+window.newDressTab = (t) => {
+  // keep what is typed on the tab we are leaving
+  const name = document.getElementById('nd_name');
+  if (name) window._newDressDraft = {
+    name: name.value, phone: $('#nd_phone').value, date: $('#nd_date').value,
+    status: $('#nd_status').value, assigned: $('#nd_assigned').value,
+    client: $('#nd_client').value, note: $('#nd_note').value,
+  };
+  if (document.getElementById('nd_garment')) window._newDressBrief = readBrief('nd_');
+  window._newDressTab = t; go('newdress');
+};
+function ndPaint() {
+  const d = window._newDressDraft;
+  if (d && document.getElementById('nd_name')) {
+    $('#nd_name').value = d.name || ''; $('#nd_phone').value = d.phone || '';
+    $('#nd_date').value = d.date || ''; $('#nd_status').value = d.status || 'open';
+    $('#nd_assigned').value = d.assigned || ''; $('#nd_client').value = d.client || '';
+    $('#nd_note').value = d.note || '';
+  }
+  const box = document.getElementById('nd_prev');
+  if (box) box.innerHTML = window._newDressCover
+    ? `<div class="scan-cell" style="width:110px"><img src="${window._newDressCover}" alt=""/>
+        <button class="scan-del" onclick="window._newDressCover=null;ndPaint()" aria-label="Remove">✕</button></div>` : '';
+}
+window.ndPic = () => pickImage((b64) => { window._newDressCover = b64; ndPaint(); });
+window.saveNewDress = async () => {
+  const nameEl = document.getElementById('nd_name');
+  const draft = nameEl ? {
+    name: nameEl.value, phone: $('#nd_phone').value, date: $('#nd_date').value,
+    status: $('#nd_status').value, assigned: $('#nd_assigned').value,
+    client: $('#nd_client').value, note: $('#nd_note').value,
+  } : (window._newDressDraft || {});
+  const brief = document.getElementById('nd_garment') ? readBrief('nd_') : window._newDressBrief;
+  if (!String(draft.name || '').trim()) {
+    window._newDressDraft = draft;
+    if (window._newDressTab !== 'dress') { window._newDressTab = 'dress'; go('newdress'); }
+    return toast('The client name is needed');
+  }
+  const btn = $('#ndSave'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  try {
+    await POST('/api/dresses', {
+      customer_name: draft.name.trim(), phone: draft.phone, delivery_date: draft.date,
+      status: draft.status, assigned_to: draft.assigned || null, customer_user_id: draft.client || null,
+      note: draft.note, cover_image: window._newDressCover, brief,
+    });
+    window._newDressDraft = null; window._newDressBrief = null; window._newDressCover = null;
+    toast('Dress registered ✓'); go('dresses');
+  } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'Register the dress'; } toast(e.message); }
+};
+
 /* Opening a dress leaves the list and goes to its own screen. */
 window.openDress = (id) => { window._dressId = id; go('dress'); };
 
@@ -1153,6 +1236,12 @@ PAGES.dress = async (c) => {
     <p class="hint">Every measurement for this gown, in one sheet.</p>
     <button class="btn sec" onclick="openMeasurements(${id})">📐 Open the measurement sheet</button>`);
 
+  const occasion = pane('occasion', `
+    ${d.brief ? briefCard(d.brief) : '<p class="hint">Nothing recorded about the occasion yet.</p>'}
+    ${canEdit ? `<div class="sec-title">Edit the occasion</div>
+      ${briefFields(d.brief, 'od_')}
+      <button class="btn" style="margin-top:14px" onclick="saveDressBrief(${id})">Save the occasion</button>` : ''}`);
+
   const photos = pane('photos', `
     ${d.images.length ? gallery(d.images.map((im) => ({ file: im.image, kind: 'image' }))) : ''}
     <div class="sec-title">All photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
@@ -1191,6 +1280,7 @@ PAGES.dress = async (c) => {
 
   const tabs = [
     ['details', '📋', 'Client info'],
+    ['occasion', '✨', 'Occasion'],
     ['photos', '📷', `Photos${d.images.length ? ' (' + d.images.length + ')' : ''}`],
     ['measure', '📐', 'Measurements'],
     ...(moneyPane ? [['money', '💰', 'Fees']] : []),
@@ -1215,9 +1305,10 @@ PAGES.dress = async (c) => {
       ${tabs.map(([k, ic, label]) => `<button class="dtab${k === firstTab ? ' on' : ''}" data-tab="${k}" onclick="dressTab(${id},'${k}')">
         <span class="dtab-ic">${ic}</span>${esc(label)}</button>`).join('')}
     </div>
-    <div class="dpanes card" id="dpanes_${id}">${details}${photos}${measure}${moneyPane}${materials}${client}</div>
+    <div class="dpanes card" id="dpanes_${id}">${details}${occasion}${photos}${measure}${moneyPane}${materials}${client}</div>
     </div>`;
   dressTab(id, firstTab);
+  briefLookToggle('od_');
   if (canEdit) wireDressPhotos(id);
   loadDressUpdates(id);
   if (canEdit) loadDressMaterials(id);
@@ -1995,4 +2086,9 @@ window.moveLine = async (lineId, dressId) => {
   window._purchases = await GET('/api/purchases');
   window._allDressesForPurchase = await GET('/api/dresses');
   window._dresses = window._allDressesForPurchase;
+};
+
+window.saveDressBrief = async (id) => {
+  await PUT('/api/dresses/' + id, { brief: readBrief('od_') });
+  toast('Saved ✓'); window._dressTab = 'occasion'; refreshDress(id);
 };

@@ -509,42 +509,66 @@ window.newChat = (topic) => {
     <textarea id="cBody" style="min-height:110px" placeholder="Write here..."></textarea>
     <button class="btn" style="margin-top:12px" id="cSend" onclick="sendNewChat('${topic}')">Send to the studio</button>`);
 };
-function briefSelect(key) {
-  const [label, opts] = BRIEF[key];
+// the client is asked about herself; the studio is asked about her
+const BRIEF_STUDIO_LABEL = { role: 'Her role on the day' };
+function briefSelect(key, cur, prefix) {
+  const [label0, opts] = BRIEF[key];
+  const p = prefix || 'b_';
+  const label = p === 'b_' ? label0 : (BRIEF_STUDIO_LABEL[key] || label0);
   return `<label>${esc(label)}</label>
-    <select id="b_${key}"${key === 'garment' ? ' onchange="briefLookToggle()"' : ''}>
-      ${opts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}
+    <select id="${p}${key}"${key === 'garment' ? ` onchange="briefLookToggle('${p}')"` : ''}>
+      ${opts.map(([v, l]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}
     </select>`;
 }
+/* The occasion questions, reusable — the client answers them, and so does the studio. */
+window.briefFields = (b, prefix) => {
+  const p = prefix || 'b_'; b = b || {};
+  return `<label>When is the occasion?</label>
+    <input id="${p}event_date" type="date" value="${esc(b.event_date || '')}" />
+    ${briefSelect('garment', b.garment, p)}
+    <div id="${p}lookWrap">${briefSelect('look', b.look, p)}</div>
+    ${briefSelect('venue', b.venue, p)}
+    ${briefSelect('daytime', b.daytime, p)}
+    ${briefSelect('role', b.role, p)}
+    <label>Where is she based?</label>
+    <input id="${p}area" placeholder="Area or district — so fittings can be planned" value="${esc(b.area || '')}" />
+    <label>Inspiration link</label>
+    <input id="${p}link" type="url" inputmode="url" placeholder="Pinterest, Instagram, a saved post..." value="${esc(b.link || '')}" />`;
+};
+window.readBrief = (prefix) => {
+  const p = prefix || 'b_';
+  const g = document.getElementById(p + 'garment');
+  if (!g) return null;
+  const val = (k) => { const e = document.getElementById(p + k); return e ? e.value : null; };
+  return {
+    event_date: val('event_date') || null,
+    garment: g.value,
+    look: g.value === 'bridal' ? val('look') : null,
+    venue: val('venue'), daytime: val('daytime'), role: val('role'),
+    area: (val('area') || '').trim() || null,
+    link: (val('link') || '').trim() || null,
+  };
+};
 window.dressBrief = () => {
   window._briefMedia = [];
   modal(`<h3>👗 Your dress</h3>
     <p class="hint" style="margin-top:-6px">Tell us about the occasion and we will come back with a date for your first consultation.</p>
-    <label>When is the occasion?</label>
-    <input id="b_event_date" type="date" />
-    ${briefSelect('garment')}
-    <div id="lookWrap">${briefSelect('look')}</div>
-    ${briefSelect('venue')}
-    ${briefSelect('daytime')}
-    ${briefSelect('role')}
-    <label>Where are you based?</label>
-    <input id="b_area" placeholder="Area or district — so we can plan the fittings" />
+    ${briefFields(null, 'b_')}
     <label>Inspiration</label>
     <p class="hint" style="margin-top:-2px">Photos of what you have in mind — add as many as you like.</p>
     <button class="btn ghost sm" onclick="briefAdd()">＋ Add photos</button>
     <div class="up-bar hidden" id="bUp"><span id="bUpFill"></span></div>
     <div id="bMedia" class="scan-grid" style="margin-top:12px"></div>
-    <label>Or a link</label>
-    <input id="b_link" type="url" inputmode="url" placeholder="Pinterest, Instagram, a saved post..." />
     <label>Anything else we should know?</label>
     <textarea id="cBody" style="min-height:90px" placeholder="Fabrics you love, a colour, a deadline..."></textarea>
     <button class="btn" style="margin-top:14px" id="cSend" onclick="sendDressBrief()">Send to the studio</button>`);
-  briefLookToggle(); briefPaint();
+  briefLookToggle('b_'); briefPaint();
 };
 /* the look question only makes sense for a bridal gown */
-window.briefLookToggle = () => {
-  const w = $('#lookWrap'); if (!w) return;
-  w.style.display = $('#b_garment').value === 'bridal' ? '' : 'none';
+window.briefLookToggle = (prefix) => {
+  const p = prefix || 'b_';
+  const w = document.getElementById(p + 'lookWrap'); if (!w) return;
+  w.style.display = document.getElementById(p + 'garment').value === 'bridal' ? '' : 'none';
 };
 window.briefAdd = () => {
   const bar = $('#bUp'), fill = $('#bUpFill');
@@ -561,18 +585,8 @@ function briefPaint() {
     </div>`).join('') || '<div class="scan-empty">No photos yet — optional</div>';
 }
 window.sendDressBrief = async () => {
-  const garment = $('#b_garment').value;
-  const brief = {
-    event_date: $('#b_event_date').value || null,
-    garment,
-    look: garment === 'bridal' ? $('#b_look').value : null,
-    venue: $('#b_venue').value,
-    daytime: $('#b_daytime').value,
-    role: $('#b_role').value,
-    area: $('#b_area').value.trim() || null,
-    link: $('#b_link').value.trim() || null,
-  };
-  const subject = (garment === 'bridal' ? 'Bridal gown' : 'Evening gown') + (brief.event_date ? ' · ' + brief.event_date : '');
+  const brief = readBrief('b_');
+  const subject = (brief.garment === 'bridal' ? 'Bridal gown' : 'Evening gown') + (brief.event_date ? ' · ' + brief.event_date : '');
   const btn = $('#cSend'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
     const r = await POST('/api/chats', { topic: 'dress', subject, brief,
@@ -689,3 +703,6 @@ function chatBubbles(r) {
   return out;
 }
 window.growComposer = (el) => { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; };
+
+window.briefCard = briefCard;
+window.BRIEF_WORD = BRIEF_WORD;
