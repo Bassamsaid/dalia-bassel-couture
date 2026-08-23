@@ -600,7 +600,30 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
   background:rgba(255,255,255,.8);box-shadow:var(--shadow);
   backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
   animation:rise .45s ease both}
-.home-lux .sh-photo{aspect-ratio:16/10;background-size:cover;background-position:center;cursor:pointer}
+/* A photo held in a frame of its own: the file is untouched, only --ar, --pos and --z decide
+   what shows. Shared by the studio header, the About editor and the framing screen. */
+.ph-frame,.fr-stage,.home-lux .sh-photo{aspect-ratio:var(--ar,16/10);position:relative;overflow:hidden;
+  background:var(--soft)}
+.ph-frame>i,.fr-stage>i,.home-lux .sh-photo>i{position:absolute;inset:0;display:block;background-size:cover;
+  background-position:var(--pos,50% 50%);transform:scale(var(--z,1));transform-origin:var(--pos,50% 50%)}
+.home-lux .sh-photo>i{cursor:pointer}
+.ph-frame{border-radius:12px;border:1px solid var(--line)}
+/* the admin's way back into the framing */
+.sh-frame{position:absolute;right:10px;bottom:10px;z-index:2;border:0;cursor:pointer;
+  font:inherit;font-size:12px;font-weight:700;letter-spacing:.3px;padding:8px 13px;border-radius:20px;
+  color:#fff;background:rgba(28,22,38,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.sh-frame:active{transform:scale(.96)}
+
+/* framing the studio photo: drag it about inside the frame it will live in */
+.fr-stage{border-radius:14px;border:1px solid var(--line);touch-action:none;cursor:grab;
+  user-select:none;-webkit-user-select:none}
+.fr-stage.fr-hold{cursor:grabbing}
+.fr-stage>i{cursor:inherit}
+/* thirds, to line the photo up by */
+.fr-grid{position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(255,255,255,.5) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.5) 1px,transparent 1px);
+  background-size:100% 33.333%,33.333% 100%;mix-blend-mode:overlay}
 .home-lux .sh-body{padding:20px 18px 22px}
 .home-lux .sh-eyebrow{font-size:10px;letter-spacing:4px;text-transform:uppercase;font-weight:700;color:var(--purple-d)}
 .home-lux .sh-name{font-family:var(--serif);font-size:30px;font-weight:700;letter-spacing:3px;

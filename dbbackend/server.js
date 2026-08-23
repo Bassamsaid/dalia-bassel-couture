@@ -642,6 +642,22 @@ api['PUT /api/about'] = async (req, res, user) => {
   send(res, 200, { ok: true });
 };
 
+/* Where the studio photo sits in its frame. Nothing is cut from the file itself,
+   so the framing can be redone as often as she likes. */
+api['PUT /api/about/frame'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const num = (v, lo, hi, d) => { const n = Number(v); return isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+  const shapes = ['16/10', '3/2', '1/1', '4/5'];
+  const pos = `${num(b.x, 0, 100, 50)} ${num(b.y, 0, 100, 50)}`;
+  const zoom = String(num(b.zoom, 1, 3, 1));
+  const shape = shapes.includes(b.shape) ? b.shape : '16/10';
+  const ex = db.prepare('SELECT id FROM about WHERE id=1').get();
+  if (ex) db.prepare('UPDATE about SET img_pos=?,img_zoom=?,img_shape=? WHERE id=1').run(pos, zoom, shape);
+  else db.prepare('INSERT INTO about (id,img_pos,img_zoom,img_shape) VALUES (1,?,?,?)').run(pos, zoom, shape);
+  send(res, 200, { ok: true });
+};
+
 api['PUT /api/home-cover'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);

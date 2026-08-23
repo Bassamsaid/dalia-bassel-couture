@@ -855,16 +855,107 @@ PAGES.about = async (c) => {
   const a = await GET('/api/about');
   if (state.user.role !== 'admin') return PAGES.about_view(c, a);
   c.innerHTML = title('About the Academy', '') + `<div class="card">
-    ${a.image ? `<img class="thumb" style="aspect-ratio:16/9;margin-bottom:10px" src="/uploads/${esc(a.image)}" onclick="lightbox('/uploads/${esc(a.image)}')"/>` : ''}
+    ${a.image ? `<div class="ph-frame" style="margin-bottom:10px;${frameStyle(frameVars(a))}">
+      <i style="background-image:url('/uploads/${esc(a.image)}')" onclick="lightbox('/uploads/${esc(a.image)}')"></i></div>` : ''}
     <label>Title</label><input id="abT" value="${esc(a.title || '')}" />
     <label>Description</label><textarea id="abB" style="min-height:140px">${esc(a.body || '')}</textarea>
     <div class="row" style="margin-top:10px"><button class="btn ghost" onclick="abPic()">📷 Cover image</button>
+    ${a.image ? '<button class="btn ghost" onclick="frameAbout()">◳ Frame it</button>' : ''}
     <button class="btn" onclick="saveAbout()">Save</button></div>
     <span class="hint" id="abH"></span></div>`;
   window._abImg = null;
 };
 window.abPic = () => pickImage((b) => { window._abImg = b; $('#abH').textContent = 'Image selected ✓'; });
 window.saveAbout = async () => { await PUT('/api/about', { title: $('#abT').value, body: $('#abB').value, image: window._abImg }); toast('Saved'); go('about'); };
+
+/* ===== The studio photo and how it sits in its frame =====
+   The file is never cut. We only remember a focal point, a zoom and the shape
+   of the frame, so the framing can be redone at any time. */
+window.frameVars = (a) => {
+  const p = String((a && a.img_pos) || '50 50').split(/\s+/);
+  const x = Number(p[0]); const y = Number(p[1]);
+  return {
+    x: isFinite(x) ? x : 50,
+    y: isFinite(y) ? y : 50,
+    z: Math.min(3, Math.max(1, Number((a && a.img_zoom) || 1) || 1)),
+    shape: (a && a.img_shape) || '16/10',
+  };
+};
+function frameStyle(f) {
+  return `--ar:${f.shape};--pos:${f.x}% ${f.y}%;--z:${f.z}`;
+}
+function shPhoto(a, admin) {
+  const f = frameVars(a), url = '/uploads/' + esc(a.image);
+  return `<div class="sh-photo" style="${frameStyle(f)}">
+    <i style="background-image:url('${url}')" onclick="lightbox('${url}')"></i>
+    ${admin ? `<button class="sh-frame" onclick="event.stopPropagation();frameAbout()">Frame photo</button>` : ''}
+  </div>`;
+}
+window.shPhoto = shPhoto;
+
+const FRAME_SHAPES = [['16/10', 'Wide'], ['3/2', 'Classic'], ['1/1', 'Square'], ['4/5', 'Portrait']];
+
+window.frameAbout = async () => {
+  const a = await GET('/api/about');
+  if (!a.image) { toast('Add a photo first'); return; }
+  const f = frameVars(a), url = '/uploads/' + esc(a.image);
+  modal(`<h3>Frame the photo</h3>
+    <div class="hint" style="margin:-4px 0 12px">Drag the photo to choose what shows. Nothing is cut from the original.</div>
+    <div class="sh-photo fr-stage" id="frStage" style="${frameStyle(f)}">
+      <i id="frImg" style="background-image:url('${url}')"></i>
+      <div class="fr-grid"></div>
+    </div>
+    <label style="margin-top:14px">Zoom</label>
+    <input id="frZoom" type="range" min="1" max="3" step="0.01" value="${f.z}" />
+    <label>Shape of the frame</label>
+    <div class="filters wrap" id="frShapes">
+      ${FRAME_SHAPES.map(([v, l]) => `<span class="chip ${v === f.shape ? 'active' : ''}" data-sh="${v}">${l}</span>`).join('')}
+    </div>
+    <div class="row" style="margin-top:14px;gap:8px">
+      <button class="btn sec" onclick="frameReset()">Centre it again</button>
+      <button class="btn" onclick="frameSave()">Save the framing</button>
+    </div>`);
+
+  const st = window._fr = { ...f };
+  const stage = document.getElementById('frStage');
+  const apply = () => { stage.setAttribute('style', frameStyle(st)); };
+  window._frApply = apply;
+
+  let drag = null;
+  const at = (e) => ({ x: e.clientX, y: e.clientY });
+  stage.addEventListener('pointerdown', (e) => {
+    drag = at(e); stage.setPointerCapture(e.pointerId); stage.classList.add('fr-hold');
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const p = at(e), r = stage.getBoundingClientRect();
+    // Dragging down should bring the top of the photo into view.
+    st.x = Math.min(100, Math.max(0, st.x - ((p.x - drag.x) / r.width) * 100 / st.z));
+    st.y = Math.min(100, Math.max(0, st.y - ((p.y - drag.y) / r.height) * 100 / st.z));
+    drag = p; apply(); e.preventDefault();
+  });
+  const drop = () => { drag = null; stage.classList.remove('fr-hold'); };
+  stage.addEventListener('pointerup', drop);
+  stage.addEventListener('pointercancel', drop);
+
+  document.getElementById('frZoom').oninput = (e) => { st.z = Number(e.target.value); apply(); };
+  document.getElementById('frShapes').onclick = (e) => {
+    const chip = e.target.closest('.chip'); if (!chip) return;
+    st.shape = chip.dataset.sh; apply();
+    [...chip.parentNode.children].forEach((n) => n.classList.toggle('active', n === chip));
+  };
+};
+window.frameReset = () => {
+  const st = window._fr; if (!st) return;
+  st.x = 50; st.y = 50; st.z = 1;
+  document.getElementById('frZoom').value = 1;
+  window._frApply();
+};
+window.frameSave = async () => {
+  const st = window._fr;
+  await PUT('/api/about/frame', { x: st.x, y: st.y, zoom: st.z, shape: st.shape });
+  closeModal(); toast('Framing saved'); go(state.page || 'dalia');
+};
 
 /* ============ DALIA POSTS ============ */
 PAGES.dalia = async (c) => {
@@ -891,7 +982,7 @@ PAGES.dalia = async (c) => {
 
   c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
     `<div class="studio-head">
-      ${about.image ? `<div class="sh-photo" style="background-image:url('/uploads/${esc(about.image)}')" onclick="lightbox('/uploads/${esc(about.image)}')"></div>` : ''}
+      ${about.image ? shPhoto(about, admin) : ''}
       <div class="sh-body">
         <div class="sh-eyebrow">The Studio</div>
         <div class="sh-name">Dalia Bassel</div>
