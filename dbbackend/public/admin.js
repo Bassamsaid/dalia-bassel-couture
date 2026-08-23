@@ -1236,13 +1236,16 @@ PAGES.dress = async (c) => {
     ${canEdit ? `<select id="assignSel_${id}" onchange="saveAssign(${id})"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`
       : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
     ${canEdit ? `<div class="sec-title">Her own access 🔑</div>
-      <p class="hint" style="margin-top:-4px">Send her a link. She picks a password and follows her dress — the fittings, the photos and every update. She sees nothing else.</p>
-      ${accessCard(d.client_access)}
-      <label>Her email</label>
-      <input id="dInviteMail_${id}" type="email" inputmode="email" placeholder="client@email.com"
-        value="${esc((d.client_access && d.client_access.email) || (window._dressRef.customers.find((u) => u.id === d.customer_user_id) || {}).email || '')}" />
-      <button class="btn sec" style="margin-top:10px" onclick="inviteClient(${id})">📨 ${d.client_access ? 'Send her a new invitation' : 'Send her the invitation'}</button>
-      <div id="dInvite_${id}"></div>` : ''}
+      ${(d.client_access && d.client_access.logins)
+        // she is already in — nothing left to send
+        ? accessCard(d.client_access)
+        : `<p class="hint" style="margin-top:-4px">Send her a link. She picks a password and follows her dress — the fittings, the photos and every update. She sees nothing else.</p>
+           ${accessCard(d.client_access)}
+           <label>Her email</label>
+           <input id="dInviteMail_${id}" type="email" inputmode="email" placeholder="client@email.com"
+             value="${esc((d.client_access && d.client_access.email) || (window._dressRef.customers.find((u) => u.id === d.customer_user_id) || {}).email || '')}" />
+           <button class="btn sec" style="margin-top:10px" onclick="inviteClient(${id})">📨 Send her the invitation</button>
+           <div id="dInvite_${id}"></div>`}` : ''}
     ${canEdit ? `<div class="divider"></div>
       <div class="row">
         <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
