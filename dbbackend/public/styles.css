@@ -883,3 +883,17 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
   .content{padding:0!important}
   .receipt-sheet{border:none;box-shadow:none;border-radius:0;padding:6px;max-width:none}
 }
+
+/* has the client used her link? */
+.acc-card{border-radius:13px;padding:13px 14px;margin:10px 0 4px;border:1px solid var(--line)}
+.acc-card.in{background:#eef7f1;border-color:#cfe7d9}
+.acc-card.waiting{background:#faf6ec;border-color:#eadfc4}
+.acc-state{font-size:13.5px;font-weight:800;letter-spacing:-.1px;margin-bottom:8px}
+.acc-card.in .acc-state{color:var(--ok)}
+.acc-card.waiting .acc-state{color:var(--warn)}
+.acc-line{font-size:12.5px;color:var(--muted);font-weight:600;overflow-wrap:anywhere}
+.acc-rows{display:flex;flex-direction:column;gap:5px}
+.acc-row{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.acc-k{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);font-weight:700;flex:0 0 auto}
+.acc-v{font-size:12.5px;font-weight:700;color:var(--ink);text-align:end;overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums}

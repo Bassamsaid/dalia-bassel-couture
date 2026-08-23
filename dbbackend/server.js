@@ -143,6 +143,13 @@ function weekdayOf(dateStr) { const d = new Date(String(dateStr).slice(0, 10) + 
 const api = {};
 
 // -- auth --
+// Count a sign-in, however she got in
+function markLogin(userId) {
+  try {
+    db.prepare(`UPDATE users SET login_count=COALESCE(login_count,0)+1,
+      first_login=COALESCE(first_login, datetime('now')), last_login=datetime('now') WHERE id=?`).run(userId);
+  } catch (e) { /* never block a sign-in over a counter */ }
+}
 api['POST /api/login'] = async (req, res) => {
   const b = await readBody(req);
   const u = db.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').get((b.email || '').trim());
@@ -151,6 +158,7 @@ api['POST /api/login'] = async (req, res) => {
   if (!u || !u.active || !verifyPassword(b.password || '', u.password_hash)) return send(res, 401, { error: 'Invalid email or password' });
   const token = crypto.randomBytes(24).toString('hex');
   db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(token, u.id);
+  markLogin(u.id);
   send(res, 200, { ok: true, user: { id: u.id, name: u.name, role: u.role } }, {
     'Set-Cookie': `sid=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`,
   });
@@ -191,6 +199,7 @@ api['POST /api/otp/verify'] = async (req, res) => {
   db.prepare('DELETE FROM otps WHERE email=?').run(email);
   const token = crypto.randomBytes(24).toString('hex');
   db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(token, u.id);
+  markLogin(u.id);
   send(res, 200, { ok: true, user: { id: u.id, name: u.name, role: u.role } }, {
     'Set-Cookie': `sid=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`,
   });
@@ -705,8 +714,18 @@ api['GET /api/dresses'] = async (req, res, user) => {
   const base = 'SELECT d.*, u.name assignee_name FROM dresses d LEFT JOIN users u ON u.id=d.assigned_to';
   if (['admin', 'manager', 'staff'].includes(user.role)) list = db.prepare(base + ' ORDER BY d.id DESC').all();
   else list = db.prepare(base + ' WHERE d.customer_user_id=? ORDER BY d.id DESC').all(user.id);
+  const studioSide = ['admin', 'manager', 'staff'].includes(user.role);
   list.forEach((d) => {
     try { d.brief = d.brief ? JSON.parse(d.brief) : null; } catch (e) { d.brief = null; }
+    // does her own account exist, and has she used it?
+    if (studioSide && d.customer_user_id) {
+      const cu = db.prepare('SELECT email,invited,invite_expires,login_count,first_login,last_login FROM users WHERE id=?').get(d.customer_user_id);
+      if (cu) d.client_access = {
+        email: cu.email, invited: !!cu.invited,
+        invite_expires: cu.invite_expires,
+        logins: cu.login_count || 0, first_login: cu.first_login, last_login: cu.last_login,
+      };
+    }
     d.fittings = db.prepare('SELECT * FROM dress_fittings WHERE dress_id=? ORDER BY fitting_date').all(d.id);
     d.images = db.prepare('SELECT * FROM dress_images WHERE dress_id=? ORDER BY position, id').all(d.id);
     d.unread = db.prepare("SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0 AND link_page='dress' AND link_id=?").get(user.id, d.id).c;
@@ -1311,6 +1330,7 @@ api['POST /api/invite/accept'] = async (req, res) => {
   db.prepare('UPDATE users SET password_hash=?,invited=0,invite_token=NULL,invite_expires=NULL WHERE id=?').run(hashPassword(password), u.id);
   const sid = crypto.randomBytes(24).toString('hex');
   db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(sid, u.id);
+  markLogin(u.id);
   send(res, 200, { ok: true }, { 'Set-Cookie': `sid=${sid}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax` });
 };
 // Who is this link for? Shown on the set-a-password screen.

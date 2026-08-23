@@ -1237,10 +1237,11 @@ PAGES.dress = async (c) => {
       : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
     ${canEdit ? `<div class="sec-title">Her own access 🔑</div>
       <p class="hint" style="margin-top:-4px">Send her a link. She picks a password and follows her dress — the fittings, the photos and every update. She sees nothing else.</p>
+      ${accessCard(d.client_access)}
       <label>Her email</label>
       <input id="dInviteMail_${id}" type="email" inputmode="email" placeholder="client@email.com"
-        value="${esc((window._dressRef.customers.find((u) => u.id === d.customer_user_id) || {}).email || '')}" />
-      <button class="btn sec" style="margin-top:10px" onclick="inviteClient(${id})">📨 Send her the invitation</button>
+        value="${esc((d.client_access && d.client_access.email) || (window._dressRef.customers.find((u) => u.id === d.customer_user_id) || {}).email || '')}" />
+      <button class="btn sec" style="margin-top:10px" onclick="inviteClient(${id})">📨 ${d.client_access ? 'Send her a new invitation' : 'Send her the invitation'}</button>
       <div id="dInvite_${id}"></div>` : ''}
     ${canEdit ? `<div class="divider"></div>
       <div class="row">
@@ -2108,3 +2109,24 @@ window.saveDressBrief = async (id) => {
   await PUT('/api/dresses/' + id, { brief: readBrief('od_') });
   toast('Saved ✓'); window._dressTab = 'occasion'; refreshDress(id);
 };
+
+/* Has she used the link you sent her? */
+function accessCard(a) {
+  if (!a) return '';
+  const when = (s) => s ? `${dt(s)} · ${hm(s)}` : '—';
+  if (!a.logins) {
+    const expired = a.invite_expires && new Date(a.invite_expires) < new Date();
+    return `<div class="acc-card waiting">
+      <div class="acc-state">${expired ? '⌛ The link expired before she used it' : '◷ She has not signed in yet'}</div>
+      <div class="acc-line">${esc(a.email || '')}${a.invited && !expired ? ' · invitation waiting' : ''}</div>
+    </div>`;
+  }
+  return `<div class="acc-card in">
+    <div class="acc-state">✓ Signed in ${a.logins} time${a.logins === 1 ? '' : 's'}</div>
+    <div class="acc-rows">
+      <div class="acc-row"><span class="acc-k">Last seen</span><span class="acc-v">${esc(when(a.last_login))}</span></div>
+      <div class="acc-row"><span class="acc-k">First opened</span><span class="acc-v">${esc(when(a.first_login))}</span></div>
+      <div class="acc-row"><span class="acc-k">Email</span><span class="acc-v">${esc(a.email || '—')}</span></div>
+    </div>
+  </div>`;
+}

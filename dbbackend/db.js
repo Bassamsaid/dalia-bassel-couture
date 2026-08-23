@@ -513,6 +513,11 @@ try { db.exec('ALTER TABLE users ADD COLUMN invite_expires TEXT'); } catch (e) {
 
 // The occasion a dress is being made for (JSON), same questions the client answers.
 try { db.exec('ALTER TABLE dresses ADD COLUMN brief TEXT'); } catch (e) { /* column exists */ }
+
+// How often a client actually opens the app, and when she was last in.
+try { db.exec('ALTER TABLE users ADD COLUMN login_count INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* column exists */ }
+try { db.exec('ALTER TABLE users ADD COLUMN first_login TEXT'); } catch (e) { /* column exists */ }
+try { db.exec('ALTER TABLE users ADD COLUMN last_login TEXT'); } catch (e) { /* column exists */ }
 try { db.exec('ALTER TABLE purchase_invoices ADD COLUMN vendor_id INTEGER'); } catch (e) { /* column exists */ } // link a material invoice to a vendor (unified vendor spend)
 try { db.exec('ALTER TABLE users ADD COLUMN avatar TEXT'); } catch (e) { /* column exists */ } // profile photo (uploaded filename)
 // invited = the studio added this email but the person has not set a password yet.
