@@ -387,6 +387,36 @@ api['POST /api/payments'] = async (req, res, user) => {
   notify(b.user_id, { type: 'payment', title: `A payment of ${money0(b.amount)} was recorded 💳`, body: 'Thank you! You can view your account', link_page: 'mypay', actor_name: user.name });
   send(res, 200, { id: r.lastInsertRowid });
 };
+api['PUT /api/payments/:id'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const cur = db.prepare('SELECT * FROM payments WHERE id=?').get(params.id);
+  if (!cur) return send(res, 404, { error: 'That payment no longer exists' });
+  const b = await readBody(req);
+  const amount = Number(b.amount ?? cur.amount) || 0;
+  if (amount <= 0) return send(res, 400, { error: 'Enter an amount above zero' });
+  const uid = b.user_id ? Number(b.user_id) : cur.user_id;
+  const acc = accountOf(uid);
+  // this payment's own amount is being replaced, so it must not count against her ceiling
+  const others = acc.paid - (uid === cur.user_id ? cur.amount : 0);
+  if (acc.fee > 0 && others + amount > acc.fee) {
+    const left = acc.fee - others;
+    return send(res, 400, {
+      error: left > 0
+        ? `That is more than she still owes. Her course is ${money0(acc.fee)}, her other payments come to ${money0(others)} — only ${money0(left)} is left.`
+        : `Her course fee of ${money0(acc.fee)} is already covered by her other payments.`,
+    });
+  }
+  const img = b.image === undefined ? cur.image : maybeImage(b.image);
+  db.prepare('UPDATE payments SET user_id=?,amount=?,kind=?,method=?,image=?,note=?,paid_at=COALESCE(?,paid_at) WHERE id=?').run(
+    uid, amount, b.kind || cur.kind, (b.method === 'cash' ? 'cash' : (b.method ? 'transfer' : cur.method)),
+    img, b.note === undefined ? cur.note : (b.note || null), b.paid_at || null, params.id);
+  if (amount !== cur.amount || uid !== cur.user_id) {
+    const payer = db.prepare('SELECT name FROM users WHERE id=?').get(uid);
+    notifyRoles('admin', { type: 'payment', title: `Payment corrected: ${money0(cur.amount)} → ${money0(amount)}`,
+      body: `${user.name} corrected a payment for ${payer ? payer.name : ''}`, link_page: 'finance', actor_name: user.name }, user.id);
+  }
+  send(res, 200, { ok: true });
+};
 api['DELETE /api/payments/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM payments WHERE id=?').run(params.id);

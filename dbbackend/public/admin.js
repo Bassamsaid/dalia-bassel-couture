@@ -253,8 +253,9 @@ window.viewStudent = async (id) => {
 };
 window.addPaymentFor = async (id) => {
   if (!window._fin || !window._fin.sheet) {
-    const [users, sheet] = await Promise.all([GET('/api/users?role=trainee'), GET('/api/finance/sheet')]);
-    window._fin = { users, sheet };
+    const [users, sheet, payments] = await Promise.all([
+      GET('/api/users?role=trainee'), GET('/api/finance/sheet'), GET('/api/payments')]);
+    window._fin = { users, sheet, payments };
   }
   addPayment();
   // picking her here must prefill the amount just as choosing her in the list would
@@ -302,7 +303,7 @@ PAGES.finance = async (c) => {
   const [sheet, payments, reminders, users] = await Promise.all([
     GET('/api/finance/sheet'), GET('/api/payments'), GET('/api/reminders'), GET('/api/users?role=trainee'),
   ]);
-  window._fin = { users, sheet };
+  window._fin = { users, sheet, payments };
   const tab = window._finTab || 'sheet';
   const tabs = [['sheet', 'Sheet'], ['pay', 'Payments'], ['rem', 'Reminders']];
   let inner = '';
@@ -342,7 +343,8 @@ PAGES.finance = async (c) => {
         <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','Transfer ${esc(p.user_name || '')}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
         <div class="main"><div class="nm">${esc(p.user_name || '')} · ${money(p.amount)}</div>
           <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
-        <button class="btn-icon" onclick="delPayment(${p.id})">🗑</button>
+        <button class="btn-icon" onclick="editPayment(${p.id})" aria-label="Edit payment">✎</button>
+        <button class="btn-icon" onclick="delPayment(${p.id})" aria-label="Delete payment">🗑</button>
       </div>`).join('') : empty('No payments match this filter')}</div>
       <div class="item" style="background:var(--soft);border-radius:12px;padding:12px 14px;margin-top:10px;border:none">
         <div class="main"><div class="nm">TOTAL${pf === 'cash' ? ' · 💵 Cash' : pf === 'transfer' ? ' · 🏦 Transfer' : ''}</div><div class="sub">${shown.length} payment${shown.length === 1 ? '' : 's'}</div></div>
@@ -368,11 +370,28 @@ function owedMap() {
   ((window._fin.sheet || {}).rows || []).forEach((r) => { m[r.id] = r; });
   return m;
 }
-function studentPayLabel(u, owed) {
+/* What she has paid apart from the payment being edited (none, when adding a new one). */
+function paidByOthers(row, editing) {
+  const mine = editing && Number(editing.user_id) === Number(row.id) ? (editing.amount || 0) : 0;
+  return Math.max(0, (row.paid || 0) - mine);
+}
+function studentPayLabel(u, owed, editing) {
   const r = owed[u.id];
   if (!r || !r.total_fee) return u.name;
-  if (r.over) return `${u.name} · overpaid by ${money(r.over)}`;
-  return r.remaining ? `${u.name} · ${money(r.remaining)} left` : `${u.name} · paid up`;
+  const others = paidByOthers(r, editing);
+  const left = r.total_fee - others;
+  if (left < 0) return `${u.name} · overpaid by ${money(-left)}`;
+  return left ? `${u.name} · ${money(left)} left` : `${u.name} · paid up`;
+}
+/* One rule for both forms: a payment may never carry her past her course fee. */
+function guardPayment(d, owed, editing) {
+  const r = owed[d.user_id];
+  if (!r || !r.total_fee) return;
+  const left = r.total_fee - paidByOthers(r, editing);
+  if (Number(d.amount) <= left) return;
+  throw new Error(left > 0
+    ? `That is more than she still owes — only ${money(left)} is left on her ${money(r.total_fee)} course.`
+    : `Her course fee of ${money(r.total_fee)} is already covered.`);
 }
 window.addPayment = () => {
   const owed = owedMap();
@@ -385,21 +404,41 @@ window.addPayment = () => {
   { name: 'note', label: 'Note', value: '' },
   { name: 'image', label: 'Transfer screenshot (if bank transfer)', type: 'image' },
   ], async (d) => {
-    const r = owed[d.user_id];
-    // caught here as well as on the server, so she is told before the form is sent
-    if (r && r.total_fee > 0 && Number(d.amount) > r.remaining) {
-      throw new Error(r.remaining > 0
-        ? `That is more than she still owes — only ${money(r.remaining)} is left on her ${money(r.total_fee)} course.`
-        : `Her course fee of ${money(r.total_fee)} is already paid in full.`);
-    }
+    guardPayment(d, owed); // caught here as well as on the server, so she is told before it is sent
     await POST('/api/payments', d); toast('Recorded'); go(state.page);
-  });
-  // the amount opens on whatever is still owed
+  }, { perStep: 8 });
+  prefillOwed(owed);
+};
+/* the amount opens on whatever is still owed */
+function prefillOwed(owed, editing) {
   const sel = $('select[name="user_id"]'), amt = $('input[name="amount"]');
-  if (sel && amt) {
-    const fill = () => { const r = owed[sel.value]; if (r && r.remaining > 0) amt.value = r.remaining; };
-    sel.onchange = fill; fill();
-  }
+  if (!sel || !amt) return;
+  const fill = () => {
+    const r = owed[sel.value]; if (!r || !r.total_fee) return;
+    const left = r.total_fee - paidByOthers(r, editing);
+    if (left > 0) amt.value = left;
+  };
+  sel.onchange = fill;
+  if (!editing) fill(); // an edit opens on the figure that was actually recorded
+}
+
+window.editPayment = (id) => {
+  const p = (window._fin.payments || []).find((x) => x.id === id);
+  if (!p) { toast('That payment is no longer here'); return; }
+  const owed = owedMap();
+  formModal('Edit payment', [
+    { name: 'user_id', label: 'Student', type: 'select', required: true, value: p.user_id, options: window._fin.users.map((u) => ({ value: u.id, label: studentPayLabel(u, owed, p) })) },
+    { name: 'amount', label: 'Amount', type: 'number', required: true, value: p.amount },
+    { name: 'kind', label: 'Type', type: 'select', value: p.kind, options: [{ value: 'deposit', label: 'Deposit' }, { value: 'installment', label: 'Installment' }] },
+    { name: 'method', label: 'Payment method', type: 'select', value: p.method, options: [{ value: 'transfer', label: 'Bank transfer' }, { value: 'cash', label: 'Cash' }] },
+    { name: 'paid_at', label: 'Date', type: 'date', value: dt(p.paid_at) },
+    { name: 'note', label: 'Note', value: p.note || '' },
+    { name: 'image', label: 'Transfer screenshot (if bank transfer)', type: 'image', value: p.image || '' },
+  ], async (d) => {
+    guardPayment(d, owed, p);
+    await PUT('/api/payments/' + id, d); toast('Updated'); go(state.page);
+  }, { submitLabel: 'Save changes', perStep: 8 });
+  prefillOwed(owed, p);
 };
 window.delPayment = (id) => confirmDel('Delete this payment?', async () => { await DEL('/api/payments/' + id); toast('Deleted'); go('finance'); });
 window.addReminder = () => formModal('Payment reminder', [
