@@ -497,6 +497,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS dalia_media (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS idx_dalia_media ON dalia_media(post_id, position)');
+// a still for a video, so it never opens as a black rectangle
+try { db.exec('ALTER TABLE dalia_media ADD COLUMN poster TEXT'); } catch (e) { /* column exists */ }
 
 // A task can be aimed at one group inside a round, and says how it is taught.
 try { db.exec('ALTER TABLE homeworks ADD COLUMN group_id INTEGER'); } catch (e) { /* column exists */ }

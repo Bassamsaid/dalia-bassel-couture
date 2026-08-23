@@ -1022,8 +1022,14 @@ function dPaintMedia() {
         : `<img src="${src}" alt=""/>`}
       <button class="scan-del" onclick="${del}" aria-label="Remove">✕</button>
       <span class="scan-tag${tag === 'new' ? ' new' : ''}">${tag}</span></div>`;
-  const old = (window._dOld || []).filter((m) => m.id).map((m) =>
-    cell('/uploads/' + esc(m.file), m.kind, `dDelOld(${m.id})`, m.kind === 'video' ? 'video' : 'live')).join('');
+  const old = (window._dOld || []).filter((m) => m.id).map((m) => {
+    const c = cell(m.kind === 'video' && m.poster ? '/uploads/' + esc(m.poster) : '/uploads/' + esc(m.file),
+      m.kind === 'video' && m.poster ? 'image' : m.kind, `dDelOld(${m.id})`, m.kind === 'video' ? 'video' : 'live');
+    // a video can be given a cover of your choosing
+    return m.kind === 'video'
+      ? c.replace('</div>', `<button class="scan-cover" onclick="setPoster(${m.id})">Cover</button></div>`)
+      : c;
+  }).join('');
   const fresh = (window._dNew || []).map((m, i) =>
     cell('/uploads/' + esc(m.file), m.kind, `dDelNew(${i})`, 'new')).join('');
   g.innerHTML = (old + fresh) || '<div class="scan-empty">No photos yet</div>';
@@ -1034,6 +1040,16 @@ window.dAddMedia = () => {
     (pct) => { if (bar && fill) { bar.classList.remove('hidden'); fill.style.width = Math.round(pct * 100) + '%'; } });
 };
 window.dDelNew = (i) => { window._dNew.splice(i, 1); dPaintMedia(); };
+window.setPoster = (mediaId) => pickImage(async (b64) => {
+  await PUT('/api/dalia-media/' + mediaId, { poster: b64 });
+  toast('Cover set ✓');
+  const post = (window._daliaPosts || []).find((x) => (x.media || []).some((m) => m.id === mediaId));
+  if (post) { const m = post.media.find((x) => x.id === mediaId); if (m) m.poster = null; }
+  window._daliaPosts = await GET('/api/dalia');
+  const p2 = (window._daliaPosts || []).find((x) => (x.media || []).some((m) => m.id === mediaId));
+  window._dOld = p2 ? p2.media : window._dOld;
+  dPaintMedia();
+});
 window.dDelOld = (id) => confirmDel('Remove this from the post?', async () => {
   await DEL('/api/dalia-media/' + id);
   window._dOld = window._dOld.filter((m) => m.id !== id);

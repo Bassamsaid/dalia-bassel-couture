@@ -130,7 +130,12 @@ function pickMedia(cb, onProgress) {
   inp.onchange = async () => {
     for (const f of Array.from(inp.files || [])) {
       try {
-        if (f.type.startsWith('video')) cb(await uploadFile(f, onProgress));
+        if (f.type.startsWith('video')) {
+          const up = await uploadFile(f, onProgress);
+          const still = await videoPoster(f);
+          if (still) { try { up.poster = (await uploadDataUrl(still, 'still.jpg')).file; } catch (e) {} }
+          cb(up);
+        }
         else await new Promise((done) => compressImage(f, async (b64) => {
           const blob = await (await fetch(b64)).blob();
           blob.name = 'photo.jpg';
@@ -142,6 +147,36 @@ function pickMedia(cb, onProgress) {
   };
   inp.click();
 }
+/* A still from the video itself, so it never shows as a black rectangle */
+function videoPoster(file) {
+  return new Promise((resolve) => {
+    let done = false;
+    const url = URL.createObjectURL(file);
+    const finish = (v) => { if (done) return; done = true; URL.revokeObjectURL(url); resolve(v); };
+    const v = document.createElement('video');
+    v.preload = 'metadata'; v.muted = true; v.playsInline = true; v.src = url;
+    v.onloadeddata = () => { try { v.currentTime = Math.min(1, (v.duration || 3) / 3); } catch (e) { finish(null); } };
+    v.onseeked = () => {
+      try {
+        let w = v.videoWidth, h = v.videoHeight;
+        if (!w || !h) return finish(null);
+        const max = 1280;
+        if (w > max || h > max) { const r = Math.min(max / w, max / h); w = Math.round(w * r); h = Math.round(h * r); }
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(v, 0, 0, w, h);
+        finish(c.toDataURL('image/jpeg', 0.85));
+      } catch (e) { finish(null); }   // a codec the browser cannot decode
+    };
+    v.onerror = () => finish(null);
+    setTimeout(() => finish(null), 8000);
+  });
+}
+async function uploadDataUrl(dataUrl, name) {
+  const blob = await (await fetch(dataUrl)).blob();
+  return uploadFile(new File([blob], name || 'still.jpg', { type: 'image/jpeg' }));
+}
+window.videoPoster = videoPoster;
+window.uploadDataUrl = uploadDataUrl;
 window.uploadFile = uploadFile;
 window.pickMedia = pickMedia;
 
@@ -151,8 +186,9 @@ function gallery(media, opts = {}) {
   if (!list.length) return '';
   const id = 'g' + Math.round(performance.now() * 1000) + '_' + list.length;
   const slides = list.map((m) => m.kind === 'video'
-    ? `<div class="gl-slide"><video class="gl-video" src="/uploads/${esc(m.file)}" controls playsinline preload="metadata"
-         ${opts.poster ? `poster="/uploads/${esc(opts.poster)}"` : ''}></video></div>`
+    ? `<div class="gl-slide"><video class="gl-video" src="/uploads/${esc(m.file)}" controls playsinline muted
+         preload="metadata" ${m.poster ? `poster="/uploads/${esc(m.poster)}"` : ''}></video>
+         <button class="gl-sound" onclick="glSound(this)" aria-label="Sound on">🔇</button></div>`
     : `<div class="gl-slide"><img class="gl-img" src="/uploads/${esc(m.file)}" alt=""
          onclick="lightbox('/uploads/${esc(m.file)}')"/></div>`).join('');
   return `<div class="gl" data-n="${list.length}">
@@ -162,6 +198,32 @@ function gallery(media, opts = {}) {
   </div>`;
 }
 window.gallery = gallery;
+/* Videos start on their own when they are the thing you are looking at,
+   muted — which is the only way a browser will allow it — and stop when they leave. */
+let _vidWatcher = null;
+function watchVideos(root) {
+  const vids = (root || document).querySelectorAll('video.gl-video');
+  if (!vids.length) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!_vidWatcher) {
+    _vidWatcher = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        const v = e.target;
+        if (e.isIntersecting && e.intersectionRatio > 0.6) { v.play().catch(() => {}); }
+        else if (!v.paused) { v.pause(); }
+      });
+    }, { threshold: [0, 0.6, 1] });
+  }
+  vids.forEach((v) => { if (!v.dataset.watched) { v.dataset.watched = '1'; _vidWatcher.observe(v); } });
+}
+window.watchVideos = watchVideos;
+window.glSound = (btn) => {
+  const v = btn.parentElement.querySelector('video');
+  if (!v) return;
+  v.muted = !v.muted;
+  btn.textContent = v.muted ? '🔇' : '🔊';
+  if (!v.muted) v.play().catch(() => {});
+};
 window.glScroll = (id) => {
   const t = document.getElementById(id), d = document.getElementById(id + '_d');
   if (!t || !d) return;
@@ -567,7 +629,7 @@ function go(page, opts = {}) {
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.p === page));
   const c = $('#content'); if (!c) return; c.innerHTML = '<div class="spinner"></div>'; window.scrollTo(0, 0);
   const fn = PAGES[page];
-  if (fn) fn(c).then(() => lazyImgs('#content')).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
+  if (fn) fn(c).then(() => { lazyImgs('#content'); watchVideos(c); }).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
   else c.innerHTML = '<div class="empty">Coming soon</div>';
 }
 window.go = go;

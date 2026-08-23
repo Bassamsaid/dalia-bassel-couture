@@ -663,7 +663,7 @@ api['GET /api/dalia'] = async (req, res, user) => {
   send(res, 200, rows);
 };
 function postMedia(postId) {
-  return db.prepare('SELECT id,file,kind FROM dalia_media WHERE post_id=? ORDER BY position,id').all(postId);
+  return db.prepare('SELECT id,file,kind,poster FROM dalia_media WHERE post_id=? ORDER BY position,id').all(postId);
 }
 // Store the gallery for a post and keep dalia_posts.image pointing at the first photo.
 function setPostMedia(postId, media) {
@@ -673,7 +673,9 @@ function setPostMedia(postId, media) {
     if (!file) return;
     const saved = String(file).startsWith('data:') ? saveImage(file) : file;
     const kind = (typeof m === 'object' && m.kind === 'video') || /\.(mp4|mov|webm)$/i.test(saved) ? 'video' : 'image';
-    db.prepare('INSERT INTO dalia_media (post_id,file,kind,position) VALUES (?,?,?,?)').run(postId, saved, kind, ++pos);
+    const poster = (typeof m === 'object' && m.poster)
+      ? (String(m.poster).startsWith('data:') ? saveImage(m.poster) : m.poster) : null;
+    db.prepare('INSERT INTO dalia_media (post_id,file,kind,position,poster) VALUES (?,?,?,?,?)').run(postId, saved, kind, ++pos, poster);
   });
   const cover = db.prepare("SELECT file FROM dalia_media WHERE post_id=? AND kind='image' ORDER BY position,id LIMIT 1").get(postId);
   if (cover) db.prepare('UPDATE dalia_posts SET image=? WHERE id=?').run(cover.file, postId);
@@ -697,6 +699,16 @@ api['PUT /api/dalia/:id'] = async (req, res, user, url, params) => {
   send(res, 200, { ok: true });
 };
 api['DELETE /api/dalia/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM dalia_posts WHERE id=?').run(params.id); db.prepare('DELETE FROM dalia_media WHERE post_id=?').run(params.id); send(res, 200, { ok: true }); };
+// choose the still shown before a video plays
+api['PUT /api/dalia-media/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const row = db.prepare('SELECT * FROM dalia_media WHERE id=?').get(params.id);
+  if (!row) return send(res, 404, { error: 'not found' });
+  const poster = b.poster ? (String(b.poster).startsWith('data:') ? saveImage(b.poster) : b.poster) : null;
+  db.prepare('UPDATE dalia_media SET poster=? WHERE id=?').run(poster, params.id);
+  send(res, 200, { ok: true, poster });
+};
 api['DELETE /api/dalia-media/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   const row = db.prepare('SELECT * FROM dalia_media WHERE id=?').get(params.id);
