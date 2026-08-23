@@ -1341,6 +1341,12 @@ api['GET /api/invite/:token'] = async (req, res, user, url, params) => {
   send(res, 200, { name: u.name, email: u.email });
 };
 
+// What is on offer — the only thing a visitor may read about the academy
+api['GET /api/public/rounds'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  send(res, 200, db.prepare("SELECT id,name,start_date,kind FROM rounds WHERE active=1 ORDER BY id DESC").all());
+};
+
 // ================= CUSTOMER SERVICE CHAT =================
 const CHAT_TOPICS = ['dress', 'course', 'general'];
 const topicWord = { dress: 'a dress', course: 'the courses', general: 'the studio' };
@@ -1372,12 +1378,20 @@ api['GET /api/chats'] = async (req, res, user) => {
 // A one-line read of a dress brief, for the inbox and the notification
 function briefLine(brief) {
   if (!brief) return '';
+  if (brief.kind === 'course') {
+    return [
+      brief.round_name || 'Round not decided',
+      { onsite: 'in the studio', online: 'online', either: 'either way' }[brief.mode],
+      brief.start_from ? `from ${brief.start_from}` : null,
+    ].filter(Boolean).join(' · ');
+  }
   const bits = [
     { bridal: 'Bridal gown', evening: 'Evening gown' }[brief.garment],
     { first: 'first look', second: 'second look', both: 'both looks' }[brief.look],
     brief.event_date,
     { openair: 'open air', indoor: 'indoor venue' }[brief.venue],
     { day: 'daytime', night: 'evening' }[brief.daytime],
+    brief.visit_date ? `wants ${brief.visit_date}${brief.visit_time ? ' ' + brief.visit_time : ''}` : null,
   ].filter(Boolean);
   return bits.join(' · ');
 }
@@ -1584,7 +1598,7 @@ function serveStatic(req, res, pathname) {
 const VISITOR_OK = [
   '/api/me', '/api/login', '/api/logout', '/api/register', '/api/profile',
   '/api/settings', '/api/my-permissions',
-  '/api/dalia', '/api/about',
+  '/api/dalia', '/api/about', '/api/public',
   '/api/chats', '/api/notifications', '/api/upload',
 ];
 

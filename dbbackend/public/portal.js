@@ -448,8 +448,8 @@ window.sendDressNote = (id) => formModal('Note about the dress', [
 
 /* ============ CUSTOMER SERVICE — the customer's side ============ */
 const TOPIC_META = {
-  dress:   { icon: '👗', label: 'Dresses',  hint: 'Bookings, fittings, your gown', c: 'clients' },
-  course:  { icon: '🎓', label: 'Courses',  hint: 'Rounds, fees, joining', c: 'students' },
+  dress:   { icon: '👗', label: 'Book an appointment', hint: 'A consultation, a fitting, your gown', c: 'clients' },
+  course:  { icon: '🎓', label: 'Book a course', hint: 'Pick a round and hold your place', c: 'students' },
   general: { icon: '✦', label: 'Anything else', hint: 'Visiting, prices, directions', c: 'about' },
 };
 
@@ -500,6 +500,7 @@ const BRIEF = {
 };
 window.newChat = (topic) => {
   if (topic === 'dress') return dressBrief();
+  if (topic === 'course') return courseBooking();
   const m = TOPIC_META[topic] || TOPIC_META.general;
   modal(`<h3>${m.icon} ${m.label}</h3>
     <p class="hint" style="margin-top:-6px">${esc(m.hint)}</p>
@@ -551,9 +552,18 @@ window.readBrief = (prefix) => {
 };
 window.dressBrief = () => {
   window._briefMedia = [];
-  modal(`<h3>👗 Your dress</h3>
-    <p class="hint" style="margin-top:-6px">Tell us about the occasion and we will come back with a date for your first consultation.</p>
+  modal(`<h3>👗 Book an appointment</h3>
+    <p class="hint" style="margin-top:-6px">Tell us about the occasion and when suits you, and we confirm your consultation.</p>
     ${briefFields(null, 'b_')}
+    <div class="sec-title">Your appointment</div>
+    <label>When would suit you to come in?</label>
+    <input id="b_visit_date" type="date" />
+    <label>Time of day that suits you</label>
+    <select id="b_visit_time">
+      <option value="morning">Morning</option>
+      <option value="afternoon">Afternoon</option>
+      <option value="evening">Evening</option>
+    </select>
     <label>Inspiration</label>
     <p class="hint" style="margin-top:-2px">Photos of what you have in mind — add as many as you like.</p>
     <button class="btn ghost sm" onclick="briefAdd()">＋ Add photos</button>
@@ -586,6 +596,8 @@ function briefPaint() {
 }
 window.sendDressBrief = async () => {
   const brief = readBrief('b_');
+  brief.visit_date = $('#b_visit_date').value || null;
+  brief.visit_time = $('#b_visit_time').value;
   const subject = (brief.garment === 'bridal' ? 'Bridal gown' : 'Evening gown') + (brief.event_date ? ' · ' + brief.event_date : '');
   const btn = $('#cSend'); btn.disabled = true; btn.textContent = 'Sending…';
   try {
@@ -616,6 +628,14 @@ const BRIEF_WORD = {
 function briefCard(b) {
   if (!b) return '';
   const row = (k, v) => v ? `<div class="bf-row"><span class="bf-k">${esc(k)}</span><span class="bf-v">${esc(v)}</span></div>` : '';
+  if (b.kind === 'course') {
+    return `<div class="brief-card">
+      <div class="bf-head">The booking</div>
+      ${row('Round', b.round_name || 'Not decided yet')}
+      ${row('Attending', { onsite: 'In the studio', online: 'Online', either: 'Either works' }[b.mode])}
+      ${row('Could start', b.start_from ? dt(b.start_from) : null)}
+    </div>`;
+  }
   return `<div class="brief-card">
     <div class="bf-head">The brief</div>
     ${row('Occasion', b.event_date ? dt(b.event_date) : null)}
@@ -625,6 +645,7 @@ function briefCard(b) {
     ${row('Time of day', BRIEF_WORD.daytime[b.daytime])}
     ${row('Her role', BRIEF_WORD.role[b.role])}
     ${row('Based in', b.area)}
+    ${row('Wants to come', b.visit_date ? dt(b.visit_date) + (b.visit_time ? ' · ' + b.visit_time : '') : (b.visit_time || null))}
     ${b.link ? `<div class="bf-row"><span class="bf-k">Inspiration</span>
       <a class="bf-v" href="${esc(b.link)}" target="_blank" rel="noopener">Open the link ↗</a></div>` : ''}
   </div>`;
@@ -706,3 +727,47 @@ window.growComposer = (el) => { el.style.height = 'auto'; el.style.height = Math
 
 window.briefCard = briefCard;
 window.BRIEF_WORD = BRIEF_WORD;
+
+
+/* ---------- booking a place on a course ---------- */
+window.courseBooking = async () => {
+  let rounds = [];
+  try { rounds = await GET('/api/public/rounds'); } catch (e) {}
+  modal(`<h3>🎓 Book a course</h3>
+    <p class="hint" style="margin-top:-6px">Tell us which round suits you and we hold you a place.</p>
+    <label>Which round?</label>
+    <select id="cb_round">
+      ${rounds.map((r) => `<option value="${r.id}">${esc(r.name)}${r.start_date ? ' · starts ' + dt(r.start_date) : ''}</option>`).join('')}
+      <option value="">Not sure yet — advise me</option>
+    </select>
+    <label>How would you like to attend?</label>
+    <select id="cb_mode">
+      <option value="onsite">🏛 In the studio</option>
+      <option value="online">💻 Online</option>
+      <option value="either">Either works</option>
+    </select>
+    <label>When could you start?</label>
+    <input id="cb_start" type="date" />
+    <label>Anything we should know?</label>
+    <textarea id="cSub" class="hidden"></textarea>
+    <textarea id="cBody" style="min-height:90px" placeholder="Your level, the days that suit you..."></textarea>
+    <button class="btn" style="margin-top:14px" id="cSend" onclick="sendCourseBooking()">Send to the studio</button>`);
+  window._cbRounds = rounds;
+};
+window.sendCourseBooking = async () => {
+  const rid = $('#cb_round').value;
+  const round = (window._cbRounds || []).find((r) => String(r.id) === String(rid));
+  const brief = {
+    kind: 'course',
+    round_id: rid ? Number(rid) : null,
+    round_name: round ? round.name : null,
+    mode: $('#cb_mode').value,
+    start_from: $('#cb_start').value || null,
+  };
+  const subject = round ? round.name : 'A place on a course';
+  const btn = $('#cSend'); btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    const r = await POST('/api/chats', { topic: 'course', subject, brief, body: $('#cBody').value.trim() });
+    closeModal(); toast('Sent ✓'); window._openChatAfter = r.id; go('help');
+  } catch (e) { btn.disabled = false; btn.textContent = 'Send to the studio'; toast(e.message); }
+};

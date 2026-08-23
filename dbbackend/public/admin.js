@@ -937,13 +937,13 @@ function reachBlock(pick) {
       <button class="btn" style="margin-top:14px" onclick="go('chats')">Open the inbox</button>
     </div>`;
   const dress = `<button class="reach-btn dress" onclick="askStudio('dress')">
-      <span class="rb-ic">👗</span><span class="rb-t">Book a dress</span><span class="rb-h">Appointment or fitting</span></button>`;
+      <span class="rb-ic">👗</span><span class="rb-t">Book an appointment</span><span class="rb-h">A consultation or a fitting</span></button>`;
   const course = `<button class="reach-btn course" onclick="askStudio('course')">
-      <span class="rb-ic">🎓</span><span class="rb-t">Ask about the courses</span><span class="rb-h">Rounds, fees, joining</span></button>`;
+      <span class="rb-ic">🎓</span><span class="rb-t">Book a course</span><span class="rb-h">Pick a round and hold your place</span></button>`;
   const only = { couture: dress, academy: course };
   const heads = {
-    couture: ['Order your dress', 'Tell us about the occasion and we come back with a date for your first consultation.'],
-    academy: ['Join the academy', 'Ask about the next round, the fees and how to enrol.'],
+    couture: ['Book your appointment', 'Tell us about the occasion and when suits you — we confirm your consultation.'],
+    academy: ['Book your place', 'Pick the round that suits you and we hold a place for you.'],
   };
   const [h, sub] = heads[pick] || ['Talk to the studio', 'Tell us what you need and we answer you inside the app.'];
   return `<div class="reach">
