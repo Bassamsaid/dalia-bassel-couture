@@ -1116,6 +1116,16 @@ api['PUT /api/purchases/:id'] = async (req, res, user, url, params) => {
   db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=? WHERE id=?').run(b.shop ?? c.shop, b.vendor_id ?? c.vendor_id, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
   send(res, 200, { ok: true });
 };
+// Move a mis-filed item to the dress it really belongs to (or off a dress entirely)
+api['PUT /api/purchase-lines/:id'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req);
+  const line = db.prepare('SELECT * FROM purchase_lines WHERE id=?').get(params.id);
+  if (!line) return send(res, 404, { error: 'not found' });
+  db.prepare('UPDATE purchase_lines SET dress_id=?,item=?,amount=? WHERE id=?')
+    .run(b.dress_id === null ? null : (b.dress_id ?? line.dress_id), b.item ?? line.item, b.amount ?? line.amount, params.id);
+  send(res, 200, { ok: true });
+};
 api['DELETE /api/purchases/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM purchase_lines WHERE invoice_id=?').run(params.id);

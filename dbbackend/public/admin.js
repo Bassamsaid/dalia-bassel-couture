@@ -1222,7 +1222,7 @@ async function loadDressMaterials(id) {
       <div class="av" style="background:#fff">◦</div>
       <div class="main"><div class="nm">${esc(x.item || '—')}</div><div class="sub">${x.vendor_name ? esc(x.vendor_name) + ' · ' : ''}${!x.vendor_name && x.shop ? esc(x.shop) + ' · ' : ''}${x.invoice_date ? dt(x.invoice_date) : dt(x.created_at)}</div></div>
       <div class="sub" style="font-weight:700">${money(x.amount)}</div></div>`).join('')}
-      <div class="item" style="border-top:2px solid var(--line)"><div class="main"><div class="nm">Total materials</div></div><div class="serif" style="font-weight:800">${money(total)}</div></div></div>` : '<div class="hint">No materials bought yet</div>';
+      <div class="item" style="border-top:2px solid var(--line)"><div class="main"><div class="nm">Total materials</div></div><div style="font-weight:800;letter-spacing:-.3px">${money(total)}</div></div></div>` : '<div class="hint">No materials bought yet — add the first invoice below</div>';
   } catch (e) { box.innerHTML = '<div class="hint">Could not load materials</div>'; }
 }
 async function loadDressPayments(id) {
@@ -1365,9 +1365,10 @@ PAGES.purchases = async (c) => {
     </div>`).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
 };
 window.setPurMonth = (m) => { window._purMonth = m; go('purchases'); };
-window.openPurchase = (id) => {
+window.openPurchase = async (id) => {
   const inv = (window._purchases || []).find((x) => x.id === id);
   if (!inv) return;
+  if (!window._allDressesForPurchase) window._allDressesForPurchase = await GET('/api/dresses');
   modal(`<h3>${esc(inv.vendor_name || inv.shop || 'Purchase')}</h3>
     <div class="sub muted">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)} · Total ${money(inv.total)}</div>
     ${inv.note ? `<div class="hint">${esc(inv.note)}</div>` : ''}
@@ -1379,8 +1380,13 @@ window.openPurchase = (id) => {
          <button class="btn ghost sm" style="margin-top:8px" onclick="addPurchaseImg(${id})">📷 Replace invoice photo</button>`
       : `<div class="hint">No invoice photo yet</div><button class="btn ghost sm" style="margin-top:6px" onclick="addPurchaseImg(${id})">📷 Add invoice photo</button>`}
     <div class="sec-title">Items</div>
-    <div class="card" style="box-shadow:none;margin:0">${inv.lines.map((li) => `<div class="item"><div class="av" style="background:#fff">◦</div>
-      <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}</div>
+    <p class="hint" style="margin-top:-4px">Each item counts as material cost on the dress named here. Pick a different one to move it.</p>
+    <div class="card" style="box-shadow:none;margin:0">${inv.lines.map((li) => `<div class="pl-row">
+      <div class="pl-top"><span class="pl-item">${li.item ? esc(li.item) : 'Item'}</span><span class="pl-amt">${money(li.amount)}</span></div>
+      <select onchange="moveLine(${li.id},this.value)">
+        <option value="">— not on a dress —</option>
+        ${(window._allDressesForPurchase || []).map((d) => `<option value="${d.id}" ${d.id === li.dress_id ? 'selected' : ''}>${esc(dressOptionLabel(d))}</option>`).join('')}
+      </select></div>`).join('')}</div>
     <div class="divider"></div>
     <button class="btn danger" onclick="delPurchase(${id})">Delete purchase</button>`);
 };
@@ -1522,7 +1528,9 @@ window.newPurchase = async (presetDressId) => {
     (state.user.role === 'admin' ? GET('/api/vendors') : Promise.resolve(window._purVendors || [])),
   ]);
   window._puDresses = dresses; window._puImg = null; window._puPreset = presetDressId || ''; _puLineN = 0;
-  modal(`<h3>New purchase (invoice)</h3>
+  const forDress = presetDressId ? dresses.find((d) => String(d.id) === String(presetDressId)) : null;
+  modal(`<h3>${forDress ? 'Materials for ' + esc(forDress.customer_name) : 'New purchase (invoice)'}</h3>
+    ${forDress ? `<div class="pu-for">Everything you add here goes on <b>${esc(forDress.customer_name)}</b>${forDress.note ? ' · ' + esc(forDress.note) : ''}</div>` : ''}
     ${vendors.length ? `<label>Vendor</label>
     <select id="pu_vendor" style="width:100%"><option value="">— none / one-off shop —</option>${vendors.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</select>` : '<input id="pu_vendor" type="hidden" value="" />'}
     <label>Shop name <span class="hint">(if not a regular vendor)</span></label><input id="pu_shop" placeholder="Shop name" />
@@ -1536,23 +1544,57 @@ window.newPurchase = async (presetDressId) => {
   addPuLine();
 };
 window.pickPuImg = () => pickImage((b64) => { window._puImg = b64; const el = document.getElementById('puImgLbl'); if (el) el.textContent = 'Selected ✓'; });
+/* Two dresses can share a client name — say enough to tell them apart */
+function dressOptionLabel(d) {
+  const bits = [d.customer_name];
+  if (d.note) bits.push(String(d.note).slice(0, 26));
+  if (d.delivery_date) bits.push(dt(d.delivery_date));
+  return bits.join(' · ');
+}
 window.addPuLine = () => {
   const box = document.getElementById('pu_lines'); if (!box) return;
-  const opts = (window._puDresses || []).map((d) => `<option value="${d.id}" ${String(window._puPreset) === String(d.id) ? 'selected' : ''}>${esc(d.customer_name)}</option>`).join('');
+  const preset = window._puPreset;
   const div = document.createElement('div'); div.className = 'pu-line';
-  div.style = 'display:flex;gap:6px;margin-bottom:6px;align-items:center';
-  div.innerHTML = `<select class="pu-dress" style="flex:2;min-width:0">${opts}</select><input class="pu-item" placeholder="Item" style="flex:2;min-width:0"/><input class="pu-amt" type="number" inputmode="decimal" placeholder="Amount" style="flex:1;min-width:0"/><button class="btn-icon" onclick="this.parentElement.remove()">✕</button>`;
+  if (preset) {
+    // opened from a dress: it cannot land anywhere else
+    div.innerHTML = `<input type="hidden" class="pu-dress" value="${esc(String(preset))}" />
+      <input class="pu-item" placeholder="Item — fabric, beading, lining..." />
+      <input class="pu-amt" type="number" inputmode="decimal" placeholder="Amount" />
+      <button class="btn-icon" onclick="this.parentElement.remove()" aria-label="Remove">✕</button>`;
+  } else {
+    const opts = (window._puDresses || []).map((d) => `<option value="${d.id}">${esc(dressOptionLabel(d))}</option>`).join('');
+    div.innerHTML = `<select class="pu-dress"><option value="">— which dress? —</option>${opts}</select>
+      <input class="pu-item" placeholder="Item — fabric, beading, lining..." />
+      <input class="pu-amt" type="number" inputmode="decimal" placeholder="Amount" />
+      <button class="btn-icon" onclick="this.parentElement.remove()" aria-label="Remove">✕</button>`;
+  }
   box.appendChild(div);
 };
 window.savePurchase = async () => {
-  const lines = [...document.querySelectorAll('.pu-line')].map((l) => ({ dress_id: Number(l.querySelector('.pu-dress').value) || null, item: l.querySelector('.pu-item').value, amount: Number(l.querySelector('.pu-amt').value) || 0 })).filter((x) => x.dress_id && x.amount > 0);
-  if (!lines.length) return toast('Add at least one item (dress + amount)');
+  const rows = [...document.querySelectorAll('.pu-line')];
+  const filled = rows.filter((l) => Number(l.querySelector('.pu-amt').value) > 0);
+  if (!filled.length) return toast('Add at least one item with an amount');
+  // never let an item quietly land on the wrong dress — or on none at all
+  const orphan = filled.find((l) => !Number(l.querySelector('.pu-dress').value));
+  if (orphan) {
+    const sel = orphan.querySelector('.pu-dress');
+    if (sel && sel.focus) sel.focus();
+    return toast('Choose which dress that item is for');
+  }
+  const lines = filled.map((l) => ({
+    dress_id: Number(l.querySelector('.pu-dress').value),
+    item: l.querySelector('.pu-item').value,
+    amount: Number(l.querySelector('.pu-amt').value),
+  }));
   const vSel = document.getElementById('pu_vendor');
   const vendorId = Number(vSel.value) || null;
   const vendorName = vendorId ? vSel.selectedOptions[0].textContent : '';
   const shop = document.getElementById('pu_shop').value.trim() || vendorName;
   await POST('/api/purchases', { vendor_id: vendorId, shop, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines });
-  toast('Purchase saved'); closeModal(); go('purchases');
+  closeModal(); toast('Purchase saved');
+  // added from a dress? go back to it so the cost is there in front of you
+  if (window._puPreset) { window._dressTab = 'materials'; refreshDress(Number(window._puPreset)); }
+  else go('purchases');
 };
 window.delDressImg = async (imgId, dressId) => { await DEL('/api/dress-images/' + imgId); toast('Photo deleted'); refreshDress(dressId); };
 /* pointer-based drag-reorder for dress photos (works on touch + mouse); first photo = cover */
@@ -1923,4 +1965,12 @@ window.copyInvite = async (id) => {
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
     toast('Press and hold to copy');
   }
+};
+
+window.moveLine = async (lineId, dressId) => {
+  await PUT('/api/purchase-lines/' + lineId, { dress_id: dressId ? Number(dressId) : null });
+  toast(dressId ? 'Moved ✓' : 'Taken off the dress');
+  window._purchases = await GET('/api/purchases');
+  window._allDressesForPurchase = await GET('/api/dresses');
+  window._dresses = window._allDressesForPurchase;
 };
