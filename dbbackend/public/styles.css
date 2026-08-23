@@ -859,3 +859,27 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .home-lux .cat-row.four .cat-ic{width:32px;height:32px;font-size:15px}
 .home-lux .cat-row.four .cat-n{font-size:10.5px;letter-spacing:.3px}
 .home-lux .cat-row.four .cat-c{font-size:10px}
+
+/* ===== Payment receipt ===== */
+.rc-actions{display:flex;gap:9px;margin-bottom:14px}
+.rc-actions .btn{width:auto;flex:1}
+.receipt-sheet{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 22px;
+  max-width:520px;margin:0 auto;box-shadow:var(--shadow-sm);color:#14101a}
+.rc-head{text-align:center;border-bottom:3px solid var(--purple-d);padding-bottom:14px}
+.rc-brand{font-family:var(--serif);font-size:24px;font-weight:700;letter-spacing:3px;color:var(--purple-d)}
+.rc-sub{color:var(--muted);font-size:10.5px;letter-spacing:3px;text-transform:uppercase;margin-top:5px}
+.rc-amt{margin:20px 0;text-align:center;font-size:30px;font-weight:800;letter-spacing:-.5px;color:var(--purple-d);
+  font-variant-numeric:tabular-nums}
+.rc-table{width:100%;border-collapse:collapse;font-size:14px;min-width:0}
+.rc-table td{border:1px solid #e9e2f7;padding:10px 12px;white-space:normal;text-align:start;color:#14101a}
+.rc-table td:first-child{background:#f6f2fe;font-weight:700;width:45%;color:#4a2f8f}
+.rc-foot{margin-top:22px;text-align:center;color:var(--muted);font-size:12px}
+
+/* printing: the sheet, and nothing else */
+@media print{
+  .topbar,.bottomnav,.no-print,.lux-bg,.dress-wm,.page-title,#toast,.drawer-back{display:none!important}
+  html,body{background:#fff!important}
+  .app{padding:0!important;max-width:none!important}
+  .content{padding:0!important}
+  .receipt-sheet{border:none;box-shadow:none;border-radius:0;padding:6px;max-width:none}
+}

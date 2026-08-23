@@ -721,10 +721,13 @@ window.big = big;
 
 const PAGES = {};
 
-/* ---------- printable payment receipt (students + clients) ---------- */
-function printReceipt(o) {
-  const cur = (window._cfg && window._cfg.currency) || 'EGP';
-  const m = (n) => (Number(n || 0)).toLocaleString('en-US') + ' ' + cur;
+/* ---------- payment receipt: a screen you can leave, and print ---------- */
+function printReceipt(o) { window._receipt = o; go('receipt'); }
+window.printReceipt = printReceipt;
+
+PAGES.receipt = async (c) => {
+  const o = window._receipt;
+  if (!o) return go(state.user.role === 'customer' ? 'mydresses' : 'home');
   const rows = [
     ['Name', o.name || '—'],
     ['For', o.forWhat || '—'],
@@ -733,29 +736,22 @@ function printReceipt(o) {
     ['Date', o.date ? dt(o.date) : dt(today())],
   ];
   if (o.note) rows.push(['Note', o.note]);
-  if (o.remaining != null) rows.push(['Remaining balance', m(o.remaining)]);
-  const html = `<!doctype html><html dir="ltr"><head><meta charset="utf-8"><title>Receipt — ${esc(o.name || '')}</title>
-  <style>html,body{background:#fff}body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#14101a;padding:32px;max-width:520px;margin:auto}
-  .head{text-align:center;border-bottom:3px solid #7c3aed;padding-bottom:14px}
-  .brand{font-family:Georgia,serif;font-size:26px;font-weight:700;letter-spacing:3px;color:#7c3aed}
-  .sub{color:#777;font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-top:4px}
-  .amt{margin:18px 0;text-align:center;font-size:30px;font-weight:800;color:#7c3aed;font-family:Georgia,serif}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  td{border:1px solid #e9e2f7;padding:9px 12px}
-  td:first-child{background:#f6f2fe;font-weight:700;width:45%;color:#4a2f8f}
-  .foot{margin-top:22px;text-align:center;color:#777;font-size:12px}
-  @media print{body{padding:6px}}</style></head><body>
-    <div class="head"><div class="brand">DALIA BASSEL</div><div class="sub">Haute Couture · Payment Receipt</div></div>
-    <div class="amt">${m(o.amount)}</div>
-    <table><tbody>${rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td>${esc(String(v))}</td></tr>`).join('')}</tbody></table>
-    <div class="foot">Thank you 💜 · Dalia Bassel Couture</div>
-    <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print()},400)}</scr` + `ipt>
-  </body></html>`;
-  const w = window.open('', '_blank');
-  if (!w) return toast('Allow pop-ups to print');
-  w.document.write(html); w.document.close();
-}
-window.printReceipt = printReceipt;
+  if (o.remaining != null) rows.push(['Remaining balance', money(o.remaining)]);
+  c.innerHTML = `<div class="rc-actions no-print">
+      <button class="btn sec" onclick="goBack()">‹ Back</button>
+      <button class="btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+    </div>
+    <div class="receipt-sheet" id="receiptSheet">
+      <div class="rc-head">
+        <div class="rc-brand">DALIA BASSEL</div>
+        <div class="rc-sub">Haute Couture · Payment Receipt</div>
+      </div>
+      <div class="rc-amt">${money(o.amount)}</div>
+      <table class="rc-table"><tbody>${rows.map(([k, v]) =>
+        `<tr><td>${esc(k)}</td><td>${esc(String(v))}</td></tr>`).join('')}</tbody></table>
+      <div class="rc-foot">Thank you 💜 · Dalia Bassel Couture</div>
+    </div>`;
+};
 
 /* ---------- notifications ---------- */
 function timeago(s) {
