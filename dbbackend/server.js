@@ -335,11 +335,23 @@ api['GET /api/finance/sheet'] = async (req, res, user) => {
     LEFT JOIN enrollments e ON e.user_id=u.id
     WHERE u.role='trainee'
     ORDER BY u.name`).all();
-  rows.forEach((r) => { r.remaining = Math.max(0, (r.total_fee || 0) - (r.paid || 0)); });
+  rows.forEach((r) => {
+    r.remaining = Math.max(0, (r.total_fee || 0) - (r.paid || 0));
+    // paid beyond the fee: a figure entered wrong, worth showing rather than hiding
+    r.over = r.total_fee > 0 ? Math.max(0, (r.paid || 0) - r.total_fee) : 0;
+  });
   const totals = rows.reduce((a, r) => { a.total_fee += r.total_fee; a.paid += r.paid; a.remaining += r.remaining; return a; },
     { total_fee: 0, paid: 0, remaining: 0, count: rows.length });
   send(res, 200, { rows, totals });
 };
+
+// What a student owes the academy and what she has paid so far.
+function accountOf(userId) {
+  const r = db.prepare(`SELECT
+    COALESCE((SELECT SUM(total_fee) FROM enrollments WHERE user_id=?),0) AS fee,
+    COALESCE((SELECT SUM(amount)    FROM payments    WHERE user_id=?),0) AS paid`).get(userId, userId);
+  return { fee: r.fee || 0, paid: r.paid || 0 };
+}
 
 // ================= PAYMENTS =================
 api['GET /api/payments'] = async (req, res, user, url) => {
@@ -355,6 +367,17 @@ api['POST /api/payments'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   if (!b.user_id) return send(res, 400, { error: 'Select a student' });
+  const amount = Number(b.amount) || 0;
+  if (amount <= 0) return send(res, 400, { error: 'Enter an amount above zero' });
+  const acc = accountOf(b.user_id);
+  if (acc.fee > 0 && acc.paid + amount > acc.fee) {
+    const left = acc.fee - acc.paid;
+    return send(res, 400, {
+      error: left > 0
+        ? `That is more than she still owes. Her course is ${money0(acc.fee)}, she has paid ${money0(acc.paid)} — only ${money0(left)} is left.`
+        : `Her course fee of ${money0(acc.fee)} is already paid in full.`,
+    });
+  }
   const img = maybeImage(b.image);
   const method = b.method === 'cash' ? 'cash' : 'transfer';
   const r = db.prepare('INSERT INTO payments (user_id,amount,kind,method,image,note,paid_at) VALUES (?,?,?,?,?,?,COALESCE(?,datetime(\'now\')))').run(

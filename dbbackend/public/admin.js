@@ -252,9 +252,13 @@ window.viewStudent = async (id) => {
     </div>` : ''}`);
 };
 window.addPaymentFor = async (id) => {
-  window._fin = window._fin || { users: await GET('/api/users?role=trainee') };
+  if (!window._fin || !window._fin.sheet) {
+    const [users, sheet] = await Promise.all([GET('/api/users?role=trainee'), GET('/api/finance/sheet')]);
+    window._fin = { users, sheet };
+  }
   addPayment();
-  setTimeout(() => { const s = $('select[name="user_id"]'); if (s) s.value = id; }, 50);
+  // picking her here must prefill the amount just as choosing her in the list would
+  setTimeout(() => { const s = $('select[name="user_id"]'); if (s) { s.value = id; s.dispatchEvent(new Event('change')); } }, 50);
 };
 window.stFilter = (f) => { window._stF = f; go('students'); };
 window.editStudent = async (id) => {
@@ -298,15 +302,22 @@ PAGES.finance = async (c) => {
   const [sheet, payments, reminders, users] = await Promise.all([
     GET('/api/finance/sheet'), GET('/api/payments'), GET('/api/reminders'), GET('/api/users?role=trainee'),
   ]);
-  window._fin = { users };
+  window._fin = { users, sheet };
   const tab = window._finTab || 'sheet';
   const tabs = [['sheet', 'Sheet'], ['pay', 'Payments'], ['rem', 'Reminders']];
   let inner = '';
   if (tab === 'sheet') {
-    inner = `<div class="card"><div class="tbl-wrap"><table>
+    const over = sheet.rows.filter((r) => r.over > 0);
+    inner = `${over.length ? `<div class="card warn-card">
+        <div class="wc-h">⚠ ${over.length} student${over.length === 1 ? '' : 's'} paid more than the course fee</div>
+        <div class="wc-s">Almost always an amount typed wrong. Open the Payments tab and delete the wrong entry, or raise her course fee if it really did go up.</div>
+        <div class="wc-list">${over.map((r) => `<div class="wc-row"><span>${esc(r.name)}</span><b>+${money(r.over)}</b></div>`).join('')}</div>
+      </div>` : ''}
+      <div class="card"><div class="tbl-wrap"><table class="sheet-tbl">
       <thead><tr><th>Name</th><th>Total</th><th>Paid</th><th>Remaining</th></tr></thead>
       <tbody>${sheet.rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${money(r.total_fee)}</td>
-        <td style="color:var(--ok)">${money(r.paid)}</td><td style="color:${r.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(r.remaining)}</td></tr>`).join('')}</tbody>
+        <td style="color:var(--${r.over ? 'bad' : 'ok'})">${money(r.paid)}${r.over ? ` <span class="over-tag">+${money(r.over)}</span>` : ''}</td>
+        <td style="color:${r.remaining ? 'var(--bad)' : 'var(--ok)'}">${money(r.remaining)}</td></tr>`).join('')}</tbody>
       <tfoot><tr><td>Total (${sheet.totals.count})</td><td>${money(sheet.totals.total_fee)}</td><td>${money(sheet.totals.paid)}</td><td>${money(sheet.totals.remaining)}</td></tr></tfoot>
       </table></div></div>`;
   } else if (tab === 'pay') {
@@ -351,15 +362,45 @@ PAGES.finance = async (c) => {
 };
 window.finTab = (t) => { window._finTab = t; go('finance'); };
 window.payFilter = (m) => { window._payMethod = m; go('finance'); };
-window.addPayment = () => formModal('Record payment', [
-  { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },
+/* What each student still owes, so the form can say it and stop an overpayment early. */
+function owedMap() {
+  const m = {};
+  ((window._fin.sheet || {}).rows || []).forEach((r) => { m[r.id] = r; });
+  return m;
+}
+function studentPayLabel(u, owed) {
+  const r = owed[u.id];
+  if (!r || !r.total_fee) return u.name;
+  if (r.over) return `${u.name} · overpaid by ${money(r.over)}`;
+  return r.remaining ? `${u.name} · ${money(r.remaining)} left` : `${u.name} · paid up`;
+}
+window.addPayment = () => {
+  const owed = owedMap();
+  formModal('Record payment', [
+  { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: studentPayLabel(u, owed) })) },
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'kind', label: 'Type', type: 'select', options: [{ value: 'deposit', label: 'Deposit' }, { value: 'installment', label: 'Installment' }] },
   { name: 'method', label: 'Payment method', type: 'select', value: 'transfer', options: [{ value: 'transfer', label: 'Bank transfer' }, { value: 'cash', label: 'Cash' }] },
   { name: 'paid_at', label: 'Date', type: 'date', value: today() },
   { name: 'note', label: 'Note', value: '' },
   { name: 'image', label: 'Transfer screenshot (if bank transfer)', type: 'image' },
-], async (d) => { await POST('/api/payments', d); toast('Recorded'); go(state.page); });
+  ], async (d) => {
+    const r = owed[d.user_id];
+    // caught here as well as on the server, so she is told before the form is sent
+    if (r && r.total_fee > 0 && Number(d.amount) > r.remaining) {
+      throw new Error(r.remaining > 0
+        ? `That is more than she still owes — only ${money(r.remaining)} is left on her ${money(r.total_fee)} course.`
+        : `Her course fee of ${money(r.total_fee)} is already paid in full.`);
+    }
+    await POST('/api/payments', d); toast('Recorded'); go(state.page);
+  });
+  // the amount opens on whatever is still owed
+  const sel = $('select[name="user_id"]'), amt = $('input[name="amount"]');
+  if (sel && amt) {
+    const fill = () => { const r = owed[sel.value]; if (r && r.remaining > 0) amt.value = r.remaining; };
+    sel.onchange = fill; fill();
+  }
+};
 window.delPayment = (id) => confirmDel('Delete this payment?', async () => { await DEL('/api/payments/' + id); toast('Deleted'); go('finance'); });
 window.addReminder = () => formModal('Payment reminder', [
   { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },

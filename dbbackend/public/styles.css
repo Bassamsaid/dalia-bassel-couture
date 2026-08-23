@@ -145,6 +145,25 @@ textarea{min-height:80px;resize:vertical}
 
 /* ===== Table ===== */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line)}
+/* the payments sheet: the name stays put while the figures scroll past it */
+.sheet-tbl th:first-child,.sheet-tbl td:first-child{position:sticky;left:0;z-index:1;
+  background:var(--card,#fff);box-shadow:1px 0 0 var(--line);max-width:38vw}
+.sheet-tbl thead th:first-child{z-index:2;background:var(--soft)}
+.sheet-tbl tbody tr:nth-child(even) td:first-child{background:#faf8fd}
+.sheet-tbl tfoot td:first-child{background:var(--soft)}
+.over-tag{display:inline-block;margin-inline-start:4px;padding:1px 6px;border-radius:8px;
+  font-size:10.5px;font-weight:800;color:#fff;background:var(--bad);vertical-align:middle}
+
+/* something is wrong in the figures, said plainly above the sheet */
+.warn-card{border:1.5px solid var(--bad);background:#fff6f7;margin-bottom:12px}
+.wc-h{font-size:14.5px;font-weight:800;color:var(--bad)}
+.wc-s{font-size:12.5px;line-height:1.6;color:var(--muted);font-weight:600;margin-top:5px}
+.wc-list{margin-top:10px;border-top:1px solid rgba(210,75,98,.25)}
+.wc-row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;font-size:13px;
+  border-bottom:1px solid rgba(210,75,98,.15)}
+.wc-row:last-child{border-bottom:none}
+.wc-row span{font-weight:700;color:var(--ink);min-width:0;overflow-wrap:anywhere}
+.wc-row b{color:var(--bad);white-space:nowrap;font-variant-numeric:tabular-nums}
 table{border-collapse:collapse;width:100%;font-size:13px;min-width:440px;background:#fff}
 th,td{padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap;text-align:right;color:var(--ink)}
 th:first-child,td:first-child{text-align:left;font-weight:700}
