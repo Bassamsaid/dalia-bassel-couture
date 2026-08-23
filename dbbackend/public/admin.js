@@ -390,13 +390,16 @@ PAGES.rounds = async (c) => {
     </div>`).join('') : empty('No rounds yet — start by adding a round')}`;
   window._rounds = rounds;
 };
-window.addRound = () => formModal('New round', [
+window.addRound = (kind) => formModal('New round', [
   { name: 'number', label: 'Round number', type: 'number' },
   { name: 'name', label: 'Name', required: true, placeholder: 'August Round' },
-  { name: 'kind', label: 'Course type', type: 'select', value: 'onsite', options: [{ value: 'online', label: 'Online Course' }, { value: 'onsite', label: 'In‑person' }] },
+  // opened from a Courses tab the kind is already decided, so it stops being a question
+  (kind === 'online' || kind === 'onsite')
+    ? { name: 'kind', type: 'hidden', value: kind }
+    : { name: 'kind', label: 'Course type', type: 'select', value: 'onsite', options: [{ value: 'online', label: 'Online Course' }, { value: 'onsite', label: 'In‑person' }] },
   { name: 'start_date', label: 'Start date', type: 'date' },
   { name: 'description', label: 'Description', type: 'textarea' },
-], async (d) => { await POST('/api/rounds', d); toast('Added'); go('rounds'); });
+], async (d) => { await POST('/api/rounds', d); toast('Added'); go(state.page); }, { perStep: 6 });
 window.delRound = (id) => confirmDel('Delete round?', async () => { await DEL('/api/rounds/' + id); go('rounds'); });
 window.addGroup = async (presetRound) => {
   const rounds = window._rounds || await GET('/api/rounds');
@@ -452,18 +455,55 @@ PAGES.courses = async (c) => {
   const [rounds, students] = await Promise.all([GET('/api/rounds'), GET('/api/users?role=trainee')]);
   window._rounds = rounds;
   const cnt = (rid) => students.filter((u) => u.round_id === rid).length;
-  const tab = window._courseTab === 'onsite' ? 'onsite' : 'online';
-  const tabs = [['online', 'Online Course'], ['onsite', 'In‑person']];
-  const list = rounds.filter((r) => (r.kind || 'onsite') === tab);
-  c.innerHTML = title('Courses', '') +
-    `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="courseTab('${k}')">${l}</span>`).join('')}</div>
-    ${canManage ? '<button class="btn sec sm" onclick="addRound()">＋ New round</button>' : ''}
-    <div style="margin-top:12px">${list.length ? list.map((r) => `<div class="card" style="cursor:pointer" onclick="openRound(${r.id})">
-      <div class="item"><div class="av">${r.number || '#'}</div>
-        <div class="main"><div class="nm">${esc(r.name)} <span class="badge">${cnt(r.id)} students</span></div>
-          <div class="sub">${r.start_date ? 'Starts ' + dt(r.start_date) : ''}${r.description ? ' · ' + esc(r.description) : ''}</div></div>
-        <span class="muted" style="font-size:20px">›</span></div>
-    </div>`).join('') : empty(tab === 'onsite' ? 'No in‑person rounds yet' : 'No online rounds yet', '🎓')}</div>`;
+
+  const kinds = [
+    { key: 'online', icon: '💻', name: 'Online', full: 'Online course',
+      c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
+      blurb: 'Taught over video — she follows the round from wherever she is' },
+    { key: 'onsite', icon: '🏛', name: 'In‑person', full: 'In‑person course',
+      c1: '#0f766e', c2: '#5eead4', glow: '15,118,110',
+      blurb: 'Taught at the studio — patterns, fittings and the machines' },
+  ];
+  const of = (k) => rounds.filter((r) => (r.kind || 'onsite') === k);
+  const tab = kinds.some((k) => k.key === window._courseTab) ? window._courseTab : 'online';
+  window._courseTab = tab;
+  const k = kinds.find((x) => x.key === tab);
+  const list = of(tab);
+  const enrolled = list.reduce((a, r) => a + cnt(r.id), 0);
+
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' + title('Courses', '') +
+    `${rounds.length ? `<div class="card" style="margin-bottom:14px">
+      <div class="nm serif" style="font-size:17px">${rounds.length} round${rounds.length === 1 ? '' : 's'} in the academy</div>
+      <div class="sub muted" style="margin-top:4px">${students.length ? `${students.length} student${students.length === 1 ? '' : 's'} on the books` : 'No students enrolled yet'}</div>
+    </div>` : ''}
+    <div class="cat-row two">
+      ${kinds.map((x) => {
+        const n = of(x.key).length;
+        return `<button class="cat${x.key === tab ? ' on' : ''}" style="--c1:${x.c1};--c2:${x.c2};--glow:${x.glow}"
+          onclick="courseTab('${x.key}')" aria-pressed="${x.key === tab}">
+          <span class="cat-ic">${x.icon}</span>
+          <span class="cat-n">${x.name}</span>
+          <span class="cat-c">${n ? n + (n === 1 ? ' round' : ' rounds') : 'none yet'}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <div class="cat-head">
+      <div class="ch-name">${esc(k.full)}</div>
+      <div class="ch-sub">${esc(k.blurb)}${enrolled ? ` · ${enrolled} student${enrolled === 1 ? '' : 's'}` : ''}</div>
+    </div>
+    ${canManage && list.length ? `<button class="btn" style="margin-bottom:14px" onclick="addRound('${tab}')">＋ New ${k.name.toLowerCase()} round</button>` : ''}
+    ${list.length ? `<div class="card rnd-list" style="--c1:${k.c1};--c2:${k.c2};--glow:${k.glow}">${list.map((r) => `<div class="item rnd" onclick="openRound(${r.id})">
+        <div class="rnd-no">${esc(String(r.number || '#'))}</div>
+        <div class="main"><div class="nm">${esc(r.name)}</div>
+          <div class="sub">${cnt(r.id)} student${cnt(r.id) === 1 ? '' : 's'}${r.start_date ? ' · starts ' + dt(r.start_date) : ''}${r.description ? ' · ' + esc(r.description) : ''}</div></div>
+        <span class="muted" style="font-size:20px">›</span></div>`).join('')}</div>`
+      : `<div class="card nothing">
+          <div class="nt-ic" style="--c1:${k.c1};--c2:${k.c2};--glow:${k.glow}">${k.icon}</div>
+          <div class="nt-h">No ${k.name.toLowerCase()} round yet</div>
+          <div class="nt-s">${canManage ? 'Open one and the students you add to it will see their lessons, tasks and fees here.' : 'Nothing has been opened in this part of the academy yet.'}</div>
+          ${canManage ? `<button class="btn" style="margin-top:14px" onclick="addRound('${tab}')">＋ Open the first one</button>` : ''}
+        </div>`}
+    </div>`;
 };
 window.courseTab = (t) => { window._courseTab = t; go('courses'); };
 window.openRound = (id) => { window._roundId = id; window._roundTab = 'students'; go('round'); };

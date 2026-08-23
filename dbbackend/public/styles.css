@@ -872,6 +872,30 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
   border-radius:10px;background:var(--bad);color:#fff;font-size:10.5px;font-weight:800;
   display:flex;align-items:center;justify-content:center;box-shadow:0 2px 5px rgba(210,75,98,.45)}
 
+/* two piles instead of three: give each one room to breathe */
+.home-lux .cat-row.two{grid-template-columns:repeat(2,1fr);gap:11px}
+.home-lux .cat-row.two .cat{padding:18px 8px 16px;gap:7px;border-radius:18px}
+.home-lux .cat-row.two .cat-ic{width:44px;height:44px;font-size:20px}
+.home-lux .cat-row.two .cat-n{font-size:13px}
+
+/* rounds, listed under the pile they belong to */
+.home-lux .rnd{cursor:pointer;gap:12px}
+.home-lux .rnd-no{flex:0 0 auto;width:40px;height:40px;border-radius:13px;display:flex;
+  align-items:center;justify-content:center;font-size:14.5px;font-weight:800;color:#fff;
+  background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 5px 12px rgba(var(--glow),.28)}
+.home-lux .rnd:active{background:var(--soft)}
+.home-lux .rnd-list .item:last-child{border-bottom:none}
+
+/* an empty part of the app, said properly instead of a lone icon in a void */
+.nothing{text-align:center;padding:30px 20px 26px}
+.nt-ic{width:62px;height:62px;margin:0 auto;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:27px;color:#fff;
+  background:linear-gradient(135deg,var(--c1,#7c3aed),var(--c2,#e24a8b));
+  box-shadow:0 10px 22px rgba(var(--glow,124,58,237),.3)}
+.nt-h{font-size:16px;font-weight:800;color:var(--ink);margin-top:14px}
+.nt-s{font-size:13px;line-height:1.65;color:var(--muted);font-weight:600;margin-top:6px;
+  max-width:34ch;margin-inline:auto}
+
 /* the chosen pile, named above its list */
 .home-lux .cat-head{padding:2px 2px 12px}
 .home-lux .ch-name{font-family:var(--sans);font-size:17px;font-weight:800;letter-spacing:-.3px;color:var(--ink)}
