@@ -268,40 +268,110 @@ function attMins(ci, co) { // minutes between two "HH:MM" times
 }
 const fmtDur = (m) => Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm';
 function elapsedSince(ci) { const now = new Date(); return fmtDur(attMins(ci, _hhmm(now))); }
+/* The studio's shift, and how a day measures against it — the same rules the
+   salary sheet uses, so what a staff member sees matches what she is paid on. */
+function shift() {
+  const cfg = window._cfg || {};
+  const hm = (s, d) => { const [h, m] = String(s || d).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+  return {
+    inMin: hm(cfg.check_in_time, '09:00'),
+    outMin: hm(cfg.check_out_time, '17:00'),
+    grace: Number(cfg.late_grace_min) || 0,
+  };
+}
+const _offDays = () => new Set(String((state.user && state.user.off_days) || '')
+  .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const _weekdayOf = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+function dayMarks(a) {
+  if (_offDays().has(_weekdayOf(a.date))) return { off: true, late: 0, over: 0 };
+  const s = shift();
+  const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+  let late = 0, over = 0;
+  if (a.check_in) { const l = toMin(a.check_in) - s.inMin; if (l > s.grace) late = l - s.grace; }
+  if (a.check_out) { const o = toMin(a.check_out) - s.outMin; if (o > 0) over = o; }
+  return { off: false, late, over };
+}
+const markPills = (m) => m.off ? '<span class="d-pill off">Off day</span>'
+  : `${m.late ? `<span class="d-pill late">Late ${fmtDur(m.late)}</span>` : ''}${m.over ? `<span class="d-pill over">Overtime ${fmtDur(m.over)}</span>` : ''}${(!m.late && !m.over) ? '<span class="d-pill ok">On time</span>' : ''}`;
+
 function attScreen(c, att, titleTxt) {
   const rec = att.find((a) => a.date === today());
   const st = (!rec || !rec.check_in) ? 'out' : (!rec.check_out ? 'in' : 'done');
   const now = new Date();
+  const s = shift();
   const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+  const shiftLine = `<div class="ck-shift">Your shift · ${(window._cfg || {}).check_in_time || '09:00'} – ${(window._cfg || {}).check_out_time || '17:00'}${s.grace ? ` · ${s.grace}m grace` : ''}</div>`;
   const ring = st === 'out'
     ? `<button class="ck-ring out" onclick="doAttCheck()"><span class="ic">🕒</span><span class="lbl">Check in</span></button>`
     : st === 'in'
       ? `<button class="ck-ring in" onclick="doAttCheck()"><span class="ic">👋</span><span class="lbl">Check out</span></button>`
       : `<div class="ck-ring done"><span class="ic">✓</span><span class="lbl">Done</span></div>`;
+  const todayMarks = rec ? dayMarks(rec) : null;
   const status = st === 'out'
     ? `<div class="ck-status"><span class="muted">No check-in yet — tap to start your day</span></div>`
     : st === 'in'
-      ? `<div class="ck-status">Checked in at <b>${rec.check_in}</b> · <span id="ckElapsed" data-since="${rec.check_in}">${elapsedSince(rec.check_in)}</span></div>`
+      ? `<div class="ck-running">
+           <div class="run-k">Working since ${rec.check_in}</div>
+           <div class="run-t" id="ckRun" data-since="${rec.check_in}">0:00:00</div>
+           ${todayMarks && todayMarks.late ? `<div class="d-pills"><span class="d-pill late">Came in ${fmtDur(todayMarks.late)} late</span></div>` : ''}
+         </div>`
       : `<div class="ck-pills"><div class="ck-pill"><div class="k">In</div><div class="v">${rec.check_in}</div></div>
          <div class="ck-pill"><div class="k">Out</div><div class="v">${rec.check_out}</div></div>
-         <div class="ck-pill"><div class="k">Worked</div><div class="v">${fmtDur(attMins(rec.check_in, rec.check_out))}</div></div></div>`;
+         <div class="ck-pill"><div class="k">Worked</div><div class="v">${fmtDur(attMins(rec.check_in, rec.check_out))}</div></div></div>
+         <div class="d-pills">${markPills(todayMarks)}</div>`;
+
+  // this month at a glance
+  const month = today().slice(0, 7);
+  const mine = att.filter((a) => a.date.slice(0, 7) === month).map((a) => ({ a, m: dayMarks(a) }));
+  const lateTotal = mine.reduce((x, r) => x + r.m.late, 0);
+  const overTotal = mine.reduce((x, r) => x + r.m.over, 0);
+  const lateDays = mine.filter((r) => r.m.late).length;
+
   c.innerHTML = title(titleTxt, '') +
     `<div class="card checkin">
        <div class="ck-clock" id="ckClock">${_hhmm(now)}</div><div class="ck-date">${dateStr}</div>
+       ${shiftLine}
        ${ring}
        ${status}
      </div>
+     <div class="sec-title">This month</div>
+     <div class="grid g2" style="margin-bottom:14px">
+       <div class="stat" style="--c1:#d24b62;--c2:#f0a3b0;--glow:210,75,98">
+         <div class="n" style="color:${lateTotal ? 'var(--bad)' : 'var(--ok)'}">${fmtDur(lateTotal)}</div>
+         <div class="l">Late · ${lateDays} day${lateDays === 1 ? '' : 's'}</div></div>
+       <div class="stat" style="--c1:#2f9d66;--c2:#7fd3a6;--glow:47,157,102">
+         <div class="n" style="color:var(--ok)">${fmtDur(overTotal)}</div><div class="l">Overtime</div></div>
+     </div>
      <div class="sec-title">Recent</div>
-     <div class="card">${att.length ? att.slice(0, 30).map((a) => `<div class="item">
+     <div class="card">${att.length ? att.slice(0, 30).map((a) => {
+       const m = dayMarks(a);
+       return `<div class="item">
        <div class="av">${a.check_out ? '✓' : (a.check_in ? '◐' : '—')}</div>
-       <div class="main"><div class="nm">${dt(a.date)}</div><div class="sub">In ${a.check_in || '—'} · Out ${a.check_out || '—'}</div></div>
-       ${(a.check_in && a.check_out) ? `<div class="sub" style="font-weight:700;color:var(--ink)">${fmtDur(attMins(a.check_in, a.check_out))}</div>` : ''}</div>`).join('') : empty('No records yet', '🕒')}</div>`;
+       <div class="main"><div class="nm">${dt(a.date)}</div>
+         <div class="sub">In ${a.check_in || '—'} · Out ${a.check_out || '—'}</div>
+         <div class="d-pills">${markPills(m)}</div></div>
+       ${(a.check_in && a.check_out) ? `<div class="sub" style="font-weight:800;color:var(--ink)">${fmtDur(attMins(a.check_in, a.check_out))}</div>` : ''}</div>`;
+     }).join('') : empty('No records yet', '🕒')}</div>`;
+
   clearInterval(window._ckTimer);
-  window._ckTimer = setInterval(() => {
-    const clk = document.getElementById('ckClock'); if (!clk) { clearInterval(window._ckTimer); return; }
+  const tick = () => {
+    const clk = document.getElementById('ckClock');
+    if (!clk) { clearInterval(window._ckTimer); return; }
     clk.textContent = _hhmm(new Date());
-    const el = document.getElementById('ckElapsed'); if (el && el.dataset.since) el.textContent = elapsedSince(el.dataset.since);
-  }, 20000);
+    const run = document.getElementById('ckRun');
+    if (run && run.dataset.since) run.textContent = runningSince(run.dataset.since);
+  };
+  window._ckTimer = setInterval(tick, 1000);
+  tick();
+}
+/* H:MM:SS since a check-in time today */
+function runningSince(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  const start = new Date(); start.setHours(h || 0, m || 0, 0, 0);
+  let sec = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+  const hh = Math.floor(sec / 3600); sec -= hh * 3600;
+  const mm = Math.floor(sec / 60); const ss = sec - mm * 60;
+  return `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 function getPosition() {
   return new Promise((resolve, reject) => {

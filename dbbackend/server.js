@@ -84,7 +84,7 @@ function getUser(req) {
   if (!token) return null;
   const s = db.prepare('SELECT * FROM sessions WHERE token=?').get(token);
   if (!s) return null;
-  return db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,avatar FROM users WHERE id=?').get(s.user_id) || null;
+  return db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,avatar,off_days FROM users WHERE id=?').get(s.user_id) || null;
 }
 // Save a base64 data URL (or raw base64) to uploads, return filename
 function saveImage(dataUrl, fallbackExt = '.jpg') {
