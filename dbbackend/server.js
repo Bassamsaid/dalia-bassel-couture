@@ -220,7 +220,8 @@ api['POST /api/register'] = async (req, res) => {
       const taken = db.prepare('SELECT id FROM users WHERE lower(email)=?').get(email);
       if (taken) return send(res, 400, { error: 'Email already in use' });
       // an email the studio does not know yet joins as a visitor
-      const r = db.prepare('INSERT INTO users (name,email,password_hash,role) VALUES (?,?,?,?)').run(b.name, email, hashPassword(b.password), 'visitor');
+      const r = db.prepare('INSERT INTO users (name,email,password_hash,role,avatar) VALUES (?,?,?,?,?)')
+        .run(b.name, email, hashPassword(b.password), 'visitor', maybeImage(b.avatar));
       uid = r.lastInsertRowid;
     }
     const token = crypto.randomBytes(24).toString('hex');

@@ -397,6 +397,12 @@ function renderAuth(mode) {
     <p class="hint" style="margin-top:16px"><a href="#" onclick="renderAuth('');return false" style="font-weight:700">← Sign in with password</a></p>`;
   } else {
     inner = `<form id="authForm" style="text-align:start">
+      ${isReg ? `<div class="sign-photo">
+        <div class="sp-ring" id="spRing" onclick="pickSignupPhoto()">
+          <span class="sp-plus">＋</span><span class="sp-hint">Your photo</span>
+        </div>
+        <div class="hint" style="text-align:center;margin-top:6px">A photo helps the studio know you</div>
+      </div>` : ''}
       ${isReg ? '<label>Full name</label><input name="name" placeholder="Your name" required />' : ''}
       <label>Email</label>
       <input name="email" type="email" placeholder="you@email.com" required />
@@ -415,7 +421,10 @@ function renderAuth(mode) {
     e.preventDefault();
     const fd = new FormData(e.target);
     try {
-      if (isReg) await POST('/api/register', { name: fd.get('name'), email: fd.get('email'), password: fd.get('password') });
+      if (isReg) {
+        if (!window._signupPhoto) { const el = $('#authErr'); el.textContent = 'Add a photo of yourself first'; el.classList.remove('hidden'); document.getElementById('spRing').classList.add('sp-shake'); setTimeout(() => document.getElementById('spRing') && document.getElementById('spRing').classList.remove('sp-shake'), 600); return; }
+        await POST('/api/register', { name: fd.get('name'), email: fd.get('email'), password: fd.get('password'), avatar: window._signupPhoto });
+      }
       else await POST('/api/login', { email: fd.get('email'), password: fd.get('password') });
       state.user = (await GET('/api/me')).user;
       await loadPerms(); await loadConfig();
@@ -424,6 +433,12 @@ function renderAuth(mode) {
   };
 }
 window.renderAuth = renderAuth;
+window.pickSignupPhoto = () => pickImage((b64) => {
+  window._signupPhoto = b64;
+  const r = document.getElementById('spRing');
+  if (r) { r.style.backgroundImage = `url('${b64}')`; r.classList.add('has'); }
+  const err = document.getElementById('authErr'); if (err) err.classList.add('hidden');
+});
 window.otpSend = async () => {
   const email = ($('#otpEmail').value || '').trim();
   const err = $('#authErr'); err.classList.add('hidden');
@@ -542,8 +557,8 @@ function renderApp() {
         <button class="back-btn" id="backBtn" onclick="goBack()" aria-label="Back" style="display:none">‹</button>
         <div class="logo" onclick="openDrawer()" style="cursor:pointer">DB</div>
         <h1>Dalia Bassel</h1>
-        <button class="bell-btn" onclick="go('notifications')" aria-label="Notifications">🔔<span class="bell-badge" id="bellBadge" style="display:none">0</span></button>
-        <button class="profile-btn" onclick="openDrawer()">
+        <button class="bell-btn" onclick="go('notifications')" aria-label="Notifications">${bellIcon()}<span class="bell-badge" id="bellBadge" style="display:none">0</span></button>
+        <button class="profile-btn" onclick="openDrawer()" aria-label="${esc(u.name)}">
           <span class="who">${esc(u.name)}<br><span class="muted">${roleLabel(u.role)}</span></span>
           ${avatarHtml(u, 'pav')}
         </button>
@@ -573,6 +588,15 @@ function renderApp() {
   go(start);
   startNotifPoll();
 }
+/* a drawn bell rather than an emoji — it sits properly and follows the type colour */
+function bellIcon() {
+  return `<svg class="bell-ic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M12 3a5.6 5.6 0 0 0-5.6 5.6v3.03c0 .5-.18.98-.5 1.36l-.94 1.1A1.2 1.2 0 0 0 5.88 16h12.24a1.2 1.2 0 0 0 .92-1.97l-.94-1.1a2.1 2.1 0 0 1-.5-1.36V8.6A5.6 5.6 0 0 0 12 3Z"
+      stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+    <path d="M9.9 19a2.2 2.2 0 0 0 4.2 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+  </svg>`;
+}
+window.bellIcon = bellIcon;
 function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'Student', staff: 'Staff', customer: 'Client', visitor: 'Visitor' }[r] || r; }
 /* avatar: uploaded photo if present, else initials — same shape (pav / av) */
 function avatarHtml(u, cls) {

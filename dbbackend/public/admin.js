@@ -1152,7 +1152,7 @@ PAGES.newdress = async (c) => {
         <select id="nd_client"><option value="">—</option>
           ${customers.map((u) => `<option value="${u.id}">${esc(u.name)}${u.email ? ' · ' + esc(u.email) : ''}</option>`).join('')}</select>
         <label>Notes</label><textarea id="nd_note" placeholder="Navy evening gown, low back..."></textarea>
-        <label>Dress photo</label>
+        <label>Dress photo <span class="hint">(required)</span></label>
         <button class="btn ghost sm" onclick="ndPic()">📷 Add a photo</button>
         <div id="nd_prev" style="margin-top:10px"></div>
       </div>
@@ -1200,10 +1200,10 @@ window.saveNewDress = async () => {
     client: $('#nd_client').value, note: $('#nd_note').value,
   } : (window._newDressDraft || {});
   const brief = document.getElementById('nd_garment') ? readBrief('nd_') : window._newDressBrief;
-  if (!String(draft.name || '').trim()) {
+  if (!String(draft.name || '').trim() || !window._newDressCover) {
     window._newDressDraft = draft;
     if (window._newDressTab !== 'dress') { window._newDressTab = 'dress'; go('newdress'); }
-    return toast('The client name is needed');
+    return toast(!String(draft.name || '').trim() ? 'The client name is needed' : 'Add a photo of the dress', 'error');
   }
   const btn = $('#ndSave'); if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   try {
