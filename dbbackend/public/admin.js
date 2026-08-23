@@ -872,9 +872,22 @@ PAGES.dalia = async (c) => {
   window._daliaPosts = posts;
   const admin = state.user.role === 'admin';
   const of = (sec) => posts.filter((p) => (p.section || 'studio') === sec);
-  const feed = (list, emptyMsg) => list.length
-    ? list.map((p) => renderDaliaPost(p, admin)).join('')
-    : `<div class="hint" style="padding:14px 2px">${esc(emptyMsg)}</div>`;
+
+  const houses = [
+    { key: 'all', icon: '✦', name: 'All', full: 'Everything from the studio',
+      c1: '#7c3aed', c2: '#e24a8b', glow: '124,58,237', blurb: 'The atelier, the academy and the studio' },
+    { key: 'couture', icon: '👗', name: 'Couture', full: 'Daliessa Couture',
+      c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91', blurb: 'Gowns, fittings and the work coming out of the atelier' },
+    { key: 'academy', icon: '🎓', name: 'Academy', full: 'Dalia Bassel Academy',
+      c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217', blurb: 'Rounds, patterns and the students’ work' },
+    { key: 'studio', icon: '📣', name: 'News', full: 'Studio news',
+      c1: '#0f766e', c2: '#5eead4', glow: '15,118,110', blurb: 'Openings, hours and announcements' },
+  ];
+  const pick = houses.some((h) => h.key === window._daliaHouse) ? window._daliaHouse : 'all';
+  window._daliaHouse = pick;
+  const h = houses.find((x) => x.key === pick);
+  const list = pick === 'all' ? posts : of(pick);
+  const countOf = (k) => k === 'all' ? posts.length : of(k).length;
 
   c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
     `<div class="studio-head">
@@ -891,19 +904,26 @@ PAGES.dalia = async (c) => {
         ${admin ? `<button class="btn sm sec" style="margin-top:14px" onclick="go('about')">Edit this introduction</button>` : ''}
       </div>
     </div>
-    ${admin ? '<button class="btn" style="margin-bottom:16px" onclick="addDalia()">＋ New post</button>' : ''}
-    ${brandGroup({
-      name: 'Daliessa', kind: 'Couture', c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
-      summary: 'Gowns, fittings and the work coming out of the atelier',
-      content: feed(of('couture'), admin ? 'No couture posts yet — add one and pick “Couture”.' : 'Nothing from the atelier yet.'),
-    })}
-    ${brandGroup({
-      name: 'Dalia Bassel', kind: 'Academy', c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
-      summary: 'Rounds, patterns and the students’ work',
-      content: feed(of('academy'), admin ? 'No academy posts yet — add one and pick “Academy”.' : 'Nothing from the academy yet.'),
-    })}
-    ${of('studio').length || admin ? `<div class="sec-title">Studio news</div>
-      ${feed(of('studio'), admin ? 'Nothing general yet.' : '')}` : ''}
+    ${admin ? '<button class="btn" style="margin:0 0 14px" onclick="addDalia()">＋ New post</button>' : ''}
+    <div class="cat-row four">
+      ${houses.map((x) => {
+        const n = countOf(x.key);
+        return `<button class="cat${x.key === pick ? ' on' : ''}" style="--c1:${x.c1};--c2:${x.c2};--glow:${x.glow}"
+          onclick="daliaHouse('${x.key}')" aria-pressed="${x.key === pick}">
+          <span class="cat-ic">${x.icon}</span>
+          <span class="cat-n">${x.name}</span>
+          <span class="cat-c">${n}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <div class="cat-head">
+      <div class="ch-name">${esc(h.full)}</div>
+      <div class="ch-sub">${esc(h.blurb)}</div>
+    </div>
+    ${list.length ? list.map((p) => renderDaliaPost(p, admin)).join('')
+      : `<div class="card"><div class="hint" style="padding:10px 2px">${admin
+          ? (pick === 'all' ? 'Nothing posted yet — start with ＋ New post.' : 'Nothing here yet — add a post and pick this section.')
+          : 'Nothing here yet — check back soon.'}</div></div>`}
     <div class="reach">
       <div class="reach-h">Talk to the studio</div>
       <div class="reach-s">Tell us what you need and we answer you inside the app.</div>
@@ -917,6 +937,8 @@ PAGES.dalia = async (c) => {
     </div>
     </div>`;
 };
+window.daliaHouse = (k) => { window._daliaHouse = k; go('dalia'); };
+
 function renderDaliaPost(p, admin) {
   const tpl = p.template || 'below';
   const media = p.media || [];

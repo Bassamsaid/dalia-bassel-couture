@@ -852,3 +852,10 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .pl-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:7px}
 .pl-item{font-size:14px;font-weight:700;color:var(--ink)}
 .pl-amt{font-size:14px;font-weight:800;letter-spacing:-.3px;color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* four houses across a phone: tighter than the three-up row */
+.home-lux .cat-row.four{grid-template-columns:repeat(4,1fr);gap:7px}
+.home-lux .cat-row.four .cat{padding:12px 3px 11px;gap:4px;border-radius:14px}
+.home-lux .cat-row.four .cat-ic{width:32px;height:32px;font-size:15px}
+.home-lux .cat-row.four .cat-n{font-size:10.5px;letter-spacing:.3px}
+.home-lux .cat-row.four .cat-c{font-size:10px}
