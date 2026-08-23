@@ -615,11 +615,19 @@ function briefCard(b) {
       <a class="bf-v" href="${esc(b.link)}" target="_blank" rel="noopener">Open the link ↗</a></div>` : ''}
   </div>`;
 }
-window.openChat = async (id) => {
+/* A conversation is a screen of its own, not a sheet */
+window.openChat = (id) => { window._threadId = id; go('chat'); };
+
+PAGES.chat = async (c) => {
+  const id = window._threadId;
+  if (!id) return go(['admin', 'manager', 'staff'].includes(state.user.role) ? 'chats' : 'help');
   const r = await GET('/api/chats/' + id);
   const m = TOPIC_META[r.thread.topic] || TOPIC_META.general;
-  modal(`<h3>${m.icon} ${esc(r.thread.subject || m.label)}</h3>
-    <div class="sub muted" style="margin-top:-8px">${esc(r.studio ? `${r.thread.user_name} · ${roleLabel(r.thread.user_role)}` : 'Dalia Bassel studio')}</div>
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
+    `<div class="chat-head">
+      <div class="ct-name">${m.icon} ${esc(r.thread.subject || m.label)}</div>
+      <div class="ct-sub">${esc(r.studio ? `${r.thread.user_name} · ${roleLabel(r.thread.user_role)}` : 'Dalia Bassel studio')}${r.thread.status === 'closed' ? ' · handled' : ''}</div>
+    </div>
     ${briefCard(r.thread.brief)}
     <div class="chat-log" id="chatLog">${chatBubbles(r)}</div>
     <div class="composer">
@@ -627,19 +635,20 @@ window.openChat = async (id) => {
       <textarea id="chatMsg" class="comp-in" rows="1" placeholder="Message…" oninput="growComposer(this)"></textarea>
       <button class="comp-send" id="chatSend" onclick="sendChat(${id})" aria-label="Send">↑</button>
     </div>
-    ${r.studio ? `<button class="btn sec sm" style="margin-top:10px" onclick="closeThread(${id},'${r.thread.status === 'closed' ? 'open' : 'closed'}')">${r.thread.status === 'closed' ? 'Reopen' : 'Mark as handled'}</button>` : ''}`);
+    ${r.studio ? `<button class="btn sec" style="margin-top:12px" onclick="closeThread(${id},'${r.thread.status === 'closed' ? 'open' : 'closed'}')">${r.thread.status === 'closed' ? 'Reopen this conversation' : 'Mark as handled'}</button>` : ''}
+    </div>`;
   const log = $('#chatLog'); if (log) log.scrollTop = log.scrollHeight;
   refreshNotifBadge();
 };
-window.chatPic = (id) => pickImage(async (b64) => { await POST(`/api/chats/${id}/messages`, { image: b64 }); openChat(id); });
+window.chatPic = (id) => pickImage(async (b64) => { await POST(`/api/chats/${id}/messages`, { image: b64 }); go('chat'); });
 window.sendChat = async (id) => {
   const box = $('#chatMsg'); const body = box.value.trim();
   if (!body) return toast('Write a message first');
   const btn = $('#chatSend'); btn.disabled = true;
-  try { await POST(`/api/chats/${id}/messages`, { body }); await openChat(id); if (window._chatsRefresh) window._chatsRefresh(); }
+  try { await POST(`/api/chats/${id}/messages`, { body }); await go('chat'); }
   catch (e) { btn.disabled = false; toast(e.message); }
 };
-window.closeThread = async (id, status) => { await PUT('/api/chats/' + id, { status }); closeModal(); toast('Saved'); go(state.page); };
+window.closeThread = async (id, status) => { await PUT('/api/chats/' + id, { status }); toast('Saved'); go('chat'); };
 
 
 /* ---------- chat bubbles ---------- */

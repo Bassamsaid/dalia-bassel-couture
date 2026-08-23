@@ -708,43 +708,62 @@ window.sendHomework = async () => {
   } catch (e) { btn.disabled = false; btn.textContent = 'Send task'; toast(e.message); }
 };
 window.delHomework = (id) => confirmDel('Delete task?', async () => { await DEL('/api/homeworks/' + id); go('homework'); });
-window.viewSubs = async (id) => {
-  const r = await GET(`/api/homeworks/${id}/submissions`);
+/* Who handed a task in — a screen, not a pop-up */
+window.viewSubs = (id) => { window._taskId = id; go('task'); };
+
+PAGES.task = async (c) => {
+  const id = window._taskId;
+  if (!id) return go('homework');
+  const [r, groups] = await Promise.all([GET(`/api/homeworks/${id}/submissions`), GET('/api/groups')]);
+  window._hwGroups = groups;
   const canGrade = ['admin', 'manager'].includes(state.user.role);
   const pct = r.expected ? Math.round((r.submitted.length / r.expected) * 100) : 0;
-  const gName = r.homework.group_id ? ((window._hwGroups || []).find((g) => g.id === r.homework.group_id) || {}).name : null;
-  modal(`<h3>${esc(r.homework.title)}</h3>
-    <div class="sub muted" style="margin-top:-8px">${r.homework.mode === 'online' ? '💻 Online' : '🏛 In the studio'}${gName ? ' · ' + esc(gName) : ''}</div>
-    <div class="prog" style="margin:8px 0 4px">
-      <div class="prog-top"><span class="prog-n">${r.submitted.length} of ${r.expected}</span><span class="prog-l">handed in · ${pct}%</span></div>
-      <div class="prog-bar"><span style="width:${pct}%"></span></div>
+  const gName = r.homework.group_id ? (groups.find((g) => g.id === r.homework.group_id) || {}).name : null;
+  const tab = window._taskTab === 'waiting' ? 'waiting' : 'done';
+
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
+    `<div class="task-head">
+      <div class="th-name">${esc(r.homework.title)}</div>
+      <div class="th-sub">${r.homework.mode === 'online' ? '💻 Online' : '🏛 In the studio'}${gName ? ' · ' + esc(gName) : ''}${r.homework.due_date ? ' · due ' + dt(r.homework.due_date) : ''}</div>
+      ${r.homework.measurements ? `<div class="th-note">Measurements: ${esc(r.homework.measurements)}</div>` : ''}
+      ${r.homework.instructions ? `<div class="th-note">${esc(r.homework.instructions)}</div>` : ''}
+      <div class="prog" style="margin:14px 0 0">
+        <div class="prog-top"><span class="prog-n">${r.submitted.length} of ${r.expected}</span><span class="prog-l">handed in · ${pct}%</span></div>
+        <div class="prog-bar"><span style="width:${pct}%"></span></div>
+      </div>
     </div>
-    <div class="sec-title">Handed in (${r.submitted.length})</div>
-    ${r.submitted.length ? r.submitted.map((s) => `<div class="sub-row done">
-        <div class="st-row">
-          <span class="av">${esc(initials(s.user_name))}</span>
-          <span class="st-txt"><span class="nm">${esc(s.user_name)}</span>
-            <span class="st-grp">${esc(s.group_name || 'No group')}</span>
-            <span class="st-when">${dt(s.submitted_at)} · ${s.images.length} photo${s.images.length === 1 ? '' : 's'}${s.grade ? ' · ' + esc(s.grade) : ''}</span></span>
-          ${canGrade ? `<button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button>`
-            : '<span class="st-tick">✓</span>'}
-        </div>
-        ${s.images.length ? `<div class="scan-strip">${s.images.map((im) => `
-          <img class="scan-thumb" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(s.user_name)}')" alt=""/>`).join('')}</div>` : ''}
-        ${s.note ? `<div class="hint">“${esc(s.note)}”</div>` : ''}
-      </div>`).join('') : '<div class="hint">Nobody has handed in yet</div>'}
-    <div class="sec-title">Still waiting (${r.pending.length})</div>
-    ${r.pending.length ? r.pending.map((u) => `<div class="st-row waiting">
-        <span class="av">${esc(initials(u.name))}</span>
-        <span class="st-txt"><span class="nm">${esc(u.name)}</span>
-          <span class="st-grp">${esc(u.group_name || 'No group')}</span></span>
-        <span class="st-dot"></span>
-      </div>`).join('') : '<div class="hint">Everyone has handed in 🎉</div>'}`);
+    <div class="dtabs">
+      <button class="dtab${tab === 'done' ? ' on' : ''}" onclick="taskTab('done')"><span class="dtab-ic">✓</span>Handed in (${r.submitted.length})</button>
+      <button class="dtab${tab === 'waiting' ? ' on' : ''}" onclick="taskTab('waiting')"><span class="dtab-ic">◷</span>Still waiting (${r.pending.length})</button>
+    </div>
+    <div class="card" style="padding:4px 15px 14px">
+    ${tab === 'done'
+      ? (r.submitted.length ? r.submitted.map((s) => `<div class="sub-row done">
+          <div class="st-row">
+            <span class="av">${esc(initials(s.user_name))}</span>
+            <span class="st-txt"><span class="nm">${esc(s.user_name)}</span>
+              <span class="st-grp">${esc(s.group_name || 'No group')}</span>
+              <span class="st-when">${dt(s.submitted_at)} · ${s.images.length} photo${s.images.length === 1 ? '' : 's'}${s.grade ? ' · ' + esc(s.grade) : ''}</span></span>
+            ${canGrade ? `<button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button>` : '<span class="st-tick">✓</span>'}
+          </div>
+          ${s.images.length ? `<div class="scan-strip">${s.images.map((im) => `
+            <img class="scan-thumb" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(s.user_name)}')" alt=""/>`).join('')}</div>` : ''}
+          ${s.note ? `<div class="hint">“${esc(s.note)}”</div>` : ''}
+        </div>`).join('') : '<div class="hint" style="padding:14px 2px">Nobody has handed in yet</div>')
+      : (r.pending.length ? r.pending.map((u) => `<div class="st-row waiting">
+          <span class="av">${esc(initials(u.name))}</span>
+          <span class="st-txt"><span class="nm">${esc(u.name)}</span>
+            <span class="st-grp">${esc(u.group_name || 'No group')}</span></span>
+          <span class="st-dot"></span>
+        </div>`).join('') : '<div class="hint" style="padding:14px 2px">Everyone has handed in 🎉</div>')}
+    </div></div>`;
 };
+window.taskTab = (t) => { window._taskTab = t; go('task'); };
+
 window.gradeSub = (id, cur) => formModal('Grade submission', [
   { name: 'grade', label: 'Grade', value: cur },
   { name: 'feedback', label: 'Feedback', type: 'textarea' },
-], async (d) => { await PUT('/api/submissions/' + id, d); toast('Saved'); closeModal(); go('homework'); });
+], async (d) => { await PUT('/api/submissions/' + id, d); toast('Saved'); closeModal(); go(state.page === 'task' ? 'task' : 'homework'); });
 
 /* ============ QUIZZES ============ */
 PAGES.quizzes = async (c) => {
