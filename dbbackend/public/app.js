@@ -30,10 +30,24 @@ function ensureEl(id, cls) {
   if (!el) { el = document.createElement('div'); el.id = id; if (cls) el.className = cls; document.body.appendChild(el); }
   return el;
 }
-function toast(msg) {
-  const t = ensureEl('toast', 'toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2400);
+/* toast(msg) for the ordinary note; toast(msg, 'error') when something was refused —
+   big, red, shaking, and it buzzes the phone where the browser allows it. */
+function toast(msg, kind) {
+  const bad = kind === 'error';
+  const t = ensureEl('toast', 'toast');
+  t.textContent = msg;
+  t.classList.toggle('toast-error', bad);
+  t.classList.remove('show'); void t.offsetWidth;      // restart the animation
+  t.classList.add('show');
+  if (bad) buzz();
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove('show'), bad ? 4200 : 2400);
 }
+/* iOS Safari has no Vibration API at all, so the shake carries it there */
+function buzz(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern || [70, 60, 70, 60, 140]); } catch (e) {}
+}
+window.buzz = buzz;
 function lazyImgs(sel) {
   document.querySelectorAll(sel + ' img').forEach((im) => { im.loading = 'lazy'; im.decoding = 'async'; });
 }

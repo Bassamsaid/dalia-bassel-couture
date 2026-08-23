@@ -321,7 +321,7 @@ window.doAttCheck = async () => {
     const r = await POST('/api/attendance/check', body);
     toast(r.action === 'in' ? 'Checked in ✓' : r.action === 'out' ? 'Checked out ✓' : 'Done');
     go(state.page);
-  } catch (e) { toast(e.message); }
+  } catch (e) { toast(e.message, 'error'); }
 };
 
 /* ============ STAFF HOME (attendance) ============ */
