@@ -2147,7 +2147,12 @@ window.sendSalary = (id, net, month) => formModal('Send salary', [
   { name: 'amount', label: 'Amount', type: 'number', value: net },
   { name: 'note', label: 'Note (optional)' },
   { name: 'image', label: 'Transfer screenshot', type: 'image' },
-], async (d) => { d.user_id = id; await POST('/api/salary-payments', d); toast('Salary sent'); go('staffmember'); });
+], async (d) => {
+  d.user_id = id;
+  if (!d.amount && d.amount !== 0) d.amount = net; // keep the prefilled amount if the field was left as-is
+  try { await POST('/api/salary-payments', d); toast('Salary sent ✓'); go('staffmember'); }
+  catch (e) { toast(e.message || 'Could not send salary — try again', 'error'); throw e; }
+});
 window.delSalaryPay = (pid) => confirmDel('Delete this salary payment?', async () => { await DEL('/api/salary-payments/' + pid); go('staffmember'); });
 window.approveAdvance = async (aid, ok) => { await PUT('/api/advances/' + aid, { status: ok ? 'approved' : 'rejected' }); toast(ok ? 'Approved' : 'Rejected'); go('staffmember'); };
 
