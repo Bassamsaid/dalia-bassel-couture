@@ -332,8 +332,23 @@ async function boot() {
     if (user) { state.user = user; await loadPerms(); await loadConfig(); renderApp(); }
     else renderAuth();
   } catch (e) { renderAuth(); }
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    // when a new version takes over, reload once so the page runs fresh code (no more "stuck on old version")
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloaded) return; reloaded = true; location.reload();
+    });
+    navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
+  }
 }
+const APP_VERSION = 'v91';
+// manual escape hatch: clear caches + unregister SW + hard reload
+window.forceUpdate = async () => {
+  try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
+  try { if ('serviceWorker' in navigator) { const rs = await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map((r) => r.unregister())); } } catch (e) {}
+  location.reload(true);
+};
 
 /* The invitation screen: she chooses a password, and nothing else. */
 async function renderInvite(token) {
@@ -617,7 +632,8 @@ function openDrawer() {
       <div><div class="dn">${esc(state.user.name)}</div><div class="dr">${roleLabel(state.user.role)}</div></div></div>
     <div class="drawer-nav">${items}</div>
     ${appInstalled() ? '' : '<button class="btn sec" style="margin-top:14px" onclick="closeDrawer();installApp()">📲 Install app</button>'}
-    <button class="btn sec" style="margin-top:8px" onclick="logout()">Sign out</button></div></div>`;
+    <button class="btn sec" style="margin-top:8px" onclick="logout()">Sign out</button>
+    <div style="margin-top:14px;text-align:center;font-size:12px;color:var(--muted)">Version ${APP_VERSION} · <a href="#" onclick="forceUpdate();return false" style="font-weight:700">Update now</a></div></div></div>`;
 }
 /* ---- PWA install ---- */
 let _deferredPrompt = null;
