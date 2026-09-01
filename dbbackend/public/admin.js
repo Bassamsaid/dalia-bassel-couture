@@ -323,13 +323,21 @@ PAGES.finance = async (c) => {
       </table></div></div>`;
   } else if (tab === 'pay') {
     const pf = window._payMethod || 'all';
-    const cashTotal = payments.filter((p) => p.method === 'cash').reduce((a, p) => a + (p.amount || 0), 0);
-    const transferTotal = payments.filter((p) => p.method !== 'cash').reduce((a, p) => a + (p.amount || 0), 0);
-    const shown = pf === 'all' ? payments : payments.filter((p) => (pf === 'cash' ? p.method === 'cash' : p.method !== 'cash'));
+    const kf = window._payKind || 'all'; // all | installment | deposit
+    const byKind = kf === 'all' ? payments : payments.filter((p) => (kf === 'deposit' ? p.kind === 'deposit' : p.kind !== 'deposit'));
+    const cashTotal = byKind.filter((p) => p.method === 'cash').reduce((a, p) => a + (p.amount || 0), 0);
+    const transferTotal = byKind.filter((p) => p.method !== 'cash').reduce((a, p) => a + (p.amount || 0), 0);
+    const shown = pf === 'all' ? byKind : byKind.filter((p) => (pf === 'cash' ? p.method === 'cash' : p.method !== 'cash'));
     const shownTotal = shown.reduce((a, p) => a + (p.amount || 0), 0);
+    const kfLbl = kf === 'installment' ? 'Installments' : kf === 'deposit' ? 'Deposits' : '';
     inner = `<div class="grid g2" style="margin-bottom:10px">
-        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(cashTotal)}</div><div class="l">💵 Cash</div></div>
-        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(transferTotal)}</div><div class="l">🏦 Transfer</div></div>
+        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(cashTotal)}</div><div class="l">💵 Cash${kfLbl ? ' · ' + kfLbl : ''}</div></div>
+        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(transferTotal)}</div><div class="l">🏦 Transfer${kfLbl ? ' · ' + kfLbl : ''}</div></div>
+      </div>
+      <div class="filters">
+        <span class="chip ${kf === 'all' ? 'active' : ''}" onclick="payKind('all')">All types</span>
+        <span class="chip ${kf === 'installment' ? 'active' : ''}" onclick="payKind('installment')">Installments</span>
+        <span class="chip ${kf === 'deposit' ? 'active' : ''}" onclick="payKind('deposit')">Deposits</span>
       </div>
       <div class="filters">
         <span class="chip ${pf === 'all' ? 'active' : ''}" onclick="payFilter('all')">All · ${money(cashTotal + transferTotal)}</span>
@@ -347,7 +355,7 @@ PAGES.finance = async (c) => {
         <button class="btn-icon" onclick="delPayment(${p.id})" aria-label="Delete payment">🗑</button>
       </div>`).join('') : empty('No payments match this filter')}</div>
       <div class="item" style="background:var(--soft);border-radius:12px;padding:12px 14px;margin-top:10px;border:none">
-        <div class="main"><div class="nm">TOTAL${pf === 'cash' ? ' · 💵 Cash' : pf === 'transfer' ? ' · 🏦 Transfer' : ''}</div><div class="sub">${shown.length} payment${shown.length === 1 ? '' : 's'}</div></div>
+        <div class="main"><div class="nm">TOTAL${kfLbl ? ' · ' + kfLbl : ''}${pf === 'cash' ? ' · 💵 Cash' : pf === 'transfer' ? ' · 🏦 Transfer' : ''}</div><div class="sub">${shown.length} payment${shown.length === 1 ? '' : 's'}</div></div>
         <div class="serif" style="font-size:20px;font-weight:800;color:var(--ok)">${money(shownTotal)}</div>
       </div>`;
   } else {
@@ -364,6 +372,7 @@ PAGES.finance = async (c) => {
 };
 window.finTab = (t) => { window._finTab = t; go('finance'); };
 window.payFilter = (m) => { window._payMethod = m; go('finance'); };
+window.payKind = (k) => { window._payKind = k; go('finance'); };
 /* What each student still owes, so the form can say it and stop an overpayment early. */
 function owedMap() {
   const m = {};
