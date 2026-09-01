@@ -403,6 +403,11 @@ try {
   setDefault.run('check_out_time', '17:00');
   setDefault.run('late_grace_min', '15');
   setDefault.run('overtime_mult', '1.5');
+  // attendance geofence — default studio location (Dalia Bassel Couture, El Gamaliya, Cairo)
+  setDefault.run('geo_enabled', '1');
+  setDefault.run('geo_lat', '30.0464497');
+  setDefault.run('geo_lng', '31.2673703');
+  setDefault.run('geo_radius', '150');
   // default expense types (once, if none)
   if (db.prepare('SELECT COUNT(*) c FROM expense_types').get().c === 0) {
     const et = db.prepare('INSERT INTO expense_types (name) VALUES (?)');
