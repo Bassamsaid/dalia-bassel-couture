@@ -480,6 +480,7 @@ const NAV = {
     ['dresses', 'Dresses', '👗'],
     ['purchases', 'Purchases', '🧾'],
     ['staff', 'Staff', '💼'],
+    ['attreqs', 'Attendance requests', '🕒'],
     ['expenses', 'Expenses', '💸'],
     ['permissions', 'Permissions', '🔒'],
     ['config', 'Configuration', '⚙'],
@@ -865,7 +866,7 @@ function timeago(s) {
   const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
   return String(s).slice(0, 10);
 }
-const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬', chat: '💬', task: '✎', submission: '📥' };
+const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬', chat: '💬', task: '✎', submission: '📥', attendance: '🕒' };
 async function refreshNotifBadge() {
   try {
     const { unread } = await GET('/api/notifications/count');

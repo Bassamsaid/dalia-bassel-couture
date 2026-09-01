@@ -318,7 +318,7 @@ api['DELETE /api/users/:id'] = async (req, res, user, url, params) => {
   const target = db.prepare('SELECT id, role FROM users WHERE id=?').get(id);
   if (!target || target.role === 'admin') return send(res, 200, { ok: true }); // never delete the admin
   // clean cascade: remove every record that belongs to this user
-  const tables = ['sessions', 'enrollments', 'payments', 'reminders', 'submissions', 'quiz_attempts', 'attendance', 'salaries', 'leaves', 'absences', 'advances', 'salary_adjustments', 'salary_payments', 'notifications'];
+  const tables = ['sessions', 'enrollments', 'payments', 'reminders', 'submissions', 'quiz_attempts', 'attendance', 'attendance_requests', 'salaries', 'leaves', 'absences', 'advances', 'salary_adjustments', 'salary_payments', 'notifications'];
   for (const t of tables) { try { db.prepare(`DELETE FROM ${t} WHERE user_id=?`).run(id); } catch (e) { /* table/column may not exist */ } }
   db.prepare('DELETE FROM users WHERE id=? AND role!=?').run(id, 'admin');
   send(res, 200, { ok: true });
@@ -979,6 +979,44 @@ api['POST /api/attendance/check'] = async (req, res, user) => {
   if (!rec.check_out) { db.prepare('UPDATE attendance SET check_out=? WHERE id=?').run(now, rec.id); return send(res, 200, { action: 'out', time: now }); }
   send(res, 200, { action: 'done' });
 };
+// ---- manual attendance log requests (forgot to check in/out) ----
+api['GET /api/attendance-requests'] = async (req, res, user) => {
+  if (!requireStaffish(user, res)) return;
+  if (user.role === 'admin') return send(res, 200, db.prepare('SELECT r.*,u.name user_name FROM attendance_requests r JOIN users u ON u.id=r.user_id ORDER BY (r.status=\'pending\') DESC, r.created_at DESC').all());
+  send(res, 200, db.prepare('SELECT * FROM attendance_requests WHERE user_id=? ORDER BY created_at DESC').all(user.id));
+};
+api['POST /api/attendance-requests'] = async (req, res, user) => {
+  if (!requireStaffish(user, res)) return;
+  const b = await readBody(req);
+  if (!b.date || !['in', 'out'].includes(b.kind)) return send(res, 400, { error: 'date and type (in/out) are required' });
+  const r = db.prepare('INSERT INTO attendance_requests (user_id,date,kind,time,reason) VALUES (?,?,?,?,?)').run(user.id, b.date, b.kind, b.time || null, b.reason || null);
+  const label = b.kind === 'in' ? 'Check-in' : 'Check-out';
+  notifyRoles('admin', { type: 'attendance', title: `${user.name} — manual log request`, body: `${b.date} · ${label}${b.time ? ' ' + b.time : ''}${b.reason ? ' · ' + b.reason : ''}`, link_page: 'attreqs', actor_name: user.name }, user.id);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['PUT /api/attendance-requests/:id/decide'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const rq = db.prepare('SELECT * FROM attendance_requests WHERE id=?').get(params.id);
+  if (!rq) return send(res, 404, { error: 'not found' });
+  const st = b.status === 'approved' ? 'approved' : 'rejected';
+  db.prepare("UPDATE attendance_requests SET status=?, decided_at=datetime('now') WHERE id=?").run(st, params.id);
+  if (st === 'approved') {
+    const time = rq.time || new Date().toTimeString().slice(0, 5);
+    const rec = db.prepare('SELECT * FROM attendance WHERE user_id=? AND date=?').get(rq.user_id, rq.date);
+    if (rq.kind === 'in') {
+      if (rec) db.prepare('UPDATE attendance SET check_in=? WHERE id=?').run(time, rec.id);
+      else db.prepare('INSERT INTO attendance (user_id,date,check_in,note) VALUES (?,?,?,?)').run(rq.user_id, rq.date, time, 'manual (admin approved)');
+    } else {
+      if (rec) db.prepare('UPDATE attendance SET check_out=? WHERE id=?').run(time, rec.id);
+      else db.prepare('INSERT INTO attendance (user_id,date,check_out,note) VALUES (?,?,?,?)').run(rq.user_id, rq.date, time, 'manual (admin approved)');
+    }
+  }
+  const label = rq.kind === 'in' ? 'Check-in' : 'Check-out';
+  notify(rq.user_id, { type: 'attendance', title: `Manual log ${st === 'approved' ? 'approved ✅' : 'rejected ❌'}`, body: `${rq.date} · ${label}${rq.time ? ' ' + rq.time : ''}`, link_page: 'home', actor_name: user.name });
+  send(res, 200, { ok: true });
+};
+api['DELETE /api/attendance-requests/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM attendance_requests WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 api['POST /api/attendance'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);

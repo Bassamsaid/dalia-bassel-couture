@@ -2143,6 +2143,25 @@ window.delSalaryPay = (pid) => confirmDel('Delete this salary payment?', async (
 window.approveAdvance = async (aid, ok) => { await PUT('/api/advances/' + aid, { status: ok ? 'approved' : 'rejected' }); toast(ok ? 'Approved' : 'Rejected'); go('staffmember'); };
 
 /* ============ CONFIGURATION (admin settings) ============ */
+/* ============ ATTENDANCE REQUESTS (manual log approvals) ============ */
+PAGES.attreqs = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🕒'); return; }
+  const reqs = await GET('/api/attendance-requests');
+  const pending = reqs.filter((r) => r.status === 'pending');
+  const decided = reqs.filter((r) => r.status !== 'pending');
+  const kindLbl = (k) => (k === 'in' ? 'Check-in' : 'Check-out');
+  const row = (r, act) => `<div class="item">
+    <div class="av">🕒</div>
+    <div class="main"><div class="nm">${esc(r.user_name || '')} · ${kindLbl(r.kind)}${r.time ? ' ' + esc(r.time) : ''}</div>
+      <div class="sub">${dt(r.date)}${r.reason ? ' · ' + esc(r.reason) : ''}${r.status !== 'pending' ? ' · ' + (r.status === 'approved' ? '✅ Approved' : '❌ Rejected') : ''}</div></div>
+    ${act ? `<div class="row" style="flex:0 0 auto;gap:6px"><button class="btn sm" onclick="decideAttReq(${r.id},'approved')">Approve</button><button class="btn sm danger" onclick="decideAttReq(${r.id},'rejected')">Reject</button></div>` : ''}</div>`;
+  c.innerHTML = title('Attendance requests', '🕒') +
+    `<div class="sec-title">Pending (${pending.length})</div>
+     <div class="card">${pending.length ? pending.map((r) => row(r, true)).join('') : empty('No pending requests', '🕒')}</div>
+     ${decided.length ? `<div class="sec-title">History</div><div class="card">${decided.slice(0, 40).map((r) => row(r, false)).join('')}</div>` : ''}`;
+};
+window.decideAttReq = async (id, status) => { await PUT('/api/attendance-requests/' + id + '/decide', { status }); toast(status === 'approved' ? 'Approved ✓' : 'Rejected'); go('attreqs'); };
+
 PAGES.config = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
   const s = await GET('/api/settings');

@@ -334,6 +334,7 @@ function attScreen(c, att, titleTxt) {
        ${ring}
        ${status}
      </div>
+     <button class="btn ghost sm" style="margin:0 0 14px" onclick="requestManualLog()">🕒 Forgot to check in/out? Request a manual log</button>
      <div class="sec-title">This month</div>
      <div class="grid g2" style="margin-bottom:14px">
        <div class="stat" style="--c1:#d24b62;--c2:#f0a3b0;--glow:210,75,98">
@@ -393,6 +394,13 @@ window.doAttCheck = async () => {
     go(state.page);
   } catch (e) { toast(e.message, 'error'); }
 };
+
+window.requestManualLog = () => formModal('Request manual log', [
+  { name: 'date', label: 'Day', type: 'date', required: true, value: today() },
+  { name: 'kind', label: 'Type', type: 'select', options: [{ value: 'in', label: 'Check-in' }, { value: 'out', label: 'Check-out' }] },
+  { name: 'time', label: 'Time', type: 'time' },
+  { name: 'reason', label: 'Reason (optional)' },
+], async (d) => { await POST('/api/attendance-requests', d); toast('Request sent to admin ✓'); go(state.page); });
 
 /* ============ STAFF HOME (attendance) ============ */
 PAGES.home_staff = async (c) => {

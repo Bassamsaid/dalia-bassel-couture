@@ -216,6 +216,19 @@ CREATE TABLE IF NOT EXISTS attendance (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Manual attendance log requests (forgot to check in/out) — admin approves
+CREATE TABLE IF NOT EXISTS attendance_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  kind TEXT NOT NULL,                        -- in | out
+  time TEXT,                                 -- HH:MM
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',    -- pending | approved | rejected
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  decided_at TEXT
+);
+
 CREATE TABLE IF NOT EXISTS salaries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
