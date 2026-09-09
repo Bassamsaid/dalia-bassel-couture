@@ -9,6 +9,10 @@
 //
 // Nothing is deleted without one of those flags, and each one prints what it is
 // about to remove and then asks for confirmation — this cannot be undone.
+//
+// Add --with-purchases to delete the material purchases too. Those lines are
+// vendor spending, so by default they are kept and only detached from the dress;
+// with the flag they go, and any invoice left with no lines goes with them.
 const fs = require('node:fs');
 const path = require('node:path');
 const readline = require('node:readline');
@@ -21,6 +25,7 @@ const DEMO_CUSTOMER_EMAIL = 'laila@d.com';
 const argv = process.argv.slice(2);
 const has = (f) => argv.includes(f);
 const yes = has('--yes') || has('-y');
+const withPurchases = has('--with-purchases');
 
 function pickDresses() {
   if (has('--all')) return db.prepare('SELECT * FROM dresses ORDER BY id').all();
@@ -51,9 +56,23 @@ function countChildren(ids) {
   for (const t of CHILD_TABLES) {
     out[t] = db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE dress_id IN (${marks})`).get(...ids).c;
   }
-  out['purchase_lines (detached, kept)'] =
-    db.prepare(`SELECT COUNT(*) c FROM purchase_lines WHERE dress_id IN (${marks})`).get(...ids).c;
+  const lines = db.prepare(`SELECT COUNT(*) c FROM purchase_lines WHERE dress_id IN (${marks})`).get(...ids).c;
+  out[withPurchases ? 'purchase_lines (DELETED)' : 'purchase_lines (detached, kept)'] = lines;
+  if (withPurchases) out['purchase_invoices left empty (DELETED)'] = emptiedInvoices(ids).length;
   return out;
+}
+
+// Invoices that would have no lines left once the dress lines go. A line with no
+// dress (general spending) keeps its invoice alive, so only fully-dress invoices
+// are swept up here.
+function emptiedInvoices(ids) {
+  const marks = ids.map(() => '?').join(',');
+  return db.prepare(`SELECT id, image FROM purchase_invoices WHERE id IN (
+                       SELECT DISTINCT invoice_id FROM purchase_lines WHERE dress_id IN (${marks})
+                     ) AND id NOT IN (
+                       SELECT invoice_id FROM purchase_lines
+                       WHERE dress_id IS NULL OR dress_id NOT IN (${marks})
+                     )`).all(...ids, ...ids);
 }
 
 // Uploaded files are content under UPLOAD_DIR; resolve and confine before unlinking
@@ -96,9 +115,13 @@ function confirm(question) {
   console.log('\nand the rows attached to them:');
   for (const [t, c] of Object.entries(children)) console.log(`  ${t}: ${c}`);
 
+  const emptied = withPurchases ? emptiedInvoices(ids) : [];
   const files = db.prepare(`SELECT image FROM dress_images WHERE dress_id IN (${ids.map(() => '?').join(',')})`)
-    .all(...ids).map((r) => uploadPath(r.image)).filter((p) => p && fs.existsSync(p));
+    .all(...ids).map((r) => r.image)
+    .concat(emptied.map((inv) => inv.image))
+    .map(uploadPath).filter((p) => p && fs.existsSync(p));
   console.log(`  uploaded image files on disk: ${files.length}`);
+  if (withPurchases) console.log('\n  --with-purchases: vendor spending on these dresses is erased, not just unlinked.');
 
   if (!await confirm('\nThis cannot be undone. Type "yes" to delete: ')) {
     console.log('Cancelled — nothing deleted.');
@@ -109,7 +132,12 @@ function confirm(question) {
   db.exec('BEGIN');
   try {
     for (const t of CHILD_TABLES) db.prepare(`DELETE FROM ${t} WHERE dress_id IN (${marks})`).run(...ids);
-    db.prepare(`UPDATE purchase_lines SET dress_id = NULL WHERE dress_id IN (${marks})`).run(...ids);
+    if (withPurchases) {
+      db.prepare(`DELETE FROM purchase_lines WHERE dress_id IN (${marks})`).run(...ids);
+      for (const inv of emptied) db.prepare('DELETE FROM purchase_invoices WHERE id = ?').run(inv.id);
+    } else {
+      db.prepare(`UPDATE purchase_lines SET dress_id = NULL WHERE dress_id IN (${marks})`).run(...ids);
+    }
     db.prepare(`DELETE FROM dresses WHERE id IN (${marks})`).run(...ids);
     db.exec('COMMIT');
   } catch (e) {
