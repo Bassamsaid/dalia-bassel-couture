@@ -37,16 +37,22 @@ function pickDresses() {
   return null; // no flag -> listing mode
 }
 
-// Tables that point back at a dress. The app's own delete endpoint misses
-// purchase_lines, which is how orphaned material lines end up in the books.
-const CHILD_TABLES = ['dress_fittings', 'dress_images', 'dress_updates', 'dress_payments', 'purchase_lines'];
+// Rows that belong to the dress and die with it.
+const CHILD_TABLES = ['dress_fittings', 'dress_images', 'dress_updates', 'dress_payments'];
 
+// purchase_lines is NOT one of them: a line is money actually spent on a vendor
+// invoice, and dress_id only says which dress it was for. Deleting the line would
+// shrink that invoice's total (server.js sums its lines) and quietly drop the
+// expense from the books, so the line is detached instead — the same state the
+// app already allows via PUT /api/purchase-lines/:id.
 function countChildren(ids) {
   const marks = ids.map(() => '?').join(',');
   const out = {};
   for (const t of CHILD_TABLES) {
     out[t] = db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE dress_id IN (${marks})`).get(...ids).c;
   }
+  out['purchase_lines (detached, kept)'] =
+    db.prepare(`SELECT COUNT(*) c FROM purchase_lines WHERE dress_id IN (${marks})`).get(...ids).c;
   return out;
 }
 
@@ -103,6 +109,7 @@ function confirm(question) {
   db.exec('BEGIN');
   try {
     for (const t of CHILD_TABLES) db.prepare(`DELETE FROM ${t} WHERE dress_id IN (${marks})`).run(...ids);
+    db.prepare(`UPDATE purchase_lines SET dress_id = NULL WHERE dress_id IN (${marks})`).run(...ids);
     db.prepare(`DELETE FROM dresses WHERE id IN (${marks})`).run(...ids);
     db.exec('COMMIT');
   } catch (e) {

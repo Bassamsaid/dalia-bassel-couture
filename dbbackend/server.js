@@ -873,6 +873,9 @@ api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
   db.prepare('DELETE FROM dress_images WHERE dress_id=?').run(params.id);
   db.prepare('DELETE FROM dress_payments WHERE dress_id=?').run(params.id);
   db.prepare('DELETE FROM dress_updates WHERE dress_id=?').run(params.id);
+  // Material bought for the dress was still bought: keep the line on its invoice
+  // (whose total is the sum of its lines) and just drop the dress it pointed at.
+  db.prepare('UPDATE purchase_lines SET dress_id=NULL WHERE dress_id=?').run(params.id);
   send(res, 200, { ok: true });
 };
 // materials bought for a dress — admin + manager (operational; NOT price/deposit)
