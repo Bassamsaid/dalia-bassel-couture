@@ -1315,6 +1315,7 @@ PAGES.dresses = async (c) => {
   const statuses = [['all', 'All'], ['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']];
   c.innerHTML = title('Dresses', '') +
     `${canEdit ? '<button class="btn" onclick="addDress()">＋ Register a dress</button>' : ''}
+    ${state.user.role === 'admin' && dresses.length ? `<button class="btn ghost sm" style="margin-top:8px;color:var(--bad)" onclick="purgeDresses()">🗑 Delete all dresses…</button>` : ''}
     <div class="filters" style="margin-top:12px">${statuses.map(([k, l]) => `<span class="chip ${f.status === k && !f.assigned ? 'active' : ''}" onclick="dressFilter('status','${k}')">${l}</span>`).join('')}
       <span class="chip ${f.assigned ? 'active' : ''}" onclick="dressFilter('assigned','x')">👤 Assigned</span></div>
     <div class="row" style="margin:0 0 12px;align-items:center;gap:8px">
@@ -1340,6 +1341,28 @@ window.dressFilter = (k, v) => {
   else if (k === 'status') { f.status = v; f.assigned = false; }
   else f[k] = v;
   window._dressF = f; go('dresses');
+};
+/* Wipe every dress — meant for clearing demo data off a new install, so it is
+   deliberately awkward: the count, then the choice about money, then the phrase. */
+const PURGE_PHRASE = 'DELETE ALL DRESSES';
+window.purgeDresses = async () => {
+  const n = (window._dresses || []).length;
+  if (!n) return;
+  if (!confirm(`Delete all ${n} dress(es), with their fittings, photos, updates and payments?\n\nThis cannot be undone.`)) return;
+  // Material bought for a dress is real vendor spending, so it is kept by default
+  // and only unlinked; wiping a demo install is the case for taking it out too.
+  const withPurchases = confirm(
+    'Delete the material purchases as well?\n\n'
+    + 'OK — delete them, and any supplier invoice left empty.\n'
+    + 'Cancel — keep the spending in the books, just unlinked from the dresses.'
+  );
+  const typed = prompt(`Last step. Type this to confirm:\n\n${PURGE_PHRASE}`);
+  if (typed !== PURGE_PHRASE) return toast('Cancelled — nothing deleted');
+  try {
+    const r = await api('DELETE', '/api/dresses', { confirm: PURGE_PHRASE, with_purchases: withPurchases });
+    toast(`Deleted ${r.dresses} dress(es)${r.invoices ? `, ${r.invoices} invoice(s)` : ''} ✓`);
+    go('dresses');
+  } catch (e) { toast(e.message, 'bad'); }
 };
 /* Registering a dress is a screen with two tabs — not a wizard */
 window.addDress = () => { window._newDressTab = 'dress'; go('newdress'); };

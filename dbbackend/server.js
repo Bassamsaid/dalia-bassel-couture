@@ -51,6 +51,18 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// Typed back by the admin before anything is wiped wholesale.
+const PURGE_PHRASE = 'DELETE ALL DRESSES';
+
+// Resolve a stored image name to a file, confined to UPLOAD_DIR so a stored value
+// can never reach outside it. Returns null for anything that would escape.
+function uploadPath(stored) {
+  const name = path.basename(String(stored || '').replace(/^\/?uploads\//, ''));
+  if (!name || name === '.' || name === '..') return null;
+  const full = path.resolve(UPLOAD_DIR, name);
+  return full.startsWith(path.resolve(UPLOAD_DIR) + path.sep) ? full : null;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
@@ -877,6 +889,40 @@ api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
   // (whose total is the sum of its lines) and just drop the dress it pointed at.
   db.prepare('UPDATE purchase_lines SET dress_id=NULL WHERE dress_id=?').run(params.id);
   send(res, 200, { ok: true });
+};
+// Wipe every dress at once — for clearing demo data off a fresh install. Admin
+// only (a manager may delete dresses one by one, not empty the book), and the
+// exact phrase has to come back in the body so a stray request cannot trigger it.
+api['DELETE /api/dresses'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (b.confirm !== PURGE_PHRASE) return send(res, 400, { error: `Send confirm: "${PURGE_PHRASE}" to do this.` });
+  const dresses = db.prepare('SELECT id FROM dresses').all();
+  if (!dresses.length) return send(res, 200, { ok: true, dresses: 0, files: 0 });
+
+  // Collect the files first: once the rows are gone their names are unrecoverable.
+  const files = db.prepare('SELECT image FROM dress_images').all().map((r) => r.image);
+  let invoices = 0;
+  if (b.with_purchases) {
+    // Invoices holding nothing but dress lines go too; one with general spending
+    // on it keeps that spending and survives.
+    const empties = db.prepare(`SELECT id, image FROM purchase_invoices WHERE id IN (
+                                  SELECT DISTINCT invoice_id FROM purchase_lines WHERE dress_id IS NOT NULL
+                                ) AND id NOT IN (
+                                  SELECT invoice_id FROM purchase_lines WHERE dress_id IS NULL
+                                )`).all();
+    empties.forEach((inv) => files.push(inv.image));
+    invoices = empties.length;
+    db.exec('DELETE FROM purchase_lines WHERE dress_id IS NOT NULL');
+    empties.forEach((inv) => db.prepare('DELETE FROM purchase_invoices WHERE id=?').run(inv.id));
+  } else {
+    db.exec('UPDATE purchase_lines SET dress_id=NULL'); // spending stays on its invoice
+  }
+  for (const t of ['dress_fittings', 'dress_images', 'dress_updates', 'dress_payments', 'dresses']) db.exec(`DELETE FROM ${t}`);
+
+  let removed = 0;
+  for (const f of files) { const p = uploadPath(f); if (p) { try { fs.unlinkSync(p); removed++; } catch (_) { /* already gone */ } } }
+  send(res, 200, { ok: true, dresses: dresses.length, invoices, files: removed });
 };
 // materials bought for a dress — admin + manager (operational; NOT price/deposit)
 api['GET /api/dresses/:id/purchases'] = async (req, res, user, url, params) => {
