@@ -2203,7 +2203,7 @@ PAGES.config = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
   const s = await GET('/api/settings');
   const tab = window._cfgTab || 'academy';
-  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment']];
+  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['backup', 'Backup']];
   let inner = '';
   if (tab === 'academy') {
     inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
@@ -2246,6 +2246,14 @@ PAGES.config = async (c) => {
         <div class="hint" style="margin-top:6px">Staff & students can only check in or out inside a circle this wide around the pin. Set the switch to “No” to allow from anywhere.</div>
         <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save the pin & the rule</button>
       </div>`;
+  } else if (tab === 'backup') {
+    inner = `<div class="card">
+        <label style="margin-top:0">Download a copy of everything</label>
+        <div class="hint" style="margin-top:6px">Students, dresses, payments, salaries, attendance — the whole database in one file. Keep it somewhere safe: on hosting without a permanent disk, the app's own copy is wiped every time it restarts.</div>
+        <button class="btn" style="margin-top:12px" onclick="downloadBackup('db')">⬇︎ Download backup</button>
+        <button class="btn sec" style="margin-top:8px" onclick="downloadBackup('json')">⬇︎ Readable copy (JSON)</button>
+        <div class="hint" style="margin-top:10px">The backup restores the app exactly as it is now. The readable copy opens in any browser or notes app if you just need to look something up. Neither includes uploaded photos.</div>
+      </div>`;
   } else {
     inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
       <div class="hint" style="margin-top:6px">Shown next to all amounts across the app.</div>
@@ -2255,6 +2263,17 @@ PAGES.config = async (c) => {
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="cfgTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.cfgTab = (t) => { window._cfgTab = t; go('config'); };
+/* Straight navigation rather than fetch-to-blob: the endpoint sends the filename
+   in Content-Disposition, and phone browsers save that far more reliably than a
+   blob URL. The service worker leaves /api alone, so this is a real download. */
+window.downloadBackup = (kind) => {
+  const a = document.createElement('a');
+  a.href = kind === 'json' ? '/api/backup.json' : '/api/backup';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('Preparing your backup…');
+};
 window.geoPinHtml = (lat, lng) => {
   if (!lat || !lng) return `<span class="gp-dot">📍</span><span class="gp-txt" style="opacity:.6">No pin set yet — choose one of the three ways below.</span>`;
   const q = encodeURIComponent(lat + ',' + lng);

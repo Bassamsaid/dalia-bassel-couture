@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const tls = require('node:tls');
 const { URL } = require('node:url');
-const { db, hashPassword, verifyPassword } = require('./db');
+const { db, hashPassword, verifyPassword, DB_PATH } = require('./db');
 
 // Minimal SMTP-over-TLS sender (Gmail: smtp.gmail.com:465), no dependencies.
 function smtpSend({ user, pass, to, subject, text }) {
@@ -1153,6 +1153,45 @@ api['PUT /api/settings'] = async (req, res, user) => {
   const up = db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
   Object.entries(b || {}).forEach(([k, v]) => up.run(k, v == null ? '' : String(v)));
   send(res, 200, { ok: true });
+};
+
+// ================= BACKUP =================
+// Hosting without a persistent volume keeps the database inside the container,
+// where a redeploy resets it. Until there is a volume, the studio's copy of its
+// own data is whatever it has downloaded, so both formats are one tap away.
+function backupName(ext) {
+  const d = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '');
+  return `daliessa-backup-${d}.${ext}`;
+}
+// The real thing: the SQLite file, restored by putting it back in DATA_DIR.
+api['GET /api/backup'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  // WAL mode keeps recent writes beside the database; fold them in so the copy
+  // is not missing today's work.
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch (e) { /* nothing to fold */ }
+  let data; try { data = fs.readFileSync(DB_PATH); } catch (e) { return send(res, 500, { error: 'Could not read the database' }); }
+  send(res, 200, data, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${backupName('db')}"`,
+    'Content-Length': data.length,
+  });
+};
+// The readable one: every table as JSON, so the data can still be read by a
+// person (or another program) with no SQLite tooling at hand.
+api['GET /api/backup.json'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
+  const out = { exported_at: new Date().toISOString(), tables: {} };
+  for (const { name } of tables) {
+    const rows = db.prepare(`SELECT * FROM ${name}`).all();
+    // Password hashes are not the studio's data to carry around in a plain file.
+    if (name === 'users') rows.forEach((r) => { delete r.password_hash; delete r.invite_token; });
+    out.tables[name] = rows;
+  }
+  send(res, 200, JSON.stringify(out, null, 2), {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${backupName('json')}"`,
+  });
 };
 
 // ================= STAFF HR: ABSENCES / ADVANCES / SALARY =================
