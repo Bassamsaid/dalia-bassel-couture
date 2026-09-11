@@ -34,12 +34,12 @@ function fmField(f) {
   const pid = isPhone ? ` id="fp_${f.name}"` : '';
   const input = `<input name="${f.name}"${pid} type="${f.type || 'text'}" value="${esc(v)}"${req}${im ? ` inputmode="${im}"` : ''}${isPhone ? ' autocomplete="tel"' : ''} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} ${isPhone ? 'style="flex:1;min-width:0"' : ''} />`;
   const body = isPhone
-    ? `<div class="row" style="gap:6px;align-items:center">${input}
-        <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pickContact('fp_${f.name}')" title="Choose from contacts">👤</button>
-        <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pastePhone('fp_${f.name}')" title="Paste a copied number">📋</button></div>`
+    ? `<div class="row" style="gap:6px;align-items:center">${input}${phoneButtons('fp_' + f.name)}</div>`
     : input;
   return `<label>${f.label}${f.required ? ' *' : ''}</label>${body}`;
 }
+function canPickContacts() { return !!(window.ContactsManager && navigator.contacts && navigator.contacts.select); }
+
 /* A phone number is read off a client's WhatsApp and typed in by hand, which is
    where the wrong digit gets in. Three ways to avoid typing it:
    - Android Chrome opens the real contact list (Contact Picker API).
@@ -51,19 +51,23 @@ function phoneField(id, value, opts = {}) {
   const name = opts.name ? ` data-name-target="${opts.name}"` : '';
   return `<div class="row" style="gap:6px;align-items:center">
     <input id="${id}" type="tel" inputmode="tel" autocomplete="tel" value="${esc(value || '')}"${name} style="flex:1;min-width:0" ${opts.readonly ? 'readonly' : ''} />
-    ${opts.readonly ? '' : `<button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pickContact('${id}')" title="Choose from contacts">👤</button>
-    <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pastePhone('${id}')" title="Paste a copied number">📋</button>`}
+    ${opts.readonly ? '' : phoneButtons(id)}
   </div>`;
 }
+/* The contact button only exists where a contact list can actually be opened.
+   Safari has no such API at all, so on an iPhone it could never do more than
+   apologise — and a button that apologises is worse than no button. There,
+   paste is the whole story, and the keyboard offers the contact on its own. */
+function phoneButtons(id) {
+  return `${canPickContacts() ? `<button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pickContact('${id}')" title="Choose from contacts">👤</button>` : ''}
+    <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pastePhone('${id}')" title="Paste a copied number">📋 Paste</button>`;
+}
+window.phoneButtons = phoneButtons;
 window.phoneField = phoneField;
-const canPickContacts = () => !!(window.ContactsManager && navigator.contacts && navigator.contacts.select);
 window.pickContact = async (id) => {
   const el = document.getElementById(id);
   if (!el) return;
-  if (!canPickContacts()) {
-    el.focus(); // iOS/desktop: the field itself offers the contact above the keyboard
-    return toast('Tap the field — your phone offers your contacts above the keyboard');
-  }
+  if (!canPickContacts()) return;
   let picked;
   try { [picked] = await navigator.contacts.select(['tel', 'name'], { multiple: false }); }
   catch (e) { return; } // dismissed
@@ -1889,13 +1893,21 @@ PAGES.purchases = async (c) => {
        ${f ? `<button class="btn ghost sm" onclick="setPurMonth('')">Clear</button>` : ''}
      </div>
     <button class="btn" onclick="newPurchase()">＋ New purchase (invoice)</button>
-    <div style="margin-top:12px">${list.length ? list.map((inv) => `<div class="card">
-      <div class="item" style="cursor:pointer" onclick="openPurchase(${inv.id})">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}"/></div>` : '<div class="av">🧾</div>'}
-        <div class="main"><div class="nm">${esc(inv.vendor_name || inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · ${inv.lines ? inv.lines.length : 0} item${(inv.lines && inv.lines.length === 1) ? '' : 's'} · tap to view ›</div></div>
-        <span class="muted" style="font-size:20px">›</span></div>
-      ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div>
-        <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
-    </div>`).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
+    <div style="margin-top:12px">${list.length ? list.map((inv) => {
+      const n = inv.lines ? inv.lines.length : 0;
+      return `<div class="card pu-card" onclick="openPurchase(${inv.id})">
+      <div class="inv-head">
+        ${inv.image ? `<img class="inv-scan" src="/uploads/${esc(inv.image)}" alt=""/>` : '<div class="inv-scan pu-noscan">🧾</div>'}
+        <div class="inv-who">
+          <div class="inv-name"><bdi>${esc(inv.vendor_name || inv.shop || 'Shop')}</bdi></div>
+          <div class="inv-meta"><bdi>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</bdi> · ${n} item${n === 1 ? '' : 's'}${inv.note ? ` · <bdi>${esc(inv.note)}</bdi>` : ''}</div>
+        </div>
+        <div class="inv-total">${money(inv.total)}</div>
+      </div>
+      ${n ? `<div class="inv-lines">${inv.lines.map((li) => `<div class="inv-line">
+        <span class="inv-item"><bdi>${esc(li.item || '—')}</bdi>${li.dress_name ? ` <span class="inv-for">· <bdi>${esc(li.dress_name)}</bdi></span>` : ''}</span>
+        ${n > 1 ? `<span class="inv-amt">${money(li.amount)}</span>` : ''}</div>`).join('')}</div>` : ''}
+    </div>`; }).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
 };
 window.setPurMonth = (m) => { window._purMonth = m; go('purchases'); };
 window.openPurchase = async (id) => {
