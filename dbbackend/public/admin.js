@@ -1419,7 +1419,7 @@ PAGES.dresses = async (c) => {
     <div class="grid g2" id="dressList">${list.length ? list.map((d) => `
       <div class="card" data-name="${esc(isStaff ? 'dress #' + d.id : (d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
         ${d.unread ? `<span class="notif-dot" title="New update">${d.unread}</span>` : ''}
-        ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
+        ${d.cover_image ? `<img class="thumb" style="object-position:${esc(d.cover_pos || '50% 50%')}" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
         <div class="nm" style="font-weight:600;margin-top:8px">${isStaff ? 'Dress #' + d.id : esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
         <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}${isStaff ? '' : ' · ' + d.fittings.length + ' fittings'}</div>
@@ -1643,7 +1643,8 @@ PAGES.dress = async (c) => {
     ${canEdit ? `<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
       <button class="btn ghost sm" onclick="addDressImg(${id})">＋ Photo</button>
       <button class="btn ghost sm" onclick="addDressVideo(${id})">🎬 Video</button>
-      <button class="btn ghost sm" onclick="addDressVideoLink(${id})">🔗 Video link</button></div>` : ''}`);
+      <button class="btn ghost sm" onclick="addDressVideoLink(${id})">🔗 Video link</button>
+      ${d.cover_image ? `<button class="btn ghost sm" onclick="adjustCover(${id})">⛶ Adjust preview</button>` : ''}</div>` : ''}`);
 
   const moneyPane = canEdit ? pane('money', `
     ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
@@ -1691,7 +1692,7 @@ PAGES.dress = async (c) => {
 
   c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
     `<div class="dress-head">
-      ${d.cover_image ? `<div class="dh-photo" style="background-image:url('/uploads/${esc(d.cover_image)}')" onclick="dressTab(${id},'photos')"></div>`
+      ${d.cover_image ? `<div class="dh-photo" style="background-image:url('/uploads/${esc(d.cover_image)}');background-position:${esc(d.cover_pos || '50% 50%')}" onclick="dressTab(${id},'photos')"></div>`
         : '<div class="dh-photo dh-none">👗</div>'}
       <div class="dh-body">
         <div class="dh-name">${isStaff ? 'Dress #' + id : esc(d.customer_name)}</div>
@@ -1731,13 +1732,29 @@ async function loadDressMaterials(id) {
   try {
     const items = await GET('/api/dresses/' + id + '/purchases');
     const total = items.reduce((a, x) => a + (x.amount || 0), 0);
-    box.innerHTML = items.length ? `<div class="card" style="box-shadow:none;margin:0">${items.map((x) => `<div class="item">
-      <div class="av" style="background:#fff">◦</div>
-      <div class="main"><div class="nm">${esc(x.item || '—')}</div><div class="sub">${x.vendor_name ? esc(x.vendor_name) + ' · ' : ''}${!x.vendor_name && x.shop ? esc(x.shop) + ' · ' : ''}${x.invoice_date ? dt(x.invoice_date) : dt(x.created_at)}</div></div>
+    // Tapping a material opens the invoice it came from, where it can be edited.
+    box.innerHTML = items.length ? `<div class="card" style="box-shadow:none;margin:0">${items.map((x) => `<div class="item" style="cursor:pointer" onclick="openInvoiceFor(${x.invoice_id})">
+      <div class="av" style="background:#fff">🧾</div>
+      <div class="main"><div class="nm">${esc(x.item || '—')}</div><div class="sub">${x.vendor_name ? esc(x.vendor_name) + ' · ' : ''}${!x.vendor_name && x.shop ? esc(x.shop) + ' · ' : ''}${x.invoice_date ? dt(x.invoice_date) : dt(x.created_at)} · tap to open the invoice ›</div></div>
       <div class="sub" style="font-weight:700">${money(x.amount)}</div></div>`).join('')}
       <div class="item" style="border-top:2px solid var(--line)"><div class="main"><div class="nm">Total materials</div></div><div style="font-weight:800;letter-spacing:-.3px">${money(total)}</div></div></div>` : '<div class="hint">No materials bought yet — add the first invoice below</div>';
   } catch (e) { box.innerHTML = '<div class="hint">Could not load materials</div>'; }
 }
+/* From a dress, open the invoice a material came from. The purchases page may
+   never have been visited, so the invoices and the dress list are fetched first. */
+window.openInvoiceFor = async (invoiceId) => {
+  if (!invoiceId) return;
+  try {
+    const [invoices, dresses] = await Promise.all([
+      GET('/api/purchases'),
+      window._allDressesForPurchase ? Promise.resolve(window._allDressesForPurchase) : GET('/api/dresses'),
+    ]);
+    window._purchases = invoices; window._allDressesForPurchase = dresses;
+    if (state.user.role === 'admin' && !window._purVendors) window._purVendors = await GET('/api/vendors');
+    if (!invoices.some((x) => x.id === invoiceId)) return toast('That invoice is gone', 'error');
+    openPurchase(invoiceId);
+  } catch (e) { toast(e.message, 'error'); }
+};
 async function loadDressPayments(id) {
   const box = document.getElementById('dpay_' + id); if (!box) return;
   try {
@@ -1888,6 +1905,7 @@ window.openPurchase = async (id) => {
   modal(`<h3>${esc(inv.vendor_name || inv.shop || 'Purchase')}</h3>
     <div class="sub muted">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)} · Total ${money(inv.total)}</div>
     ${inv.note ? `<div class="hint">${esc(inv.note)}</div>` : ''}
+    <button class="btn ghost sm" style="margin-top:8px" onclick="editPurchase(${id})">✏️ Edit shop, date & note</button>
     ${(window._purVendors && window._purVendors.length) ? `<label style="margin-top:8px">Vendor</label>
       <select id="pv_${id}" onchange="setPurchaseVendor(${id},this.value)" style="width:100%"><option value="">— none —</option>${window._purVendors.map((v) => `<option value="${v.id}" ${inv.vendor_id === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>` : ''}
     <div class="sec-title">Invoice</div>
@@ -1896,15 +1914,68 @@ window.openPurchase = async (id) => {
          <button class="btn ghost sm" style="margin-top:8px" onclick="addPurchaseImg(${id})">📷 Replace invoice photo</button>`
       : `<div class="hint">No invoice photo yet</div><button class="btn ghost sm" style="margin-top:6px" onclick="addPurchaseImg(${id})">📷 Add invoice photo</button>`}
     <div class="sec-title">Items</div>
-    <p class="hint" style="margin-top:-4px">Each item counts as material cost on the dress named here. Pick a different one to move it.</p>
-    <div class="card" style="box-shadow:none;margin:0">${inv.lines.map((li) => `<div class="pl-row">
-      <div class="pl-top"><span class="pl-item">${li.item ? esc(li.item) : 'Item'}</span><span class="pl-amt">${money(li.amount)}</span></div>
-      <select onchange="moveLine(${li.id},this.value)">
-        <option value="">— not on a dress —</option>
-        ${(window._allDressesForPurchase || []).map((d) => `<option value="${d.id}" ${d.id === li.dress_id ? 'selected' : ''}>${esc(dressOptionLabel(d))}</option>`).join('')}
-      </select></div>`).join('')}</div>
+    <p class="hint" style="margin-top:-4px">Each item counts as material cost on the dress named here. Edit the name or the amount, move it to another dress, or take it off.</p>
+    <div class="card" style="box-shadow:none;margin:0" id="plines_${id}">${inv.lines.map((li) => purchaseLineRow(li, id)).join('') || '<div class="hint">No items on this invoice</div>'}</div>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="addInvoiceLine(${id})">＋ Add item</button>
+    <div class="item" style="border-top:2px solid var(--line);margin-top:8px">
+      <div class="main"><div class="nm">Total</div></div>
+      <div style="font-weight:800;letter-spacing:-.3px">${money(inv.total)}</div></div>
     <div class="divider"></div>
     <button class="btn danger" onclick="delPurchase(${id})">Delete purchase</button>`);
+};
+/* One item on an invoice: its name and amount are editable in place, and the
+   select moves it to whichever dress it was really bought for. */
+function purchaseLineRow(li, invId) {
+  return `<div class="pl-row" data-line="${li.id}">
+    <div class="row" style="gap:6px;align-items:center">
+      <input value="${esc(li.item || '')}" placeholder="Item" id="li_item_${li.id}" style="flex:2;min-width:0" />
+      <input value="${li.amount || 0}" type="number" inputmode="decimal" id="li_amt_${li.id}" style="flex:1;min-width:0" />
+    </div>
+    <select id="li_dress_${li.id}">
+      <option value="">— not on a dress —</option>
+      ${(window._allDressesForPurchase || []).map((d) => `<option value="${d.id}" ${d.id === li.dress_id ? 'selected' : ''}>${esc(dressOptionLabel(d))}</option>`).join('')}
+    </select>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <button class="btn sec sm" style="flex:1" onclick="saveInvoiceLine(${li.id},${invId})">Save item</button>
+      <button class="btn-icon" onclick="delInvoiceLine(${li.id},${invId})">🗑</button>
+    </div></div>`;
+}
+window.saveInvoiceLine = async (lineId, invId) => {
+  const item = document.getElementById('li_item_' + lineId).value;
+  const amount = Number(document.getElementById('li_amt_' + lineId).value) || 0;
+  const dress = document.getElementById('li_dress_' + lineId).value;
+  try {
+    await PUT('/api/purchase-lines/' + lineId, { item, amount, dress_id: dress ? Number(dress) : null });
+    toast('Item saved ✓');
+    window._purchases = await GET('/api/purchases'); openPurchase(invId);
+  } catch (e) { toast(e.message, 'error'); }
+};
+window.delInvoiceLine = (lineId, invId) => confirmDel('Take this item off the invoice?', async () => {
+  await DEL('/api/purchase-lines/' + lineId);
+  toast('Item removed'); window._purchases = await GET('/api/purchases'); openPurchase(invId);
+});
+window.addInvoiceLine = (invId) => formModal('Add an item', [
+  { name: 'item', label: 'What was bought', required: true, placeholder: 'Swiss tulle, 9.5m' },
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'dress_id', label: 'For which dress', type: 'select',
+    options: [{ value: '', label: '— not on a dress —' }, ...(window._allDressesForPurchase || []).map((d) => ({ value: d.id, label: dressOptionLabel(d) }))] },
+], async (d) => {
+  await POST('/api/purchases/' + invId + '/lines', d);
+  toast('Item added ✓'); closeModal();
+  window._purchases = await GET('/api/purchases'); openPurchase(invId);
+});
+/* The invoice's own details — which shop, when, and the note on it. */
+window.editPurchase = (id) => {
+  const inv = (window._purchases || []).find((x) => x.id === id); if (!inv) return;
+  formModal('Edit the invoice', [
+    { name: 'shop', label: 'Shop name', value: inv.shop || '' },
+    { name: 'invoice_date', label: 'Invoice date', type: 'date', value: (inv.invoice_date || '').slice(0, 10) },
+    { name: 'note', label: 'Note', value: inv.note || '' },
+  ], async (d) => {
+    await PUT('/api/purchases/' + id, d);
+    toast('Invoice saved ✓'); closeModal();
+    window._purchases = await GET('/api/purchases'); openPurchase(id);
+  });
 };
 window.setPurchaseVendor = async (id, vid) => { await PUT('/api/purchases/' + id, { vendor_id: Number(vid) || null }); toast('Vendor saved ✅'); window._purchases = await GET('/api/purchases'); const inv = window._purchases.find((x) => x.id === id); if (inv) window._purVendors = await GET('/api/vendors'); };
 window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purchases/' + id, { image: b64 }); toast('Invoice photo saved'); window._purchases = await GET('/api/purchases'); openPurchase(id); });
@@ -1960,8 +2031,25 @@ window.addExpense = () => { const { vendors, types } = window._expRef; formModal
   { name: 'image', label: 'Invoice photo (optional)', type: 'image' },
 ], async (d) => { await POST('/api/expenses', d); toast('Saved'); go('expenses'); }); };
 window.delExpense = (id) => confirmDel('Delete expense?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
-window.addVendor = () => formModal('Add vendor', [{ name: 'name', label: 'Vendor name', required: true }, { name: 'phone', label: 'Phone' }, { name: 'note', label: 'Note' }], async (d) => { await POST('/api/vendors', d); toast('Added'); go('expenses'); });
-window.delVendor = (id) => confirmDel('Delete vendor?', async () => { await DEL('/api/vendors/' + id); go('expenses'); });
+const VENDOR_FIELDS = (v = {}) => [
+  { name: 'name', label: 'Supplier name', required: true, value: v.name || '' },
+  { name: 'specialty', label: 'What they supply', value: v.specialty || '', placeholder: 'Lace · Tulle · Beading · Silk' },
+  { name: 'phone', label: 'Phone', value: v.phone || '' },
+  { name: 'email', label: 'Email', type: 'email', value: v.email || '' },
+  { name: 'address', label: 'Address / area', value: v.address || '' },
+  { name: 'note', label: 'Note', value: v.note || '' },
+];
+window.addVendor = (from) => formModal('Add a supplier', VENDOR_FIELDS(), async (d) => {
+  await POST('/api/vendors', d); toast('Supplier added ✓'); go(from === 'config' ? 'config' : 'expenses');
+}, { perStep: 6 });
+window.editVendor = (id) => {
+  const v = (window._cfgVendors || window._expRef?.vendors || []).find((x) => x.id === id);
+  if (!v) return;
+  formModal('Edit ' + v.name, VENDOR_FIELDS(v), async (d) => {
+    await PUT('/api/vendors/' + id, d); toast('Supplier saved ✓'); go('config');
+  }, { perStep: 6 });
+};
+window.delVendor = (id) => confirmDel('Delete this supplier?', async () => { await DEL('/api/vendors/' + id); go(window._cfgTab === 'vendors' ? 'config' : 'expenses'); });
 /* ---- Vendor report: unified spend (material purchases + general expenses) + printable PDF ---- */
 window.openVendorReport = async (id) => {
   const rep = await GET('/api/vendors/' + id + '/report');
@@ -2171,6 +2259,69 @@ window.addDressVideoLink = (id) => formModal('Add a video link', [
   await POST(`/api/dresses/${id}/images`, { video_url: d.video_url, caption: d.caption });
   toast('Video added ✓'); closeModal(); refreshDress(id);
 }, { hint: 'Instagram, YouTube and TikTok play inside the app. Any other link opens in a new tab.' });
+/* "Adjust preview": the card crops the cover to a tall rectangle, and a cover
+   shot wide often loses the face to that crop. Dragging moves the photo inside
+   the very rectangle the card uses, so what is dragged into view is exactly what
+   the card will show. Stored as an object-position, not a new cropped file, so
+   the original photo is never touched. */
+let _coverPos = null;
+window.adjustCover = (id) => {
+  const d = (window._dresses || []).find((x) => x.id === id);
+  if (!d || !d.cover_image) return toast('Add a cover photo first');
+  const [sx, sy] = String(d.cover_pos || '50% 50%').split(' ').map((n) => parseFloat(n) || 50);
+  _coverPos = { x: sx, y: sy };
+  modal(`<h3>Adjust preview</h3>
+    <p class="hint" style="margin-top:-4px">Drag the photo to choose what the card shows.</p>
+    <div id="acBox" style="position:relative;width:100%;max-width:280px;margin:0 auto;aspect-ratio:3/4;
+      border-radius:14px;overflow:hidden;background:#000;touch-action:none;cursor:grab">
+      <img id="acImg" src="/uploads/${esc(d.cover_image)}" alt=""
+        style="width:100%;height:100%;object-fit:cover;object-position:${sx}% ${sy}%;pointer-events:none;user-select:none" />
+      <div id="acGrid" style="position:absolute;inset:0;pointer-events:none;opacity:.55;
+        background:linear-gradient(to right,transparent 0 33.2%,#fff 33.2% 33.5%,transparent 33.5% 66.5%,#fff 66.5% 66.8%,transparent 66.8%),
+                   linear-gradient(to bottom,transparent 0 33.2%,#fff 33.2% 33.5%,transparent 33.5% 66.5%,#fff 66.5% 66.8%,transparent 66.8%)"></div>
+    </div>
+    <div class="hint" style="text-align:center;margin-top:8px" id="acLbl">${Math.round(sx)}% · ${Math.round(sy)}%</div>
+    <div class="row" style="margin-top:12px;gap:8px">
+      <button class="btn sec" style="flex:1" onclick="centreCover()">Centre</button>
+      <button class="btn" style="flex:2" onclick="saveCover(${id})">Save</button>
+    </div>`);
+  wireCoverDrag();
+};
+function paintCover() {
+  const img = document.getElementById('acImg'), lbl = document.getElementById('acLbl');
+  if (!img || !_coverPos) return;
+  img.style.objectPosition = `${_coverPos.x}% ${_coverPos.y}%`;
+  if (lbl) lbl.textContent = `${Math.round(_coverPos.x)}% · ${Math.round(_coverPos.y)}%`;
+}
+window.centreCover = () => { _coverPos = { x: 50, y: 50 }; paintCover(); };
+function wireCoverDrag() {
+  const box = document.getElementById('acBox'); if (!box) return;
+  let from = null;
+  const clamp = (n) => Math.min(100, Math.max(0, n));
+  box.addEventListener('pointerdown', (e) => {
+    from = { px: e.clientX, py: e.clientY, x: _coverPos.x, y: _coverPos.y };
+    box.setPointerCapture(e.pointerId); box.style.cursor = 'grabbing';
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!from) return;
+    e.preventDefault();
+    const r = box.getBoundingClientRect();
+    // Dragging the photo down reveals what sits above it, so the focus moves up.
+    _coverPos.x = clamp(from.x - ((e.clientX - from.px) / r.width) * 100);
+    _coverPos.y = clamp(from.y - ((e.clientY - from.py) / r.height) * 100);
+    paintCover();
+  });
+  const stop = () => { from = null; box.style.cursor = 'grab'; };
+  box.addEventListener('pointerup', stop);
+  box.addEventListener('pointercancel', stop);
+}
+window.saveCover = async (id) => {
+  if (!_coverPos) return;
+  try {
+    await PUT('/api/dresses/' + id, { cover_pos: `${Math.round(_coverPos.x)}% ${Math.round(_coverPos.y)}%` });
+    toast('Preview saved ✓'); closeModal(); refreshDress(id);
+  } catch (e) { toast(e.message, 'error'); }
+};
 window.delDress = (id) => confirmDel('Delete dress booking?', async () => { await DEL('/api/dresses/' + id); closeModal(); go('dresses'); });
 async function refreshDress(id) { window._dresses = await GET('/api/dresses'); openDress(id); }
 window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); refreshDress(id); };
@@ -2352,7 +2503,7 @@ PAGES.config = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
   const s = await GET('/api/settings');
   const tab = window._cfgTab || 'academy';
-  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['backup', 'Backup']];
+  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['vendors', 'Suppliers'], ['backup', 'Backup']];
   let inner = '';
   if (tab === 'academy') {
     inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
@@ -2395,6 +2546,25 @@ PAGES.config = async (c) => {
         <div class="hint" style="margin-top:6px">Staff & students can only check in or out inside a circle this wide around the pin. Set the switch to “No” to allow from anywhere.</div>
         <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save the pin & the rule</button>
       </div>`;
+  } else if (tab === 'vendors') {
+    const vendors = await GET('/api/vendors');
+    window._cfgVendors = vendors;
+    // Grouped by what they supply, because that is how a supplier is looked up:
+    // not "who was that shop" but "who do we get beading from".
+    const groups = {};
+    vendors.forEach((v) => { const k = (v.specialty || '').trim() || 'Not set'; (groups[k] = groups[k] || []).push(v); });
+    const keys = Object.keys(groups).sort((a, b) => (a === 'Not set') - (b === 'Not set') || a.localeCompare(b));
+    inner = `<button class="btn" onclick="addVendor('config')">＋ Add a supplier</button>
+      <div class="hint" style="margin:10px 2px 6px">Everyone the studio buys from. Tap one to edit its details.</div>
+      ${vendors.length ? keys.map((k) => `<div class="sec-title">${esc(k)} <span class="hint" style="font-weight:400">· ${groups[k].length}</span></div>
+        <div class="card" style="margin:0 0 10px">${groups[k].map((v) => `<div class="item" style="cursor:pointer" onclick="editVendor(${v.id})">
+          <div class="av">🏬</div>
+          <div class="main"><div class="nm">${esc(v.name)}</div>
+            <div class="sub">${[v.phone, v.address, v.note].filter(Boolean).map(esc).join(' · ') || 'No details yet'}</div></div>
+          <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            ${v.total ? `<div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total)}</div>` : ''}
+            <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
+        </div>`).join('')}</div>`).join('') : empty('No suppliers yet', '🏬')}`;
   } else if (tab === 'backup') {
     inner = `<div class="card">
         <label style="margin-top:0">Download a copy of everything</label>

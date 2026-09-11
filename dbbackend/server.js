@@ -118,6 +118,15 @@ function maybeImage(val) {
   if (typeof val === 'string' && val.startsWith('data:')) return saveImage(val);
   return val || null;
 }
+// Where the cover photo sits in the card's crop. It is written straight into a
+// style attribute, so only a bare "<x>% <y>%" is allowed through.
+function coverPos(val) {
+  if (val == null) return null;
+  const m = String(val).trim().match(/^(\d{1,3}(?:\.\d+)?)%\s+(\d{1,3}(?:\.\d+)?)%$/);
+  if (!m) return null;
+  const clamp = (n) => Math.min(100, Math.max(0, Number(n)));
+  return `${clamp(m[1])}% ${clamp(m[2])}%`;
+}
 // A pasted video link, kept only if it is a real http(s) address — the page drops
 // it into an iframe or an anchor, so javascript: and data: must never get through.
 function videoLink(val) {
@@ -883,8 +892,8 @@ api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   const measImg = (b.measure_image && b.measure_image.startsWith('data:')) ? maybeImage(b.measure_image) : (b.measure_image ?? c.measure_image);
   const meas = b.measurements != null ? (typeof b.measurements === 'string' ? b.measurements : JSON.stringify(b.measurements)) : c.measurements;
   const brief = b.brief && typeof b.brief === 'object' ? JSON.stringify(b.brief) : c.brief;
-  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=?,brief=? WHERE id=?').run(
-    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, brief, params.id);
+  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=?,brief=?,cover_pos=? WHERE id=?').run(
+    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, brief, coverPos(b.cover_pos) ?? c.cover_pos, params.id);
   // --- notifications on status / assignment changes ---
   const did = Number(params.id);
   const stLabel = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
@@ -951,7 +960,7 @@ api['DELETE /api/dresses'] = async (req, res, user) => {
 // materials bought for a dress — admin + manager (operational; NOT price/deposit)
 api['GET /api/dresses/:id/purchases'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
-  send(res, 200, db.prepare(`SELECT l.item, l.amount, pi.shop, pi.invoice_date, pi.created_at,
+  send(res, 200, db.prepare(`SELECT l.id, l.invoice_id, l.item, l.amount, pi.shop, pi.invoice_date, pi.created_at,
       (SELECT name FROM vendors WHERE id=pi.vendor_id) vendor_name
     FROM purchase_lines l JOIN purchase_invoices pi ON pi.id=l.invoice_id
     WHERE l.dress_id=? ORDER BY pi.id DESC, l.id`).all(params.id));
@@ -1387,6 +1396,22 @@ api['PUT /api/purchase-lines/:id'] = async (req, res, user, url, params) => {
     .run(b.dress_id === null ? null : (b.dress_id ?? line.dress_id), b.item ?? line.item, b.amount ?? line.amount, params.id);
   send(res, 200, { ok: true });
 };
+// Items are added to and taken off an invoice after the fact — a forgotten roll
+// of tulle, a line entered twice. The invoice total is the sum of its lines, so
+// both keep it honest without the total being stored anywhere.
+api['POST /api/purchases/:id/lines'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req);
+  if (!db.prepare('SELECT id FROM purchase_invoices WHERE id=?').get(params.id)) return send(res, 404, { error: 'not found' });
+  const r = db.prepare('INSERT INTO purchase_lines (invoice_id,dress_id,item,amount) VALUES (?,?,?,?)')
+    .run(params.id, b.dress_id || null, b.item || null, Number(b.amount) || 0);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/purchase-lines/:id'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  db.prepare('DELETE FROM purchase_lines WHERE id=?').run(params.id);
+  send(res, 200, { ok: true });
+};
 api['DELETE /api/purchases/:id'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   db.prepare('DELETE FROM purchase_lines WHERE invoice_id=?').run(params.id);
@@ -1454,8 +1479,19 @@ api['POST /api/vendors'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   if (!b.name) return send(res, 400, { error: 'name required' });
-  const r = db.prepare('INSERT INTO vendors (name,phone,note) VALUES (?,?,?)').run(b.name, b.phone || null, b.note || null);
+  const r = db.prepare('INSERT INTO vendors (name,phone,email,address,specialty,note) VALUES (?,?,?,?,?,?)')
+    .run(b.name, b.phone || null, b.email || null, b.address || null, b.specialty || null, b.note || null);
   send(res, 200, { id: r.lastInsertRowid });
+};
+api['PUT /api/vendors/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const c = db.prepare('SELECT * FROM vendors WHERE id=?').get(params.id);
+  if (!c) return send(res, 404, { error: 'not found' });
+  db.prepare('UPDATE vendors SET name=?,phone=?,email=?,address=?,specialty=?,note=? WHERE id=?').run(
+    b.name || c.name, b.phone ?? c.phone, b.email ?? c.email, b.address ?? c.address,
+    b.specialty ?? c.specialty, b.note ?? c.note, params.id);
+  send(res, 200, { ok: true });
 };
 api['DELETE /api/vendors/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM vendors WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
