@@ -27,9 +27,73 @@ function fmField(f) {
     <span class="hint" id="fh_${f.name}" style="flex:2">${v ? 'Selected' : 'None'}</span></div>
     <input type="hidden" name="${f.name}" id="fi_${f.name}" value="${esc(v)}" />`;
   // numeric fields pop the number keypad on mobile; phone fields the tel keypad
-  const im = f.inputmode || (f.type === 'number' ? 'decimal' : (/phone|tel|mobile/i.test(f.name) ? 'tel' : ''));
-  return `<label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}"${req}${im ? ` inputmode="${im}"` : ''} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} />`;
+  const isPhone = /phone|tel|mobile/i.test(f.name);
+  const im = f.inputmode || (f.type === 'number' ? 'decimal' : (isPhone ? 'tel' : ''));
+  // A phone field gets the same contact/paste pair as the dress forms; the id is
+  // only for those buttons, the form still reads the value by name.
+  const pid = isPhone ? ` id="fp_${f.name}"` : '';
+  const input = `<input name="${f.name}"${pid} type="${f.type || 'text'}" value="${esc(v)}"${req}${im ? ` inputmode="${im}"` : ''}${isPhone ? ' autocomplete="tel"' : ''} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} ${isPhone ? 'style="flex:1;min-width:0"' : ''} />`;
+  const body = isPhone
+    ? `<div class="row" style="gap:6px;align-items:center">${input}
+        <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pickContact('fp_${f.name}')" title="Choose from contacts">👤</button>
+        <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pastePhone('fp_${f.name}')" title="Paste a copied number">📋</button></div>`
+    : input;
+  return `<label>${f.label}${f.required ? ' *' : ''}</label>${body}`;
 }
+/* A phone number is read off a client's WhatsApp and typed in by hand, which is
+   where the wrong digit gets in. Three ways to avoid typing it:
+   - Android Chrome opens the real contact list (Contact Picker API).
+   - iOS has no web API for that, but a tel field with autocomplete="tel" makes
+     the keyboard offer the contact itself, which is the same gesture.
+   - Paste, for a number copied from anywhere at all.
+   The buttons render everywhere; each one explains itself if it cannot deliver. */
+function phoneField(id, value, opts = {}) {
+  const name = opts.name ? ` data-name-target="${opts.name}"` : '';
+  return `<div class="row" style="gap:6px;align-items:center">
+    <input id="${id}" type="tel" inputmode="tel" autocomplete="tel" value="${esc(value || '')}"${name} style="flex:1;min-width:0" ${opts.readonly ? 'readonly' : ''} />
+    ${opts.readonly ? '' : `<button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pickContact('${id}')" title="Choose from contacts">👤</button>
+    <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pastePhone('${id}')" title="Paste a copied number">📋</button>`}
+  </div>`;
+}
+window.phoneField = phoneField;
+const canPickContacts = () => !!(window.ContactsManager && navigator.contacts && navigator.contacts.select);
+window.pickContact = async (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!canPickContacts()) {
+    el.focus(); // iOS/desktop: the field itself offers the contact above the keyboard
+    return toast('Tap the field — your phone offers your contacts above the keyboard');
+  }
+  let picked;
+  try { [picked] = await navigator.contacts.select(['tel', 'name'], { multiple: false }); }
+  catch (e) { return; } // dismissed
+  if (!picked) return;
+  const tel = (picked.tel || []).find(Boolean);
+  if (!tel) return toast('That contact has no number saved', 'error');
+  setPhone(el, tel);
+  // Fill the client's name too, but never over something already typed.
+  const nameSel = el.getAttribute('data-name-target');
+  const nameEl = nameSel && document.getElementById(nameSel);
+  const who = (picked.name || []).find(Boolean);
+  if (nameEl && who && !nameEl.value.trim()) { nameEl.value = who; nameEl.dispatchEvent(new Event('input', { bubbles: true })); }
+  toast(`${who || 'Number'} added ✓`);
+};
+window.pastePhone = async (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let text;
+  try { text = await navigator.clipboard.readText(); }
+  catch (e) { el.focus(); return toast('Long-press the field and choose Paste'); }
+  if (!text || !text.trim()) return toast('Nothing copied yet');
+  setPhone(el, text);
+  toast('Pasted ✓');
+};
+/* Contacts hand back numbers spaced and bracketed however they were saved. */
+function setPhone(el, raw) {
+  el.value = String(raw).replace(/[^\d+]/g, '');
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 let _wiz = null;
 /* light step-by-step wizard: fields are shown a few at a time (calmer than a wall of inputs) */
 function formModal(heading, fields, onSubmit, opts = {}) {
@@ -1362,7 +1426,7 @@ window.purgeDresses = async () => {
     const r = await api('DELETE', '/api/dresses', { confirm: PURGE_PHRASE, with_purchases: withPurchases });
     toast(`Deleted ${r.dresses} dress(es)${r.invoices ? `, ${r.invoices} invoice(s)` : ''} ✓`);
     go('dresses');
-  } catch (e) { toast(e.message, 'bad'); }
+  } catch (e) { toast(e.message, 'error'); }
 };
 /* Registering a dress is a screen with two tabs — not a wizard */
 window.addDress = () => { window._newDressTab = 'dress'; go('newdress'); };
@@ -1382,7 +1446,7 @@ PAGES.newdress = async (c) => {
     <div class="card" style="padding:4px 15px 18px">
       <div class="dpane${tab === 'dress' ? ' on' : ''}" data-pane="dress">
         <label>Client name</label><input id="nd_name" placeholder="Her name" />
-        <label>Phone</label><input id="nd_phone" type="tel" inputmode="tel" />
+        <label>Phone</label>${phoneField('nd_phone', '', { name: 'nd_name' })}
         <label>Delivery date</label><input id="nd_date" type="date" />
         <label>Status</label>
         <select id="nd_status">
@@ -1485,7 +1549,7 @@ PAGES.dress = async (c) => {
 
   const details = pane('details', `
     <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}"${ro} />
-    <label>Phone</label><input id="dPhone_${id}" type="tel" inputmode="tel" value="${esc(d.phone || '')}"${ro} />
+    <label>Phone</label>${phoneField(`dPhone_${id}`, d.phone, { name: `dName_${id}`, readonly: !!ro })}
     <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}"${ro} />
     <label>Notes</label><textarea id="dNote_${id}"${ro}>${esc(d.note || '')}</textarea>
     <label>Status</label>
