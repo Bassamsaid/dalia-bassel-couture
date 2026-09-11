@@ -1889,13 +1889,21 @@ PAGES.purchases = async (c) => {
        ${f ? `<button class="btn ghost sm" onclick="setPurMonth('')">Clear</button>` : ''}
      </div>
     <button class="btn" onclick="newPurchase()">＋ New purchase (invoice)</button>
-    <div style="margin-top:12px">${list.length ? list.map((inv) => `<div class="card">
-      <div class="item" style="cursor:pointer" onclick="openPurchase(${inv.id})">${inv.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(inv.image)}"/></div>` : '<div class="av">🧾</div>'}
-        <div class="main"><div class="nm">${esc(inv.vendor_name || inv.shop || 'Shop')} · ${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''} · ${inv.lines ? inv.lines.length : 0} item${(inv.lines && inv.lines.length === 1) ? '' : 's'} · tap to view ›</div></div>
-        <span class="muted" style="font-size:20px">›</span></div>
-      ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div>
-        <div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
-    </div>`).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
+    <div style="margin-top:12px">${list.length ? list.map((inv) => {
+      const n = inv.lines ? inv.lines.length : 0;
+      return `<div class="card pu-card" onclick="openPurchase(${inv.id})">
+      <div class="inv-head">
+        ${inv.image ? `<img class="inv-scan" src="/uploads/${esc(inv.image)}" alt=""/>` : '<div class="inv-scan pu-noscan">🧾</div>'}
+        <div class="inv-who">
+          <div class="inv-name"><bdi>${esc(inv.vendor_name || inv.shop || 'Shop')}</bdi></div>
+          <div class="inv-meta"><bdi>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</bdi> · ${n} item${n === 1 ? '' : 's'}${inv.note ? ` · <bdi>${esc(inv.note)}</bdi>` : ''}</div>
+        </div>
+        <div class="inv-total">${money(inv.total)}</div>
+      </div>
+      ${n ? `<div class="inv-lines">${inv.lines.map((li) => `<div class="inv-line">
+        <span class="inv-item"><bdi>${esc(li.item || '—')}</bdi>${li.dress_name ? ` <span class="inv-for">· <bdi>${esc(li.dress_name)}</bdi></span>` : ''}</span>
+        ${n > 1 ? `<span class="inv-amt">${money(li.amount)}</span>` : ''}</div>`).join('')}</div>` : ''}
+    </div>`; }).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
 };
 window.setPurMonth = (m) => { window._purMonth = m; go('purchases'); };
 window.openPurchase = async (id) => {

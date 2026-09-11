@@ -1033,3 +1033,23 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
   font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .gp-open{font-size:12px;font-weight:700;white-space:nowrap}
 .hint.err{color:var(--bad);font-weight:700}
+
+/* ===== Purchases list =====
+   A month of invoices should be scannable in one thumb-scroll: one row each,
+   the shop and the amount on the same line, the items tucked under it. Every
+   name and amount is isolated (<bdi> in the markup) because an Arabic shop name
+   beside a Latin amount otherwise gets reordered into nonsense. */
+.inv-card{margin:0 0 10px;padding:12px 14px;cursor:pointer}
+.inv-card:active{transform:scale(.995)}
+.inv-head{display:flex;align-items:center;gap:11px;direction:ltr;text-align:start}
+.inv-scan{width:42px;height:42px;flex:0 0 auto;border-radius:9px;object-fit:cover;background:var(--soft)}
+.inv-noscan{display:flex;align-items:center;justify-content:center;font-size:19px}
+.inv-who{flex:1;min-width:0}
+.inv-name{font-weight:700;font-size:14.5px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inv-meta{font-size:11.5px;color:var(--muted);font-weight:600;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inv-total{flex:0 0 auto;font-weight:800;font-size:15px;letter-spacing:-.3px;color:var(--bad);text-align:end}
+.inv-lines{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:5px}
+.inv-line{display:flex;align-items:baseline;gap:10px;font-size:12.5px;direction:ltr;text-align:start}
+.inv-item{flex:1;min-width:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inv-for{color:var(--muted)}
+.inv-amt{flex:0 0 auto;color:var(--muted);font-weight:700}

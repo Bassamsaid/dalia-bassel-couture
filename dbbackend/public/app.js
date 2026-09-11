@@ -5,7 +5,12 @@
 const $ = (s, r = document) => r.querySelector(s);
 const root = () => $('#root');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const money = (n) => (Number(n || 0)).toLocaleString('en-US') + ' ' + ((window._cfg && window._cfg.currency) || 'EGP');
+/* An amount sits next to Arabic names all over this app, and the browser's
+   bidirectional algorithm reorders a bare "10,000 EGP" against them — the
+   currency ends up across the line from its number. <bdi> isolates the amount so
+   it is laid out on its own terms whichever script surrounds it. Every caller
+   renders into HTML, never textContent or a toast, so this is safe everywhere. */
+const money = (n) => `<bdi>${(Number(n || 0)).toLocaleString('en-US')} ${(window._cfg && window._cfg.currency) || 'EGP'}</bdi>`;
 const dt = (s) => s ? String(s).slice(0, 10) : '—';
 const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -342,7 +347,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v99';
+const APP_VERSION = 'v100';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
