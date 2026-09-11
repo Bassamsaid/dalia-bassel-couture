@@ -16,7 +16,14 @@ In the app: Configuration → Backup, as an admin.
 
 Neither carries uploaded photos; those live in `UPLOAD_DIR`.
 
-To restore, put the downloaded `.db` file back as `$DATA_DIR/daliessa.db` with
+## Restoring
+In the app: Configuration → Backup → **Restore from a backup file**, as an admin.
+It takes either backup file and puts back only what is missing, so it is safe to
+run onto an app that is not empty and safe to run twice. Restored accounts come
+back without a password and need `reset-admin-password` before anyone can use
+them. On a terminal the same thing is `npm run restore-backup -- <file>`.
+
+To restore the database file itself instead, put the downloaded `.db` back as `$DATA_DIR/daliessa.db` with
 the app stopped, and delete any `daliessa.db-wal` / `daliessa.db-shm` beside it
 so the old write-ahead log is not replayed over the restored file.
 

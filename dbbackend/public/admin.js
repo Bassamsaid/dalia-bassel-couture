@@ -2589,6 +2589,11 @@ PAGES.config = async (c) => {
         <button class="btn" style="margin-top:12px" onclick="downloadBackup('db')">⬇︎ Download backup</button>
         <button class="btn sec" style="margin-top:8px" onclick="downloadBackup('json')">⬇︎ Readable copy (JSON)</button>
         <div class="hint" style="margin-top:10px">The backup restores the app exactly as it is now. The readable copy opens in any browser or notes app if you just need to look something up. Neither includes uploaded photos.</div>
+      </div>
+      <div class="card">
+        <label style="margin-top:0">Put a backup back</label>
+        <div class="hint" style="margin-top:6px">Pick a backup file you downloaded before. Anything already here is kept — only what is missing is put back — so this is safe to run even if the app is not empty.</div>
+        <button class="btn sec" style="margin-top:12px" onclick="pickRestore()">⬆︎ Restore from a backup file</button>
       </div>`;
   } else {
     inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
@@ -2602,6 +2607,29 @@ window.cfgTab = (t) => { window._cfgTab = t; go('config'); };
 /* Straight navigation rather than fetch-to-blob: the endpoint sends the filename
    in Content-Disposition, and phone browsers save that far more reliably than a
    blob URL. The service worker leaves /api alone, so this is a real download. */
+/* Restoring from the phone. Hosting without a permanent disk starts the app
+   empty after a redeploy, and there is no terminal to run the script on — so the
+   file goes back the same way it came out. */
+window.pickRestore = () => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    let payload;
+    try { payload = JSON.parse(await f.text()); }
+    catch (e) { return toast('That file is not a backup', 'error'); }
+    const taken = payload.exported_at ? new Date(payload.exported_at).toLocaleString() : 'an unknown date';
+    if (!confirm(`Restore from this backup?\n\nTaken: ${taken}\n\nAnything already in the app is kept — only what is missing is put back.`)) return;
+    toast('Restoring…');
+    try {
+      const r = await POST('/api/restore', { backup: payload });
+      toast(`Restored ${r.written} row(s) ✓`);
+      if (r.needPassword) alert(`${r.needPassword} account(s) came back without a password — nobody can sign in to them until you set one.\n\nAsk for a password reset for each, or add them again.`);
+      go('config');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  inp.click();
+};
 window.downloadBackup = (kind) => {
   const a = document.createElement('a');
   a.href = kind === 'json' ? '/api/backup.json' : '/api/backup';

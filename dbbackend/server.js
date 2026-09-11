@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const tls = require('node:tls');
 const { URL } = require('node:url');
 const { db, hashPassword, verifyPassword, DB_PATH } = require('./db');
+const { restore } = require('./restore');
 
 // Minimal SMTP-over-TLS sender (Gmail: smtp.gmail.com:465), no dependencies.
 function smtpSend({ user, pass, to, subject, text }) {
@@ -1232,6 +1233,27 @@ api['GET /api/backup.json'] = async (req, res, user) => {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Disposition': `attachment; filename="${backupName('json')}"`,
   });
+};
+
+// Putting a backup back from the phone. Hosting without a volume means a
+// redeploy starts the app on an empty database, and the studio has no terminal
+// to run the restore script on — so the file goes back in the same way it came
+// out. Rows whose id is taken are skipped, so this cannot overwrite work done
+// since the backup, and running it twice changes nothing the second time.
+api['POST /api/restore'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const payload = b && b.backup ? b.backup : b;
+  if (!payload || typeof payload !== 'object' || !Object.keys(payload).length) {
+    return send(res, 400, { error: 'That file does not look like a backup.' });
+  }
+  try {
+    const r = restore(payload, { replace: !!b.replace });
+    if (!r.written && !r.skipped) return send(res, 400, { error: 'Nothing in that file matches this app.' });
+    send(res, 200, r);
+  } catch (e) {
+    send(res, 500, { error: 'Restore failed, nothing was written: ' + e.message });
+  }
 };
 
 // ================= STAFF HR: ABSENCES / ADVANCES / SALARY =================
