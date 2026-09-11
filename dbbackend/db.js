@@ -559,5 +559,6 @@ db.exec(`CREATE TABLE IF NOT EXISTS submission_images (
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS idx_sub_images ON submission_images(submission_id, position)');
 try { db.exec('ALTER TABLE videos ADD COLUMN group_id INTEGER'); } catch (e) { /* column exists */ } // scope a video/photo to one group (null = whole round)
+try { db.exec('ALTER TABLE dress_images ADD COLUMN video_url TEXT'); } catch (e) { /* column exists */ } // a dress can carry a video link (Instagram, YouTube…) beside its photos
 
 module.exports = { db, hashPassword, verifyPassword, DB_PATH };

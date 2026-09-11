@@ -118,6 +118,14 @@ function maybeImage(val) {
   if (typeof val === 'string' && val.startsWith('data:')) return saveImage(val);
   return val || null;
 }
+// A pasted video link, kept only if it is a real http(s) address — the page drops
+// it into an iframe or an anchor, so javascript: and data: must never get through.
+function videoLink(val) {
+  const s = String(val || '').trim();
+  if (!s) return null;
+  let u; try { u = new URL(s); } catch (e) { return null; }
+  return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null;
+}
 
 // ---- notifications ----
 // Drop a notification for one recipient. o = {type,title,body,link_page,link_id,image,actor_name}
@@ -259,6 +267,18 @@ function requireManager(user, res) { if (!user || (user.role !== 'admin' && user
 function requireStaffish(user, res) { if (!user || !['admin', 'manager', 'staff'].includes(user.role)) { send(res, 403, { error: 'forbidden' }); return false; } return true; }
 function requireAuth(user, res) { if (!user) { send(res, 401, { error: 'unauthorized' }); return false; } return true; }
 
+// A seamstress needs the garment — its photos, its measurements, when it is due.
+// She has no reason to know whose it is, so who the client is never leaves the
+// server for a staff account: not the name, the phone, the notes, her account,
+// nor when she is coming in for a fitting. Stripped here rather than hidden in
+// the page, so it is gone from the response too.
+function stripClient(d) {
+  delete d.customer_name; delete d.phone; delete d.note;
+  delete d.customer_user_id; delete d.client_access; delete d.brief;
+  d.fittings = [];
+  return d;
+}
+
 // ================= ADMIN: USERS / STUDENTS =================
 api['GET /api/users'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return; // staff may view students (money stripped below)
@@ -268,6 +288,9 @@ api['GET /api/users'] = async (req, res, user, url) => {
   const args = [];
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
+  // Clients are off the list for staff — otherwise the names and phone numbers
+  // kept out of the dress would simply be read here instead.
+  if (user.role === 'staff') q += " AND role<>'customer'";
   q += ' ORDER BY name';
   const rows = db.prepare(q).all(...args);
   if (user.role === 'staff') rows.forEach((r) => { delete r.base_salary; }); // no money for staff
@@ -834,6 +857,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
       d.remaining = Math.max(0, (d.price || 0) - d.paid);
       d.payments = db.prepare('SELECT amount,method,note,paid_at FROM dress_payments WHERE dress_id=? ORDER BY COALESCE(paid_at,created_at) DESC, id DESC').all(d.id);
     } else { delete d.price; } // staff / manager: no dress money
+    if (user.role === 'staff') stripClient(d);
   });
   send(res, 200, list);
 };
@@ -959,10 +983,17 @@ api['POST /api/dresses/:id/images'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
-  if (!img) return send(res, 400, { error: 'no image' });
+  // A row is either an uploaded file or a link to a video somewhere else.
+  const link = img ? null : videoLink(b.video_url);
+  if (!img && !link) return send(res, 400, { error: 'Add a photo, a video, or a video link' });
   const pos = db.prepare('SELECT COALESCE(MAX(position),-1)+1 p FROM dress_images WHERE dress_id=?').get(params.id).p;
-  const r = db.prepare('INSERT INTO dress_images (dress_id,image,caption,position) VALUES (?,?,?,?)').run(params.id, img, b.caption || null, pos);
-  if (!db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(params.id).cover_image) db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(img, params.id);
+  const r = db.prepare('INSERT INTO dress_images (dress_id,image,video_url,caption,position) VALUES (?,?,?,?,?)')
+    .run(params.id, img || '', link, b.caption || null, pos);
+  // The cover is the card's photo, so a video — uploaded or linked — is never it.
+  const isPhoto = img && !/\.(mp4|mov|webm)$/i.test(img);
+  if (isPhoto && !db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(params.id).cover_image) {
+    db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(img, params.id);
+  }
   send(res, 200, { id: r.lastInsertRowid });
 };
 // reorder photos; first in the order becomes the cover shown outside
@@ -984,7 +1015,7 @@ api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => {
   if (img) { // if the deleted photo was the cover, promote the next one (or clear)
     const dr = db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(img.dress_id);
     if (dr && dr.cover_image === img.image) {
-      const next = db.prepare('SELECT image FROM dress_images WHERE dress_id=? ORDER BY position,id LIMIT 1').get(img.dress_id);
+      const next = db.prepare("SELECT image FROM dress_images WHERE dress_id=? AND image<>'' AND image NOT LIKE '%.mp4' AND image NOT LIKE '%.mov' AND image NOT LIKE '%.webm' ORDER BY position,id LIMIT 1").get(img.dress_id);
       db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(next ? next.image : null, img.dress_id);
     }
   }

@@ -106,7 +106,7 @@ function formModal(heading, fields, onSubmit, opts = {}) {
   const multi = steps.length > 1;
   const stepsHtml = steps.map((grp, si) => `<div class="wstep" data-s="${si}" ${si ? 'style="display:none"' : ''}>${grp.map(fmField).join('')}</div>`).join('');
   const dots = multi ? `<div class="wdots">${steps.map((_, i) => `<span class="wdot ${i ? '' : 'on'}"></span>`).join('')}</div>` : '';
-  modal(`<h3>${esc(heading)}</h3>${dots}<form id="fm">${stepsHtml}${hid.map(fmField).join('')}
+  modal(`<h3>${esc(heading)}</h3>${opts.hint ? `<p class="hint" style="margin:-6px 0 10px">${esc(opts.hint)}</p>` : ''}${dots}<form id="fm">${stepsHtml}${hid.map(fmField).join('')}
     <div class="err hidden" id="fmErr"></div>
     <div class="wnav">
       <button type="button" class="btn sec" id="wBack" onclick="wizNav(-1)" style="display:none">Back</button>
@@ -767,6 +767,34 @@ window.roundTab = (t) => { window._roundTab = t; window._roundSearch = ''; go('r
 window.setRoundGov = (v) => { window._roundGov = v; go('round'); };
 window.setRoundPay = (v) => { window._roundPay = v; go('round'); };
 window.toggleGovSort = () => { window._roundSortGov = !window._roundSortGov; go('round'); };
+/* A dress photo row is one of three things: a picture, an uploaded clip, or a
+   link to a video living on Instagram, YouTube or TikTok. Each of those three
+   offers an /embed address that plays inside an iframe, so the video plays in
+   the app rather than throwing the studio out into another app. Anything else
+   falls back to a button that opens it. */
+function embedSrc(raw) {
+  const u = String(raw || '');
+  const yt = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const ig = u.match(/instagram\.com\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/);
+  if (ig) return `https://www.instagram.com/${ig[1] === 'reels' ? 'reel' : ig[1]}/${ig[2]}/embed`;
+  const tt = u.match(/tiktok\.com\/.*\/video\/(\d+)/);
+  if (tt) return `https://www.tiktok.com/embed/v2/${tt[1]}`;
+  return null;
+}
+window.isVideoFile = (f) => /\.(mp4|mov|webm)$/i.test(String(f || ''));
+/* Instagram's embed is a post card, not a 16:9 frame — it needs the taller box. */
+function linkedVideo(url, opts = {}) {
+  const src = embedSrc(url);
+  if (!src) return `<a class="btn sec sm" href="${esc(url)}" target="_blank" rel="noopener">▶ Open the video</a>`;
+  const pad = /instagram\.com/.test(src) ? '125%' : '56.25%';
+  return `<div style="position:relative;padding-top:${pad};border-radius:12px;overflow:hidden;background:#000">
+    <iframe style="position:absolute;inset:0;width:100%;height:100%;border:0" src="${esc(src)}"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture" allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin" title="${esc(opts.title || 'Video')}"></iframe></div>`;
+}
+window.linkedVideo = linkedVideo;
+
 function videoEmbed(v) {
   if (v.file) {
     if (/\.(png|jpe?g|webp|gif)$/i.test(v.file)) return `<img src="/uploads/${esc(v.file)}" style="width:100%;border-radius:10px;margin-top:6px;cursor:zoom-in" onclick="lightbox('/uploads/${esc(v.file)}')" alt=""/>
@@ -1355,6 +1383,7 @@ window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/a
 PAGES.dresses = async (c) => {
   if (!['admin', 'manager', 'staff'].includes(state.user.role)) return PAGES.mydresses(c); // customers: own only
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: browse + read-only detail
+  const isStaff = state.user.role === 'staff'; // sees the garment, never whose it is
   const [dresses, customers, allUsers] = await Promise.all([GET('/api/dresses'), GET('/api/users?role=customer'), GET('/api/users')]);
   const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   window._dressRef = { customers, staff };
@@ -1386,14 +1415,14 @@ PAGES.dresses = async (c) => {
       <input type="month" value="${f.month}" onchange="dressFilter('month',this.value)" style="width:auto;padding:8px" />
       ${f.month ? `<button class="btn ghost sm" onclick="dressFilter('month','')">Clear month</button>` : ''}
       <span class="hint">${list.length} dress(es)</span></div>
-    <input placeholder="🔍 Search by client name" value="${esc(window._dressSearch || '')}" oninput="window._dressSearch=this.value; liveSearch(this.value,'#dressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
+    <input placeholder="${isStaff ? '🔍 Search by dress number' : '🔍 Search by client name'}" value="${esc(window._dressSearch || '')}" oninput="window._dressSearch=this.value; liveSearch(this.value,'#dressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
     <div class="grid g2" id="dressList">${list.length ? list.map((d) => `
-      <div class="card" data-name="${esc((d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
+      <div class="card" data-name="${esc(isStaff ? 'dress #' + d.id : (d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
         ${d.unread ? `<span class="notif-dot" title="New update">${d.unread}</span>` : ''}
         ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
-        <div class="nm" style="font-weight:600;margin-top:8px">${esc(d.customer_name)}</div>
+        <div class="nm" style="font-weight:600;margin-top:8px">${isStaff ? 'Dress #' + d.id : esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
-        <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'} · ${d.fittings.length} fittings</div>
+        <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}${isStaff ? '' : ' · ' + d.fittings.length + ' fittings'}</div>
         <button class="btn sec sm" style="margin-top:8px" onclick="openDress(${d.id})">Details</button>
       </div>`).join('') : empty('No dresses match this filter', '👗')}</div>`;
   if (window._dressSearch) liveSearch(window._dressSearch, '#dressList');
@@ -1542,6 +1571,7 @@ PAGES.dress = async (c) => {
   const staff = (window._dressRef && window._dressRef.staff) || [];
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: read-only
   const isAdmin = state.user.role === 'admin';
+  const isStaff = state.user.role === 'staff';
   const ro = canEdit ? '' : ' readonly';
   const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
   const stCls = { open: 'warn', in_progress: '', delivered: 'ok' };
@@ -1585,14 +1615,35 @@ PAGES.dress = async (c) => {
       ${briefFields(d.brief, 'od_')}
       <button class="btn" style="margin-top:14px" onclick="saveDressBrief(${id})">Save the occasion</button>` : ''}`);
 
+  // Uploaded files carry the gallery and the reorder strip; linked videos cannot
+  // be part of either, so they sit under their own heading as players.
+  const files = d.images.filter((im) => im.image);
+  const links = d.images.filter((im) => !im.image && im.video_url);
+  // Counting links as "photos" put a count above a pane reading "No photos yet".
+  const mediaTab = links.length
+    ? (files.length ? `Photos (${files.length}) · 🎬 ${links.length}` : `Videos (${links.length})`)
+    : `Photos${files.length ? ' (' + files.length + ')' : ''}`;
   const photos = pane('photos', `
-    ${d.images.length ? gallery(d.images.map((im) => ({ file: im.image, kind: 'image' }))) : ''}
-    <div class="sec-title">All photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
-    <div class="dphotos" id="dphotos_${id}">${d.images.map((im, i) => `<div class="dphoto" data-id="${im.id}">
-      <img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
-      ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
+    ${files.length ? gallery(files.map((im) => ({ file: im.image, kind: isVideoFile(im.image) ? 'video' : 'image' }))) : ''}
+    <div class="sec-title">All photos ${(canEdit && files.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
+    <div class="dphotos" id="dphotos_${id}">${files.map((im, i) => `<div class="dphoto" data-id="${im.id}">
+      ${isVideoFile(im.image)
+        ? `<video class="thumb" style="aspect-ratio:3/4;object-fit:cover;${canEdit ? 'pointer-events:none' : ''}" src="/uploads/${esc(im.image)}" muted playsinline preload="metadata"></video>
+           <span class="cover-badge" style="left:6px;right:auto">▶ Video</span>`
+        : `<img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
+           ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}`}
       ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
-    ${canEdit ? `<button class="btn ghost sm" style="margin-top:10px" onclick="addDressImg(${id})">＋ Photo</button>` : ''}`);
+    ${links.length ? `<div class="sec-title">Videos 🎬</div>
+      ${links.map((im) => `<div style="margin-bottom:12px">
+        ${linkedVideo(im.video_url, { title: im.caption || 'Dress video' })}
+        <div class="row" style="margin-top:6px;align-items:center">
+          <span class="hint" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(im.caption || im.video_url)}</span>
+          ${canEdit ? `<button class="btn-icon" onclick="delDressImg(${im.id},${id})">🗑</button>` : ''}</div>
+      </div>`).join('')}` : ''}
+    ${canEdit ? `<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost sm" onclick="addDressImg(${id})">＋ Photo</button>
+      <button class="btn ghost sm" onclick="addDressVideo(${id})">🎬 Video</button>
+      <button class="btn ghost sm" onclick="addDressVideoLink(${id})">🔗 Video link</button></div>` : ''}`);
 
   const moneyPane = canEdit ? pane('money', `
     ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
@@ -1621,26 +1672,32 @@ PAGES.dress = async (c) => {
     <div id="dupd_${id}"><div class="hint">Loading…</div></div>
     <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 Send an update / photo to the client</button>`);
 
-  const tabs = [
+  // Staff get the garment and nothing about the woman wearing it: the photos to
+  // work from and the measurements to cut to. The other panes are not rendered
+  // at all, so there is nothing to reach by switching tabs.
+  const tabs = isStaff ? [
+    ['photos', '📷', mediaTab],
+    ['measure', '📐', 'Measurements'],
+  ] : [
     ['details', '📋', 'Client info'],
     ['occasion', '✨', 'Occasion'],
-    ['photos', '📷', `Photos${d.images.length ? ' (' + d.images.length + ')' : ''}`],
+    ['photos', '📷', mediaTab],
     ['measure', '📐', 'Measurements'],
     ...(moneyPane ? [['money', '💰', 'Fees']] : []),
     ...(materials ? [['materials', '🧵', 'Purchases']] : []),
     ['client', '💬', `Client${d.fittings.length ? ' (' + d.fittings.length + ')' : ''}`],
   ];
-  const firstTab = tabs.some(([k]) => k === window._dressTab) ? window._dressTab : 'details';
+  const firstTab = tabs.some(([k]) => k === window._dressTab) ? window._dressTab : tabs[0][0];
 
   c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
     `<div class="dress-head">
       ${d.cover_image ? `<div class="dh-photo" style="background-image:url('/uploads/${esc(d.cover_image)}')" onclick="dressTab(${id},'photos')"></div>`
         : '<div class="dh-photo dh-none">👗</div>'}
       <div class="dh-body">
-        <div class="dh-name">${esc(d.customer_name)}</div>
+        <div class="dh-name">${isStaff ? 'Dress #' + id : esc(d.customer_name)}</div>
         <div class="dh-sub">${d.delivery_date ? 'Delivery ' + dt(d.delivery_date) : 'No delivery date'}
           · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
-        ${d.note ? `<div class="dh-note">${esc(d.note)}</div>` : ''}
+        ${(!isStaff && d.note) ? `<div class="dh-note">${esc(d.note)}</div>` : ''}
         <div class="dh-sub">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}</div>
       </div>
     </div>
@@ -1648,7 +1705,7 @@ PAGES.dress = async (c) => {
       ${tabs.map(([k, ic, label]) => `<button class="dtab${k === firstTab ? ' on' : ''}" data-tab="${k}" onclick="dressTab(${id},'${k}')">
         <span class="dtab-ic">${ic}</span>${esc(label)}</button>`).join('')}
     </div>
-    <div class="dpanes card" id="dpanes_${id}">${details}${occasion}${photos}${measure}${moneyPane}${materials}${client}</div>
+    <div class="dpanes card" id="dpanes_${id}">${isStaff ? photos + measure : details + occasion + photos + measure + moneyPane + materials + client}</div>
     </div>`;
   dressTab(id, firstTab);
   briefLookToggle('od_');
@@ -1741,7 +1798,8 @@ window.openMeasurements = (id) => {
   window._measImg = d.measure_image || null;
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: view-only
   const ro = canEdit ? '' : ' readonly';
-  modal(`<h3>Measurements — ${esc(d.customer_name || '')}</h3>
+  const who = state.user.role === 'staff' ? 'Dress #' + id : esc(d.customer_name || '');
+  modal(`<h3>Measurements — ${who}</h3>
     <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" inputmode="decimal" step="0.5" value="${m[k] != null ? m[k] : ''}"${ro} /></div>`).join('')}
       <div><label>Fit</label><select id="ms_fit" ${canEdit ? '' : 'disabled'}><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
     </div>
@@ -1764,7 +1822,9 @@ window.printMeasurements = (id) => {
   const note = (document.getElementById('ms_note') || {}).value || '';
   const img = window._measImg;
   const rows = MEASURE_FIELDS.map(([k, l]) => `<tr><td>${l}</td><td>${vals[k] || '—'}</td></tr>`).join('');
-  const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>Measurements — ${esc(d.customer_name || '')}</title>
+  // The sheet goes to whoever is cutting; for staff it names the dress, not her.
+  const who = state.user.role === 'staff' ? 'Dress #' + id : esc(d.customer_name || '—');
+  const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>Measurements — ${who}</title>
   <style>
     html,body{background:#fff}
     body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#14101a;padding:32px;max-width:760px;margin:auto}
@@ -1780,7 +1840,7 @@ window.printMeasurements = (id) => {
     @media print{body{padding:6px}}
   </style></head><body>
     <div class="head"><div class="brand">DALIA BASSEL</div><div class="sub">Haute Couture · Measurements Sheet</div></div>
-    <div class="meta"><div><b>Client:</b> ${esc(d.customer_name || '—')}</div><div><b>Delivery:</b> ${d.delivery_date ? dt(d.delivery_date) : '—'}</div><div><b>Fit:</b> ${esc(fit || '—')}</div></div>
+    <div class="meta"><div><b>${state.user.role === 'staff' ? 'Dress' : 'Client'}:</b> ${who}</div><div><b>Delivery:</b> ${d.delivery_date ? dt(d.delivery_date) : '—'}</div><div><b>Fit:</b> ${esc(fit || '—')}</div></div>
     <table>${rows}</table>
     ${note ? `<div class="note"><b>Note:</b> ${esc(note)}</div>` : ''}
     ${img ? `<div class="ref"><div style="font-weight:700;margin-bottom:6px">Reference</div><img src="${img.startsWith('data:') ? img : '/uploads/' + img}"></div>` : ''}
@@ -2086,6 +2146,31 @@ window.addFitting = (id) => formModal('Fitting date', [
 ], async (d) => { await POST(`/api/dresses/${id}/fittings`, d); toast('Added'); closeModal(); refreshDress(id); });
 window.delFitting = async (fid, id) => { await DEL('/api/fittings/' + fid); refreshDress(id); };
 window.addDressImg = (id) => pickImages(async (b64) => { await POST(`/api/dresses/${id}/images`, { image: b64 }); toast('Photo added'); refreshDress(id); });
+/* A clip off the phone goes up as a file — streamed, never squeezed through a
+   data URL like the photos, because a fitting video is tens of megabytes. */
+window.addDressVideo = (id) => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'video/*';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    toast('Uploading the video…');
+    try {
+      const up = await uploadFile(f, (p) => { if (p < 1) toast(`Uploading… ${Math.round(p * 100)}%`); });
+      await POST(`/api/dresses/${id}/images`, { image: up.file });
+      toast('Video added ✓'); refreshDress(id);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  inp.click();
+};
+/* A video that already lives on Instagram, YouTube or TikTok is linked, not
+   re-uploaded — it plays inside the app from its own address. */
+window.addDressVideoLink = (id) => formModal('Add a video link', [
+  { name: 'video_url', label: 'Paste the link', required: true, placeholder: 'https://www.instagram.com/reel/…' },
+  { name: 'caption', label: 'What is it? (optional)', placeholder: 'Second fitting' },
+], async (d) => {
+  await POST(`/api/dresses/${id}/images`, { video_url: d.video_url, caption: d.caption });
+  toast('Video added ✓'); closeModal(); refreshDress(id);
+}, { hint: 'Instagram, YouTube and TikTok play inside the app. Any other link opens in a new tab.' });
 window.delDress = (id) => confirmDel('Delete dress booking?', async () => { await DEL('/api/dresses/' + id); closeModal(); go('dresses'); });
 async function refreshDress(id) { window._dresses = await GET('/api/dresses'); openDress(id); }
 window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); refreshDress(id); };
