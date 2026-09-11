@@ -1,13 +1,18 @@
 # Dalia Bassel Couture — real backend (Node.js, zero dependencies)
-Start: npm start  (Node 22+). Default admin: admin@daliessa.com / daliessa123
+Live: https://dalia-bassel-couture-production.up.railway.app
+Start: npm start  (Node 22+). Admin is admin@daliessa.com; set its password with
+`npm run reset-admin-password` — this repository is public, so no password is written here.
 Railway: runs `npm start` automatically.
 
-## Keeping the data (read this before deploying)
-Without a persistent disk the database lives inside the container and every
-redeploy or restart throws it away — students, dresses, payments, the lot.
-Attach a Volume mounted at /data and set `DATA_DIR=/data` and
-`UPLOAD_DIR=/data/uploads`. Until that is in place, the only copy of the
-studio's data is whatever has been downloaded from Configuration → Backup.
+## Keeping the data
+A volume is mounted at /data in production, with `DATA_DIR=/data` and
+`UPLOAD_DIR=/data/uploads` pointed at it, so the database and the photos survive
+a redeploy. Configuration → Backup says which of the two a running copy is on —
+check it there rather than on the hosting dashboard.
+
+Without that, the database lives inside the container and every redeploy throws
+it away: students, dresses, payments, the lot. If the screen ever reads "not on
+a permanent disk", nothing is safe until it does.
 
 ## Backups
 In the app: Configuration → Backup, as an admin.

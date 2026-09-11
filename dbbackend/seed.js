@@ -71,4 +71,4 @@ db.prepare(`INSERT INTO leaves (user_id,from_date,to_date,type,reason,status) VA
 
 console.log('Demo data seeded ✓');
 console.log('Logins (password 123456): malak@d.com (متدربة) · laila@d.com (زبونة) · mona@d.com (موظفة)');
-console.log('Admin: admin@daliessa.com / daliessa123');
+console.log('Admin: admin@daliessa.com (password unchanged — use reset-admin-password to set one)');
