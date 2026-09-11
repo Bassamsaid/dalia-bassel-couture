@@ -20,6 +20,30 @@ To restore, put the downloaded `.db` file back as `$DATA_DIR/daliessa.db` with
 the app stopped, and delete any `daliessa.db-wal` / `daliessa.db-shm` beside it
 so the old write-ahead log is not replayed over the restored file.
 
+### Backing up a version that predates the Backup screen
+Signed in as an admin, open the browser console on the running app and paste:
+
+    (async () => {
+      const eps = ['users','dresses','purchases','vendors','expenses','expense-types',
+        'payments','reminders','rounds','videos','homeworks','quizzes','notes',
+        'settings','salaries','leaves','absences','advances','salary-payments','attendance'];
+      const out = { exported_at: new Date().toISOString() };
+      for (const e of eps) { try { const r = await fetch('/api/' + e); if (r.ok) out[e] = await r.json(); } catch (_) {} }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+      a.download = 'daliessa-backup.json'; a.click();
+    })()
+
+It saves one file holding everything those endpoints return. Restore it with:
+
+    node --experimental-sqlite restore-backup.js daliessa-backup.json
+
+Rows whose id is already taken are skipped, so it is safe to run twice and safe
+to run onto a database that has moved on; `--replace` overwrites them instead.
+Passwords are in no backup, so restored accounts get an unusable placeholder and
+need `reset-admin-password` before anyone can sign in. Uploaded photos are not
+in a backup either.
+
 ## Maintenance scripts
 Run these where the app runs, so they reach the same database it uses:
 

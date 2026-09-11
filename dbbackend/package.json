@@ -7,7 +7,8 @@
     "start": "node --experimental-sqlite server.js",
     "seed": "node --experimental-sqlite seed.js",
     "reset-admin-password": "node --experimental-sqlite reset-admin-password.js",
-    "delete-dresses": "node --experimental-sqlite delete-dresses.js"
+    "delete-dresses": "node --experimental-sqlite delete-dresses.js",
+    "restore-backup": "node --experimental-sqlite restore-backup.js"
   },
   "engines": {
     "node": "22.x"
