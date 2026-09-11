@@ -6,7 +6,8 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const tls = require('node:tls');
 const { URL } = require('node:url');
-const { db, hashPassword, verifyPassword } = require('./db');
+const { db, hashPassword, verifyPassword, DB_PATH } = require('./db');
+const { restore } = require('./restore');
 
 // Minimal SMTP-over-TLS sender (Gmail: smtp.gmail.com:465), no dependencies.
 function smtpSend({ user, pass, to, subject, text }) {
@@ -50,6 +51,18 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 // UPLOAD_DIR is configurable so a hosting volume (e.g. Railway) can persist images across deploys
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+// Typed back by the admin before anything is wiped wholesale.
+const PURGE_PHRASE = 'DELETE ALL DRESSES';
+
+// Resolve a stored image name to a file, confined to UPLOAD_DIR so a stored value
+// can never reach outside it. Returns null for anything that would escape.
+function uploadPath(stored) {
+  const name = path.basename(String(stored || '').replace(/^\/?uploads\//, ''));
+  if (!name || name === '.' || name === '..') return null;
+  const full = path.resolve(UPLOAD_DIR, name);
+  return full.startsWith(path.resolve(UPLOAD_DIR) + path.sep) ? full : null;
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
@@ -105,6 +118,23 @@ function saveImage(dataUrl, fallbackExt = '.jpg') {
 function maybeImage(val) {
   if (typeof val === 'string' && val.startsWith('data:')) return saveImage(val);
   return val || null;
+}
+// Where the cover photo sits in the card's crop. It is written straight into a
+// style attribute, so only a bare "<x>% <y>%" is allowed through.
+function coverPos(val) {
+  if (val == null) return null;
+  const m = String(val).trim().match(/^(\d{1,3}(?:\.\d+)?)%\s+(\d{1,3}(?:\.\d+)?)%$/);
+  if (!m) return null;
+  const clamp = (n) => Math.min(100, Math.max(0, Number(n)));
+  return `${clamp(m[1])}% ${clamp(m[2])}%`;
+}
+// A pasted video link, kept only if it is a real http(s) address — the page drops
+// it into an iframe or an anchor, so javascript: and data: must never get through.
+function videoLink(val) {
+  const s = String(val || '').trim();
+  if (!s) return null;
+  let u; try { u = new URL(s); } catch (e) { return null; }
+  return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null;
 }
 
 // ---- notifications ----
@@ -247,6 +277,18 @@ function requireManager(user, res) { if (!user || (user.role !== 'admin' && user
 function requireStaffish(user, res) { if (!user || !['admin', 'manager', 'staff'].includes(user.role)) { send(res, 403, { error: 'forbidden' }); return false; } return true; }
 function requireAuth(user, res) { if (!user) { send(res, 401, { error: 'unauthorized' }); return false; } return true; }
 
+// A seamstress needs the garment — its photos, its measurements, when it is due.
+// She has no reason to know whose it is, so who the client is never leaves the
+// server for a staff account: not the name, the phone, the notes, her account,
+// nor when she is coming in for a fitting. Stripped here rather than hidden in
+// the page, so it is gone from the response too.
+function stripClient(d) {
+  delete d.customer_name; delete d.phone; delete d.note;
+  delete d.customer_user_id; delete d.client_access; delete d.brief;
+  d.fittings = [];
+  return d;
+}
+
 // ================= ADMIN: USERS / STUDENTS =================
 api['GET /api/users'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return; // staff may view students (money stripped below)
@@ -256,6 +298,9 @@ api['GET /api/users'] = async (req, res, user, url) => {
   const args = [];
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
+  // Clients are off the list for staff — otherwise the names and phone numbers
+  // kept out of the dress would simply be read here instead.
+  if (user.role === 'staff') q += " AND role<>'customer'";
   q += ' ORDER BY name';
   const rows = db.prepare(q).all(...args);
   if (user.role === 'staff') rows.forEach((r) => { delete r.base_salary; }); // no money for staff
@@ -822,6 +867,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
       d.remaining = Math.max(0, (d.price || 0) - d.paid);
       d.payments = db.prepare('SELECT amount,method,note,paid_at FROM dress_payments WHERE dress_id=? ORDER BY COALESCE(paid_at,created_at) DESC, id DESC').all(d.id);
     } else { delete d.price; } // staff / manager: no dress money
+    if (user.role === 'staff') stripClient(d);
   });
   send(res, 200, list);
 };
@@ -847,8 +893,8 @@ api['PUT /api/dresses/:id'] = async (req, res, user, url, params) => {
   const measImg = (b.measure_image && b.measure_image.startsWith('data:')) ? maybeImage(b.measure_image) : (b.measure_image ?? c.measure_image);
   const meas = b.measurements != null ? (typeof b.measurements === 'string' ? b.measurements : JSON.stringify(b.measurements)) : c.measurements;
   const brief = b.brief && typeof b.brief === 'object' ? JSON.stringify(b.brief) : c.brief;
-  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=?,brief=? WHERE id=?').run(
-    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, brief, params.id);
+  db.prepare('UPDATE dresses SET customer_name=?,customer_user_id=?,phone=?,delivery_date=?,status=?,note=?,assigned_to=?,price=?,measurements=?,measure_note=?,measure_image=?,brief=?,cover_pos=? WHERE id=?').run(
+    b.customer_name ?? c.customer_name, b.customer_user_id ?? c.customer_user_id, b.phone ?? c.phone, b.delivery_date ?? c.delivery_date, b.status ?? c.status, b.note ?? c.note, b.assigned_to ?? c.assigned_to, price, meas, b.measure_note ?? c.measure_note, measImg, brief, coverPos(b.cover_pos) ?? c.cover_pos, params.id);
   // --- notifications on status / assignment changes ---
   const did = Number(params.id);
   const stLabel = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
@@ -873,12 +919,49 @@ api['DELETE /api/dresses/:id'] = async (req, res, user, url, params) => {
   db.prepare('DELETE FROM dress_images WHERE dress_id=?').run(params.id);
   db.prepare('DELETE FROM dress_payments WHERE dress_id=?').run(params.id);
   db.prepare('DELETE FROM dress_updates WHERE dress_id=?').run(params.id);
+  // Material bought for the dress was still bought: keep the line on its invoice
+  // (whose total is the sum of its lines) and just drop the dress it pointed at.
+  db.prepare('UPDATE purchase_lines SET dress_id=NULL WHERE dress_id=?').run(params.id);
   send(res, 200, { ok: true });
+};
+// Wipe every dress at once — for clearing demo data off a fresh install. Admin
+// only (a manager may delete dresses one by one, not empty the book), and the
+// exact phrase has to come back in the body so a stray request cannot trigger it.
+api['DELETE /api/dresses'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  if (b.confirm !== PURGE_PHRASE) return send(res, 400, { error: `Send confirm: "${PURGE_PHRASE}" to do this.` });
+  const dresses = db.prepare('SELECT id FROM dresses').all();
+  if (!dresses.length) return send(res, 200, { ok: true, dresses: 0, files: 0 });
+
+  // Collect the files first: once the rows are gone their names are unrecoverable.
+  const files = db.prepare('SELECT image FROM dress_images').all().map((r) => r.image);
+  let invoices = 0;
+  if (b.with_purchases) {
+    // Invoices holding nothing but dress lines go too; one with general spending
+    // on it keeps that spending and survives.
+    const empties = db.prepare(`SELECT id, image FROM purchase_invoices WHERE id IN (
+                                  SELECT DISTINCT invoice_id FROM purchase_lines WHERE dress_id IS NOT NULL
+                                ) AND id NOT IN (
+                                  SELECT invoice_id FROM purchase_lines WHERE dress_id IS NULL
+                                )`).all();
+    empties.forEach((inv) => files.push(inv.image));
+    invoices = empties.length;
+    db.exec('DELETE FROM purchase_lines WHERE dress_id IS NOT NULL');
+    empties.forEach((inv) => db.prepare('DELETE FROM purchase_invoices WHERE id=?').run(inv.id));
+  } else {
+    db.exec('UPDATE purchase_lines SET dress_id=NULL'); // spending stays on its invoice
+  }
+  for (const t of ['dress_fittings', 'dress_images', 'dress_updates', 'dress_payments', 'dresses']) db.exec(`DELETE FROM ${t}`);
+
+  let removed = 0;
+  for (const f of files) { const p = uploadPath(f); if (p) { try { fs.unlinkSync(p); removed++; } catch (_) { /* already gone */ } } }
+  send(res, 200, { ok: true, dresses: dresses.length, invoices, files: removed });
 };
 // materials bought for a dress — admin + manager (operational; NOT price/deposit)
 api['GET /api/dresses/:id/purchases'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
-  send(res, 200, db.prepare(`SELECT l.item, l.amount, pi.shop, pi.invoice_date, pi.created_at,
+  send(res, 200, db.prepare(`SELECT l.id, l.invoice_id, l.item, l.amount, pi.shop, pi.invoice_date, pi.created_at,
       (SELECT name FROM vendors WHERE id=pi.vendor_id) vendor_name
     FROM purchase_lines l JOIN purchase_invoices pi ON pi.id=l.invoice_id
     WHERE l.dress_id=? ORDER BY pi.id DESC, l.id`).all(params.id));
@@ -910,10 +993,17 @@ api['POST /api/dresses/:id/images'] = async (req, res, user, url, params) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
-  if (!img) return send(res, 400, { error: 'no image' });
+  // A row is either an uploaded file or a link to a video somewhere else.
+  const link = img ? null : videoLink(b.video_url);
+  if (!img && !link) return send(res, 400, { error: 'Add a photo, a video, or a video link' });
   const pos = db.prepare('SELECT COALESCE(MAX(position),-1)+1 p FROM dress_images WHERE dress_id=?').get(params.id).p;
-  const r = db.prepare('INSERT INTO dress_images (dress_id,image,caption,position) VALUES (?,?,?,?)').run(params.id, img, b.caption || null, pos);
-  if (!db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(params.id).cover_image) db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(img, params.id);
+  const r = db.prepare('INSERT INTO dress_images (dress_id,image,video_url,caption,position) VALUES (?,?,?,?,?)')
+    .run(params.id, img || '', link, b.caption || null, pos);
+  // The cover is the card's photo, so a video — uploaded or linked — is never it.
+  const isPhoto = img && !/\.(mp4|mov|webm)$/i.test(img);
+  if (isPhoto && !db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(params.id).cover_image) {
+    db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(img, params.id);
+  }
   send(res, 200, { id: r.lastInsertRowid });
 };
 // reorder photos; first in the order becomes the cover shown outside
@@ -935,7 +1025,7 @@ api['DELETE /api/dress-images/:id'] = async (req, res, user, url, params) => {
   if (img) { // if the deleted photo was the cover, promote the next one (or clear)
     const dr = db.prepare('SELECT cover_image FROM dresses WHERE id=?').get(img.dress_id);
     if (dr && dr.cover_image === img.image) {
-      const next = db.prepare('SELECT image FROM dress_images WHERE dress_id=? ORDER BY position,id LIMIT 1').get(img.dress_id);
+      const next = db.prepare("SELECT image FROM dress_images WHERE dress_id=? AND image<>'' AND image NOT LIKE '%.mp4' AND image NOT LIKE '%.mov' AND image NOT LIKE '%.webm' ORDER BY position,id LIMIT 1").get(img.dress_id);
       db.prepare('UPDATE dresses SET cover_image=? WHERE id=?').run(next ? next.image : null, img.dress_id);
     }
   }
@@ -1106,6 +1196,89 @@ api['PUT /api/settings'] = async (req, res, user) => {
   send(res, 200, { ok: true });
 };
 
+// ================= WHERE THE DATA LIVES =================
+// A volume that is mounted but not pointed at is the same as no volume at all,
+// and the difference is invisible until a redeploy has already taken the data.
+// The app says which of the two it is, rather than the studio having to read it
+// off a hosting dashboard.
+api['GET /api/storage'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const appDir = path.resolve(__dirname);
+  const dataDir = path.resolve(path.dirname(DB_PATH));
+  // Inside the app's own folder means it ships with the code and is replaced
+  // along with it on every deploy.
+  const inApp = dataDir === path.join(appDir, 'data') || dataDir.startsWith(appDir + path.sep);
+  const uploadsInApp = path.resolve(UPLOAD_DIR).startsWith(appDir + path.sep);
+  send(res, 200, {
+    data_dir: dataDir,
+    upload_dir: path.resolve(UPLOAD_DIR),
+    data_dir_set: !!process.env.DATA_DIR,
+    upload_dir_set: !!process.env.UPLOAD_DIR,
+    persistent: !inApp,
+    uploads_persistent: !uploadsInApp,
+  });
+};
+
+// ================= BACKUP =================
+// Hosting without a persistent volume keeps the database inside the container,
+// where a redeploy resets it. Until there is a volume, the studio's copy of its
+// own data is whatever it has downloaded, so both formats are one tap away.
+function backupName(ext) {
+  const d = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '');
+  return `daliessa-backup-${d}.${ext}`;
+}
+// The real thing: the SQLite file, restored by putting it back in DATA_DIR.
+api['GET /api/backup'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  // WAL mode keeps recent writes beside the database; fold them in so the copy
+  // is not missing today's work.
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch (e) { /* nothing to fold */ }
+  let data; try { data = fs.readFileSync(DB_PATH); } catch (e) { return send(res, 500, { error: 'Could not read the database' }); }
+  send(res, 200, data, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${backupName('db')}"`,
+    'Content-Length': data.length,
+  });
+};
+// The readable one: every table as JSON, so the data can still be read by a
+// person (or another program) with no SQLite tooling at hand.
+api['GET /api/backup.json'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
+  const out = { exported_at: new Date().toISOString(), tables: {} };
+  for (const { name } of tables) {
+    const rows = db.prepare(`SELECT * FROM ${name}`).all();
+    // Password hashes are not the studio's data to carry around in a plain file.
+    if (name === 'users') rows.forEach((r) => { delete r.password_hash; delete r.invite_token; });
+    out.tables[name] = rows;
+  }
+  send(res, 200, JSON.stringify(out, null, 2), {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Disposition': `attachment; filename="${backupName('json')}"`,
+  });
+};
+
+// Putting a backup back from the phone. Hosting without a volume means a
+// redeploy starts the app on an empty database, and the studio has no terminal
+// to run the restore script on — so the file goes back in the same way it came
+// out. Rows whose id is taken are skipped, so this cannot overwrite work done
+// since the backup, and running it twice changes nothing the second time.
+api['POST /api/restore'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const payload = b && b.backup ? b.backup : b;
+  if (!payload || typeof payload !== 'object' || !Object.keys(payload).length) {
+    return send(res, 400, { error: 'That file does not look like a backup.' });
+  }
+  try {
+    const r = restore(payload, { replace: !!b.replace });
+    if (!r.written && !r.skipped) return send(res, 400, { error: 'Nothing in that file matches this app.' });
+    send(res, 200, r);
+  } catch (e) {
+    send(res, 500, { error: 'Restore failed, nothing was written: ' + e.message });
+  }
+};
+
 // ================= STAFF HR: ABSENCES / ADVANCES / SALARY =================
 api['GET /api/absences'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return;
@@ -1243,7 +1416,8 @@ api['POST /api/purchases'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
-  const r = db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by) VALUES (?,?,?,?,?,?)').run(b.shop || null, b.vendor_id || null, img, b.note || null, b.invoice_date || null, user.id);
+  const vid = b.vendor_id || vendorIdForShop(b.shop); // a typed shop that is already a supplier
+  const r = db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by) VALUES (?,?,?,?,?,?)').run(b.shop || null, vid, img, b.note || null, b.invoice_date || null, user.id);
   const invId = r.lastInsertRowid;
   (Array.isArray(b.lines) ? b.lines : []).forEach((li) => {
     if (li && (li.dress_id || li.amount)) db.prepare('INSERT INTO purchase_lines (invoice_id,dress_id,item,amount) VALUES (?,?,?,?)').run(invId, li.dress_id || null, li.item || null, li.amount || 0);
@@ -1255,7 +1429,9 @@ api['PUT /api/purchases/:id'] = async (req, res, user, url, params) => {
   const b = await readBody(req); const c = db.prepare('SELECT * FROM purchase_invoices WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
   const img = (b.image && b.image.startsWith('data:')) ? maybeImage(b.image) : (b.image ?? c.image);
-  db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=? WHERE id=?').run(b.shop ?? c.shop, b.vendor_id ?? c.vendor_id, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
+  const shop = b.shop ?? c.shop;
+  const vendorId = b.vendor_id !== undefined ? b.vendor_id : (c.vendor_id || vendorIdForShop(shop));
+  db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=? WHERE id=?').run(shop, vendorId, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
   send(res, 200, { ok: true });
 };
 // Move a mis-filed item to the dress it really belongs to (or off a dress entirely)
@@ -1266,6 +1442,22 @@ api['PUT /api/purchase-lines/:id'] = async (req, res, user, url, params) => {
   if (!line) return send(res, 404, { error: 'not found' });
   db.prepare('UPDATE purchase_lines SET dress_id=?,item=?,amount=? WHERE id=?')
     .run(b.dress_id === null ? null : (b.dress_id ?? line.dress_id), b.item ?? line.item, b.amount ?? line.amount, params.id);
+  send(res, 200, { ok: true });
+};
+// Items are added to and taken off an invoice after the fact — a forgotten roll
+// of tulle, a line entered twice. The invoice total is the sum of its lines, so
+// both keep it honest without the total being stored anywhere.
+api['POST /api/purchases/:id/lines'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req);
+  if (!db.prepare('SELECT id FROM purchase_invoices WHERE id=?').get(params.id)) return send(res, 404, { error: 'not found' });
+  const r = db.prepare('INSERT INTO purchase_lines (invoice_id,dress_id,item,amount) VALUES (?,?,?,?)')
+    .run(params.id, b.dress_id || null, b.item || null, Number(b.amount) || 0);
+  send(res, 200, { id: r.lastInsertRowid });
+};
+api['DELETE /api/purchase-lines/:id'] = async (req, res, user, url, params) => {
+  if (!requireManager(user, res)) return;
+  db.prepare('DELETE FROM purchase_lines WHERE id=?').run(params.id);
   send(res, 200, { ok: true });
 };
 api['DELETE /api/purchases/:id'] = async (req, res, user, url, params) => {
@@ -1306,11 +1498,28 @@ api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => 
 
 // ================= EXPENSES (vendors, types, entries) =================
 // Each vendor carries its unified spend = material purchases + general expenses.
+// An invoice belongs to a vendor either because it was picked from the list, or
+// because the shop was typed by hand and the name is that vendor's. Only counting
+// the first left real spending sitting at zero on the vendor it belonged to.
+const VENDOR_MATCH = "(pi.vendor_id = ? OR (pi.vendor_id IS NULL AND TRIM(pi.shop) = TRIM(?)))";
+function vendorPurchases(vendorId, name) {
+  return db.prepare(`SELECT COALESCE(SUM(l.amount),0) s FROM purchase_lines l
+    JOIN purchase_invoices pi ON pi.id = l.invoice_id WHERE ${VENDOR_MATCH}`).get(vendorId, name || '\u0000').s;
+}
+// Typing a shop that is already a supplier links the invoice to it, so the books
+// tidy themselves instead of drifting further apart with every invoice.
+function vendorIdForShop(shop) {
+  const s = String(shop || '').trim();
+  if (!s) return null;
+  const v = db.prepare('SELECT id FROM vendors WHERE TRIM(name) = ?').get(s);
+  return v ? v.id : null;
+}
+
 api['GET /api/vendors'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const rows = db.prepare('SELECT * FROM vendors ORDER BY name').all();
   rows.forEach((v) => {
-    v.purchases_total = db.prepare('SELECT COALESCE(SUM(l.amount),0) s FROM purchase_lines l JOIN purchase_invoices pi ON pi.id=l.invoice_id WHERE pi.vendor_id=?').get(v.id).s;
+    v.purchases_total = vendorPurchases(v.id, v.name);
     v.expenses_total = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM expenses WHERE vendor_id=?').get(v.id).s;
     v.total = v.purchases_total + v.expenses_total;
   });
@@ -1321,7 +1530,8 @@ api['GET /api/vendors/:id/report'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   const vendor = db.prepare('SELECT * FROM vendors WHERE id=?').get(params.id);
   if (!vendor) return send(res, 404, { error: 'not found' });
-  const purchases = db.prepare('SELECT * FROM purchase_invoices WHERE vendor_id=? ORDER BY COALESCE(invoice_date,created_at) DESC, id DESC').all(params.id);
+  const purchases = db.prepare(`SELECT pi.* FROM purchase_invoices pi WHERE ${VENDOR_MATCH}
+    ORDER BY COALESCE(pi.invoice_date,pi.created_at) DESC, pi.id DESC`).all(vendor.id, vendor.name || '\u0000');
   purchases.forEach((inv) => {
     inv.lines = db.prepare('SELECT l.*, (SELECT customer_name FROM dresses WHERE id=l.dress_id) dress_name FROM purchase_lines l WHERE l.invoice_id=?').all(inv.id);
     inv.total = inv.lines.reduce((a, x) => a + (x.amount || 0), 0);
@@ -1331,12 +1541,33 @@ api['GET /api/vendors/:id/report'] = async (req, res, user, url, params) => {
   const eTotal = expenses.reduce((a, e) => a + (e.amount || 0), 0);
   send(res, 200, { vendor, purchases, expenses, totals: { purchases: pTotal, expenses: eTotal, grand: pTotal + eTotal } });
 };
+// Shops typed onto invoices that are not suppliers yet. They hold real spending
+// that shows on no vendor, so the Suppliers screen offers them for adding.
+api['GET /api/vendors/unlinked-shops'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  send(res, 200, db.prepare(`SELECT TRIM(pi.shop) shop, COALESCE(SUM(l.amount),0) total, COUNT(DISTINCT pi.id) invoices
+    FROM purchase_invoices pi LEFT JOIN purchase_lines l ON l.invoice_id = pi.id
+    WHERE pi.vendor_id IS NULL AND TRIM(COALESCE(pi.shop,'')) <> ''
+      AND TRIM(pi.shop) NOT IN (SELECT TRIM(name) FROM vendors)
+    GROUP BY TRIM(pi.shop) ORDER BY total DESC`).all());
+};
 api['POST /api/vendors'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   if (!b.name) return send(res, 400, { error: 'name required' });
-  const r = db.prepare('INSERT INTO vendors (name,phone,note) VALUES (?,?,?)').run(b.name, b.phone || null, b.note || null);
+  const r = db.prepare('INSERT INTO vendors (name,phone,email,address,specialty,note) VALUES (?,?,?,?,?,?)')
+    .run(b.name, b.phone || null, b.email || null, b.address || null, b.specialty || null, b.note || null);
   send(res, 200, { id: r.lastInsertRowid });
+};
+api['PUT /api/vendors/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const c = db.prepare('SELECT * FROM vendors WHERE id=?').get(params.id);
+  if (!c) return send(res, 404, { error: 'not found' });
+  db.prepare('UPDATE vendors SET name=?,phone=?,email=?,address=?,specialty=?,note=? WHERE id=?').run(
+    b.name || c.name, b.phone ?? c.phone, b.email ?? c.email, b.address ?? c.address,
+    b.specialty ?? c.specialty, b.note ?? c.note, params.id);
+  send(res, 200, { ok: true });
 };
 api['DELETE /api/vendors/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; db.prepare('DELETE FROM vendors WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 

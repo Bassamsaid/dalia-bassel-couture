@@ -559,5 +559,12 @@ db.exec(`CREATE TABLE IF NOT EXISTS submission_images (
 )`);
 db.exec('CREATE INDEX IF NOT EXISTS idx_sub_images ON submission_images(submission_id, position)');
 try { db.exec('ALTER TABLE videos ADD COLUMN group_id INTEGER'); } catch (e) { /* column exists */ } // scope a video/photo to one group (null = whole round)
+try { db.exec('ALTER TABLE dress_images ADD COLUMN video_url TEXT'); } catch (e) { /* column exists */ } // a dress can carry a video link (Instagram, YouTube…) beside its photos
+// Where the cover sits inside the card's crop ("50% 30%"), so a face is not cut off
+try { db.exec('ALTER TABLE dresses ADD COLUMN cover_pos TEXT'); } catch (e) { /* column exists */ }
+// What a vendor actually supplies — lace, tulle, beading — and how to reach them
+try { db.exec('ALTER TABLE vendors ADD COLUMN specialty TEXT'); } catch (e) { /* column exists */ }
+try { db.exec('ALTER TABLE vendors ADD COLUMN address TEXT'); } catch (e) { /* column exists */ }
+try { db.exec('ALTER TABLE vendors ADD COLUMN email TEXT'); } catch (e) { /* column exists */ }
 
-module.exports = { db, hashPassword, verifyPassword };
+module.exports = { db, hashPassword, verifyPassword, DB_PATH };

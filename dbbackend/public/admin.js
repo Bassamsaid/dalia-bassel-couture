@@ -27,9 +27,73 @@ function fmField(f) {
     <span class="hint" id="fh_${f.name}" style="flex:2">${v ? 'Selected' : 'None'}</span></div>
     <input type="hidden" name="${f.name}" id="fi_${f.name}" value="${esc(v)}" />`;
   // numeric fields pop the number keypad on mobile; phone fields the tel keypad
-  const im = f.inputmode || (f.type === 'number' ? 'decimal' : (/phone|tel|mobile/i.test(f.name) ? 'tel' : ''));
-  return `<label>${f.label}${f.required ? ' *' : ''}</label><input name="${f.name}" type="${f.type || 'text'}" value="${esc(v)}"${req}${im ? ` inputmode="${im}"` : ''} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} />`;
+  const isPhone = /phone|tel|mobile/i.test(f.name);
+  const im = f.inputmode || (f.type === 'number' ? 'decimal' : (isPhone ? 'tel' : ''));
+  // A phone field gets the same contact/paste pair as the dress forms; the id is
+  // only for those buttons, the form still reads the value by name.
+  const pid = isPhone ? ` id="fp_${f.name}"` : '';
+  const input = `<input name="${f.name}"${pid} type="${f.type || 'text'}" value="${esc(v)}"${req}${im ? ` inputmode="${im}"` : ''}${isPhone ? ' autocomplete="tel"' : ''} ${f.step ? `step="${f.step}"` : ''} ${f.placeholder ? `placeholder="${esc(f.placeholder)}"` : ''} ${isPhone ? 'style="flex:1;min-width:0"' : ''} />`;
+  const body = isPhone
+    ? `<div class="row" style="gap:6px;align-items:center">${input}
+        <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pickContact('fp_${f.name}')" title="Choose from contacts">👤</button>
+        <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pastePhone('fp_${f.name}')" title="Paste a copied number">📋</button></div>`
+    : input;
+  return `<label>${f.label}${f.required ? ' *' : ''}</label>${body}`;
 }
+/* A phone number is read off a client's WhatsApp and typed in by hand, which is
+   where the wrong digit gets in. Three ways to avoid typing it:
+   - Android Chrome opens the real contact list (Contact Picker API).
+   - iOS has no web API for that, but a tel field with autocomplete="tel" makes
+     the keyboard offer the contact itself, which is the same gesture.
+   - Paste, for a number copied from anywhere at all.
+   The buttons render everywhere; each one explains itself if it cannot deliver. */
+function phoneField(id, value, opts = {}) {
+  const name = opts.name ? ` data-name-target="${opts.name}"` : '';
+  return `<div class="row" style="gap:6px;align-items:center">
+    <input id="${id}" type="tel" inputmode="tel" autocomplete="tel" value="${esc(value || '')}"${name} style="flex:1;min-width:0" ${opts.readonly ? 'readonly' : ''} />
+    ${opts.readonly ? '' : `<button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pickContact('${id}')" title="Choose from contacts">👤</button>
+    <button type="button" class="btn ghost sm" style="flex:0 0 auto" onclick="pastePhone('${id}')" title="Paste a copied number">📋</button>`}
+  </div>`;
+}
+window.phoneField = phoneField;
+const canPickContacts = () => !!(window.ContactsManager && navigator.contacts && navigator.contacts.select);
+window.pickContact = async (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (!canPickContacts()) {
+    el.focus(); // iOS/desktop: the field itself offers the contact above the keyboard
+    return toast('Tap the field — your phone offers your contacts above the keyboard');
+  }
+  let picked;
+  try { [picked] = await navigator.contacts.select(['tel', 'name'], { multiple: false }); }
+  catch (e) { return; } // dismissed
+  if (!picked) return;
+  const tel = (picked.tel || []).find(Boolean);
+  if (!tel) return toast('That contact has no number saved', 'error');
+  setPhone(el, tel);
+  // Fill the client's name too, but never over something already typed.
+  const nameSel = el.getAttribute('data-name-target');
+  const nameEl = nameSel && document.getElementById(nameSel);
+  const who = (picked.name || []).find(Boolean);
+  if (nameEl && who && !nameEl.value.trim()) { nameEl.value = who; nameEl.dispatchEvent(new Event('input', { bubbles: true })); }
+  toast(`${who || 'Number'} added ✓`);
+};
+window.pastePhone = async (id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let text;
+  try { text = await navigator.clipboard.readText(); }
+  catch (e) { el.focus(); return toast('Long-press the field and choose Paste'); }
+  if (!text || !text.trim()) return toast('Nothing copied yet');
+  setPhone(el, text);
+  toast('Pasted ✓');
+};
+/* Contacts hand back numbers spaced and bracketed however they were saved. */
+function setPhone(el, raw) {
+  el.value = String(raw).replace(/[^\d+]/g, '');
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 let _wiz = null;
 /* light step-by-step wizard: fields are shown a few at a time (calmer than a wall of inputs) */
 function formModal(heading, fields, onSubmit, opts = {}) {
@@ -42,7 +106,7 @@ function formModal(heading, fields, onSubmit, opts = {}) {
   const multi = steps.length > 1;
   const stepsHtml = steps.map((grp, si) => `<div class="wstep" data-s="${si}" ${si ? 'style="display:none"' : ''}>${grp.map(fmField).join('')}</div>`).join('');
   const dots = multi ? `<div class="wdots">${steps.map((_, i) => `<span class="wdot ${i ? '' : 'on'}"></span>`).join('')}</div>` : '';
-  modal(`<h3>${esc(heading)}</h3>${dots}<form id="fm">${stepsHtml}${hid.map(fmField).join('')}
+  modal(`<h3>${esc(heading)}</h3>${opts.hint ? `<p class="hint" style="margin:-6px 0 10px">${esc(opts.hint)}</p>` : ''}${dots}<form id="fm">${stepsHtml}${hid.map(fmField).join('')}
     <div class="err hidden" id="fmErr"></div>
     <div class="wnav">
       <button type="button" class="btn sec" id="wBack" onclick="wizNav(-1)" style="display:none">Back</button>
@@ -703,6 +767,34 @@ window.roundTab = (t) => { window._roundTab = t; window._roundSearch = ''; go('r
 window.setRoundGov = (v) => { window._roundGov = v; go('round'); };
 window.setRoundPay = (v) => { window._roundPay = v; go('round'); };
 window.toggleGovSort = () => { window._roundSortGov = !window._roundSortGov; go('round'); };
+/* A dress photo row is one of three things: a picture, an uploaded clip, or a
+   link to a video living on Instagram, YouTube or TikTok. Each of those three
+   offers an /embed address that plays inside an iframe, so the video plays in
+   the app rather than throwing the studio out into another app. Anything else
+   falls back to a button that opens it. */
+function embedSrc(raw) {
+  const u = String(raw || '');
+  const yt = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([\w-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const ig = u.match(/instagram\.com\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/);
+  if (ig) return `https://www.instagram.com/${ig[1] === 'reels' ? 'reel' : ig[1]}/${ig[2]}/embed`;
+  const tt = u.match(/tiktok\.com\/.*\/video\/(\d+)/);
+  if (tt) return `https://www.tiktok.com/embed/v2/${tt[1]}`;
+  return null;
+}
+window.isVideoFile = (f) => /\.(mp4|mov|webm)$/i.test(String(f || ''));
+/* Instagram's embed is a post card, not a 16:9 frame — it needs the taller box. */
+function linkedVideo(url, opts = {}) {
+  const src = embedSrc(url);
+  if (!src) return `<a class="btn sec sm" href="${esc(url)}" target="_blank" rel="noopener">▶ Open the video</a>`;
+  const pad = /instagram\.com/.test(src) ? '125%' : '56.25%';
+  return `<div style="position:relative;padding-top:${pad};border-radius:12px;overflow:hidden;background:#000">
+    <iframe style="position:absolute;inset:0;width:100%;height:100%;border:0" src="${esc(src)}"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture" allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin" title="${esc(opts.title || 'Video')}"></iframe></div>`;
+}
+window.linkedVideo = linkedVideo;
+
 function videoEmbed(v) {
   if (v.file) {
     if (/\.(png|jpe?g|webp|gif)$/i.test(v.file)) return `<img src="/uploads/${esc(v.file)}" style="width:100%;border-radius:10px;margin-top:6px;cursor:zoom-in" onclick="lightbox('/uploads/${esc(v.file)}')" alt=""/>
@@ -1291,6 +1383,7 @@ window.delDalia = (id) => confirmDel('Delete post?', async () => { await DEL('/a
 PAGES.dresses = async (c) => {
   if (!['admin', 'manager', 'staff'].includes(state.user.role)) return PAGES.mydresses(c); // customers: own only
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: browse + read-only detail
+  const isStaff = state.user.role === 'staff'; // sees the garment, never whose it is
   const [dresses, customers, allUsers] = await Promise.all([GET('/api/dresses'), GET('/api/users?role=customer'), GET('/api/users')]);
   const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   window._dressRef = { customers, staff };
@@ -1315,20 +1408,21 @@ PAGES.dresses = async (c) => {
   const statuses = [['all', 'All'], ['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']];
   c.innerHTML = title('Dresses', '') +
     `${canEdit ? '<button class="btn" onclick="addDress()">＋ Register a dress</button>' : ''}
+    ${state.user.role === 'admin' && dresses.length ? `<button class="btn ghost sm" style="margin-top:8px;color:var(--bad)" onclick="purgeDresses()">🗑 Delete all dresses…</button>` : ''}
     <div class="filters" style="margin-top:12px">${statuses.map(([k, l]) => `<span class="chip ${f.status === k && !f.assigned ? 'active' : ''}" onclick="dressFilter('status','${k}')">${l}</span>`).join('')}
       <span class="chip ${f.assigned ? 'active' : ''}" onclick="dressFilter('assigned','x')">👤 Assigned</span></div>
     <div class="row" style="margin:0 0 12px;align-items:center;gap:8px">
       <input type="month" value="${f.month}" onchange="dressFilter('month',this.value)" style="width:auto;padding:8px" />
       ${f.month ? `<button class="btn ghost sm" onclick="dressFilter('month','')">Clear month</button>` : ''}
       <span class="hint">${list.length} dress(es)</span></div>
-    <input placeholder="🔍 Search by client name" value="${esc(window._dressSearch || '')}" oninput="window._dressSearch=this.value; liveSearch(this.value,'#dressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
+    <input placeholder="${isStaff ? '🔍 Search by dress number' : '🔍 Search by client name'}" value="${esc(window._dressSearch || '')}" oninput="window._dressSearch=this.value; liveSearch(this.value,'#dressList')" style="width:100%;padding:9px 12px;margin:0 0 10px" />
     <div class="grid g2" id="dressList">${list.length ? list.map((d) => `
-      <div class="card" data-name="${esc((d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
+      <div class="card" data-name="${esc(isStaff ? 'dress #' + d.id : (d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
         ${d.unread ? `<span class="notif-dot" title="New update">${d.unread}</span>` : ''}
-        ${d.cover_image ? `<img class="thumb" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
-        <div class="nm" style="font-weight:600;margin-top:8px">${esc(d.customer_name)}</div>
+        ${d.cover_image ? `<img class="thumb" style="object-position:${esc(d.cover_pos || '50% 50%')}" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
+        <div class="nm" style="font-weight:600;margin-top:8px">${isStaff ? 'Dress #' + d.id : esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
-        <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'} · ${d.fittings.length} fittings</div>
+        <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}${isStaff ? '' : ' · ' + d.fittings.length + ' fittings'}</div>
         <button class="btn sec sm" style="margin-top:8px" onclick="openDress(${d.id})">Details</button>
       </div>`).join('') : empty('No dresses match this filter', '👗')}</div>`;
   if (window._dressSearch) liveSearch(window._dressSearch, '#dressList');
@@ -1340,6 +1434,28 @@ window.dressFilter = (k, v) => {
   else if (k === 'status') { f.status = v; f.assigned = false; }
   else f[k] = v;
   window._dressF = f; go('dresses');
+};
+/* Wipe every dress — meant for clearing demo data off a new install, so it is
+   deliberately awkward: the count, then the choice about money, then the phrase. */
+const PURGE_PHRASE = 'DELETE ALL DRESSES';
+window.purgeDresses = async () => {
+  const n = (window._dresses || []).length;
+  if (!n) return;
+  if (!confirm(`Delete all ${n} dress(es), with their fittings, photos, updates and payments?\n\nThis cannot be undone.`)) return;
+  // Material bought for a dress is real vendor spending, so it is kept by default
+  // and only unlinked; wiping a demo install is the case for taking it out too.
+  const withPurchases = confirm(
+    'Delete the material purchases as well?\n\n'
+    + 'OK — delete them, and any supplier invoice left empty.\n'
+    + 'Cancel — keep the spending in the books, just unlinked from the dresses.'
+  );
+  const typed = prompt(`Last step. Type this to confirm:\n\n${PURGE_PHRASE}`);
+  if (typed !== PURGE_PHRASE) return toast('Cancelled — nothing deleted');
+  try {
+    const r = await api('DELETE', '/api/dresses', { confirm: PURGE_PHRASE, with_purchases: withPurchases });
+    toast(`Deleted ${r.dresses} dress(es)${r.invoices ? `, ${r.invoices} invoice(s)` : ''} ✓`);
+    go('dresses');
+  } catch (e) { toast(e.message, 'error'); }
 };
 /* Registering a dress is a screen with two tabs — not a wizard */
 window.addDress = () => { window._newDressTab = 'dress'; go('newdress'); };
@@ -1359,7 +1475,7 @@ PAGES.newdress = async (c) => {
     <div class="card" style="padding:4px 15px 18px">
       <div class="dpane${tab === 'dress' ? ' on' : ''}" data-pane="dress">
         <label>Client name</label><input id="nd_name" placeholder="Her name" />
-        <label>Phone</label><input id="nd_phone" type="tel" inputmode="tel" />
+        <label>Phone</label>${phoneField('nd_phone', '', { name: 'nd_name' })}
         <label>Delivery date</label><input id="nd_date" type="date" />
         <label>Status</label>
         <select id="nd_status">
@@ -1455,6 +1571,7 @@ PAGES.dress = async (c) => {
   const staff = (window._dressRef && window._dressRef.staff) || [];
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: read-only
   const isAdmin = state.user.role === 'admin';
+  const isStaff = state.user.role === 'staff';
   const ro = canEdit ? '' : ' readonly';
   const stEn = { open: 'New', in_progress: 'In progress', delivered: 'Delivered' };
   const stCls = { open: 'warn', in_progress: '', delivered: 'ok' };
@@ -1462,7 +1579,7 @@ PAGES.dress = async (c) => {
 
   const details = pane('details', `
     <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}"${ro} />
-    <label>Phone</label><input id="dPhone_${id}" type="tel" inputmode="tel" value="${esc(d.phone || '')}"${ro} />
+    <label>Phone</label>${phoneField(`dPhone_${id}`, d.phone, { name: `dName_${id}`, readonly: !!ro })}
     <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}"${ro} />
     <label>Notes</label><textarea id="dNote_${id}"${ro}>${esc(d.note || '')}</textarea>
     <label>Status</label>
@@ -1498,14 +1615,36 @@ PAGES.dress = async (c) => {
       ${briefFields(d.brief, 'od_')}
       <button class="btn" style="margin-top:14px" onclick="saveDressBrief(${id})">Save the occasion</button>` : ''}`);
 
+  // Uploaded files carry the gallery and the reorder strip; linked videos cannot
+  // be part of either, so they sit under their own heading as players.
+  const files = d.images.filter((im) => im.image);
+  const links = d.images.filter((im) => !im.image && im.video_url);
+  // Counting links as "photos" put a count above a pane reading "No photos yet".
+  const mediaTab = links.length
+    ? (files.length ? `Photos (${files.length}) · 🎬 ${links.length}` : `Videos (${links.length})`)
+    : `Photos${files.length ? ' (' + files.length + ')' : ''}`;
   const photos = pane('photos', `
-    ${d.images.length ? gallery(d.images.map((im) => ({ file: im.image, kind: 'image' }))) : ''}
-    <div class="sec-title">All photos ${(canEdit && d.images.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
-    <div class="dphotos" id="dphotos_${id}">${d.images.map((im, i) => `<div class="dphoto" data-id="${im.id}">
-      <img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
-      ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}
+    ${files.length ? gallery(files.map((im) => ({ file: im.image, kind: isVideoFile(im.image) ? 'video' : 'image' }))) : ''}
+    <div class="sec-title">All photos ${(canEdit && files.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
+    <div class="dphotos" id="dphotos_${id}">${files.map((im, i) => `<div class="dphoto" data-id="${im.id}">
+      ${isVideoFile(im.image)
+        ? `<video class="thumb" style="aspect-ratio:3/4;object-fit:cover;${canEdit ? 'pointer-events:none' : ''}" src="/uploads/${esc(im.image)}" muted playsinline preload="metadata"></video>
+           <span class="cover-badge" style="left:6px;right:auto">▶ Video</span>`
+        : `<img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
+           ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}`}
       ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
-    ${canEdit ? `<button class="btn ghost sm" style="margin-top:10px" onclick="addDressImg(${id})">＋ Photo</button>` : ''}`);
+    ${links.length ? `<div class="sec-title">Videos 🎬</div>
+      ${links.map((im) => `<div style="margin-bottom:12px">
+        ${linkedVideo(im.video_url, { title: im.caption || 'Dress video' })}
+        <div class="row" style="margin-top:6px;align-items:center">
+          <span class="hint" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(im.caption || im.video_url)}</span>
+          ${canEdit ? `<button class="btn-icon" onclick="delDressImg(${im.id},${id})">🗑</button>` : ''}</div>
+      </div>`).join('')}` : ''}
+    ${canEdit ? `<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost sm" onclick="addDressImg(${id})">＋ Photo</button>
+      <button class="btn ghost sm" onclick="addDressVideo(${id})">🎬 Video</button>
+      <button class="btn ghost sm" onclick="addDressVideoLink(${id})">🔗 Video link</button>
+      ${d.cover_image ? `<button class="btn ghost sm" onclick="adjustCover(${id})">⛶ Adjust preview</button>` : ''}</div>` : ''}`);
 
   const moneyPane = canEdit ? pane('money', `
     ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
@@ -1534,26 +1673,32 @@ PAGES.dress = async (c) => {
     <div id="dupd_${id}"><div class="hint">Loading…</div></div>
     <button class="btn sec" style="margin-top:8px" onclick="updateClient(${id})">📨 Send an update / photo to the client</button>`);
 
-  const tabs = [
+  // Staff get the garment and nothing about the woman wearing it: the photos to
+  // work from and the measurements to cut to. The other panes are not rendered
+  // at all, so there is nothing to reach by switching tabs.
+  const tabs = isStaff ? [
+    ['photos', '📷', mediaTab],
+    ['measure', '📐', 'Measurements'],
+  ] : [
     ['details', '📋', 'Client info'],
     ['occasion', '✨', 'Occasion'],
-    ['photos', '📷', `Photos${d.images.length ? ' (' + d.images.length + ')' : ''}`],
+    ['photos', '📷', mediaTab],
     ['measure', '📐', 'Measurements'],
     ...(moneyPane ? [['money', '💰', 'Fees']] : []),
     ...(materials ? [['materials', '🧵', 'Purchases']] : []),
     ['client', '💬', `Client${d.fittings.length ? ' (' + d.fittings.length + ')' : ''}`],
   ];
-  const firstTab = tabs.some(([k]) => k === window._dressTab) ? window._dressTab : 'details';
+  const firstTab = tabs.some(([k]) => k === window._dressTab) ? window._dressTab : tabs[0][0];
 
   c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
     `<div class="dress-head">
-      ${d.cover_image ? `<div class="dh-photo" style="background-image:url('/uploads/${esc(d.cover_image)}')" onclick="dressTab(${id},'photos')"></div>`
+      ${d.cover_image ? `<div class="dh-photo" style="background-image:url('/uploads/${esc(d.cover_image)}');background-position:${esc(d.cover_pos || '50% 50%')}" onclick="dressTab(${id},'photos')"></div>`
         : '<div class="dh-photo dh-none">👗</div>'}
       <div class="dh-body">
-        <div class="dh-name">${esc(d.customer_name)}</div>
+        <div class="dh-name">${isStaff ? 'Dress #' + id : esc(d.customer_name)}</div>
         <div class="dh-sub">${d.delivery_date ? 'Delivery ' + dt(d.delivery_date) : 'No delivery date'}
           · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
-        ${d.note ? `<div class="dh-note">${esc(d.note)}</div>` : ''}
+        ${(!isStaff && d.note) ? `<div class="dh-note">${esc(d.note)}</div>` : ''}
         <div class="dh-sub">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}</div>
       </div>
     </div>
@@ -1561,7 +1706,7 @@ PAGES.dress = async (c) => {
       ${tabs.map(([k, ic, label]) => `<button class="dtab${k === firstTab ? ' on' : ''}" data-tab="${k}" onclick="dressTab(${id},'${k}')">
         <span class="dtab-ic">${ic}</span>${esc(label)}</button>`).join('')}
     </div>
-    <div class="dpanes card" id="dpanes_${id}">${details}${occasion}${photos}${measure}${moneyPane}${materials}${client}</div>
+    <div class="dpanes card" id="dpanes_${id}">${isStaff ? photos + measure : details + occasion + photos + measure + moneyPane + materials + client}</div>
     </div>`;
   dressTab(id, firstTab);
   briefLookToggle('od_');
@@ -1587,13 +1732,29 @@ async function loadDressMaterials(id) {
   try {
     const items = await GET('/api/dresses/' + id + '/purchases');
     const total = items.reduce((a, x) => a + (x.amount || 0), 0);
-    box.innerHTML = items.length ? `<div class="card" style="box-shadow:none;margin:0">${items.map((x) => `<div class="item">
-      <div class="av" style="background:#fff">◦</div>
-      <div class="main"><div class="nm">${esc(x.item || '—')}</div><div class="sub">${x.vendor_name ? esc(x.vendor_name) + ' · ' : ''}${!x.vendor_name && x.shop ? esc(x.shop) + ' · ' : ''}${x.invoice_date ? dt(x.invoice_date) : dt(x.created_at)}</div></div>
+    // Tapping a material opens the invoice it came from, where it can be edited.
+    box.innerHTML = items.length ? `<div class="card" style="box-shadow:none;margin:0">${items.map((x) => `<div class="item" style="cursor:pointer" onclick="openInvoiceFor(${x.invoice_id})">
+      <div class="av" style="background:#fff">🧾</div>
+      <div class="main"><div class="nm">${esc(x.item || '—')}</div><div class="sub">${x.vendor_name ? esc(x.vendor_name) + ' · ' : ''}${!x.vendor_name && x.shop ? esc(x.shop) + ' · ' : ''}${x.invoice_date ? dt(x.invoice_date) : dt(x.created_at)} · tap to open the invoice ›</div></div>
       <div class="sub" style="font-weight:700">${money(x.amount)}</div></div>`).join('')}
       <div class="item" style="border-top:2px solid var(--line)"><div class="main"><div class="nm">Total materials</div></div><div style="font-weight:800;letter-spacing:-.3px">${money(total)}</div></div></div>` : '<div class="hint">No materials bought yet — add the first invoice below</div>';
   } catch (e) { box.innerHTML = '<div class="hint">Could not load materials</div>'; }
 }
+/* From a dress, open the invoice a material came from. The purchases page may
+   never have been visited, so the invoices and the dress list are fetched first. */
+window.openInvoiceFor = async (invoiceId) => {
+  if (!invoiceId) return;
+  try {
+    const [invoices, dresses] = await Promise.all([
+      GET('/api/purchases'),
+      window._allDressesForPurchase ? Promise.resolve(window._allDressesForPurchase) : GET('/api/dresses'),
+    ]);
+    window._purchases = invoices; window._allDressesForPurchase = dresses;
+    if (state.user.role === 'admin' && !window._purVendors) window._purVendors = await GET('/api/vendors');
+    if (!invoices.some((x) => x.id === invoiceId)) return toast('That invoice is gone', 'error');
+    openPurchase(invoiceId);
+  } catch (e) { toast(e.message, 'error'); }
+};
 async function loadDressPayments(id) {
   const box = document.getElementById('dpay_' + id); if (!box) return;
   try {
@@ -1654,7 +1815,8 @@ window.openMeasurements = (id) => {
   window._measImg = d.measure_image || null;
   const canEdit = ['admin', 'manager'].includes(state.user.role); // staff: view-only
   const ro = canEdit ? '' : ' readonly';
-  modal(`<h3>Measurements — ${esc(d.customer_name || '')}</h3>
+  const who = state.user.role === 'staff' ? 'Dress #' + id : esc(d.customer_name || '');
+  modal(`<h3>Measurements — ${who}</h3>
     <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" inputmode="decimal" step="0.5" value="${m[k] != null ? m[k] : ''}"${ro} /></div>`).join('')}
       <div><label>Fit</label><select id="ms_fit" ${canEdit ? '' : 'disabled'}><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
     </div>
@@ -1677,7 +1839,9 @@ window.printMeasurements = (id) => {
   const note = (document.getElementById('ms_note') || {}).value || '';
   const img = window._measImg;
   const rows = MEASURE_FIELDS.map(([k, l]) => `<tr><td>${l}</td><td>${vals[k] || '—'}</td></tr>`).join('');
-  const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>Measurements — ${esc(d.customer_name || '')}</title>
+  // The sheet goes to whoever is cutting; for staff it names the dress, not her.
+  const who = state.user.role === 'staff' ? 'Dress #' + id : esc(d.customer_name || '—');
+  const html = `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>Measurements — ${who}</title>
   <style>
     html,body{background:#fff}
     body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;color:#14101a;padding:32px;max-width:760px;margin:auto}
@@ -1693,7 +1857,7 @@ window.printMeasurements = (id) => {
     @media print{body{padding:6px}}
   </style></head><body>
     <div class="head"><div class="brand">DALIA BASSEL</div><div class="sub">Haute Couture · Measurements Sheet</div></div>
-    <div class="meta"><div><b>Client:</b> ${esc(d.customer_name || '—')}</div><div><b>Delivery:</b> ${d.delivery_date ? dt(d.delivery_date) : '—'}</div><div><b>Fit:</b> ${esc(fit || '—')}</div></div>
+    <div class="meta"><div><b>${state.user.role === 'staff' ? 'Dress' : 'Client'}:</b> ${who}</div><div><b>Delivery:</b> ${d.delivery_date ? dt(d.delivery_date) : '—'}</div><div><b>Fit:</b> ${esc(fit || '—')}</div></div>
     <table>${rows}</table>
     ${note ? `<div class="note"><b>Note:</b> ${esc(note)}</div>` : ''}
     ${img ? `<div class="ref"><div style="font-weight:700;margin-bottom:6px">Reference</div><img src="${img.startsWith('data:') ? img : '/uploads/' + img}"></div>` : ''}
@@ -1741,6 +1905,7 @@ window.openPurchase = async (id) => {
   modal(`<h3>${esc(inv.vendor_name || inv.shop || 'Purchase')}</h3>
     <div class="sub muted">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)} · Total ${money(inv.total)}</div>
     ${inv.note ? `<div class="hint">${esc(inv.note)}</div>` : ''}
+    <button class="btn ghost sm" style="margin-top:8px" onclick="editPurchase(${id})">✏️ Edit shop, date & note</button>
     ${(window._purVendors && window._purVendors.length) ? `<label style="margin-top:8px">Vendor</label>
       <select id="pv_${id}" onchange="setPurchaseVendor(${id},this.value)" style="width:100%"><option value="">— none —</option>${window._purVendors.map((v) => `<option value="${v.id}" ${inv.vendor_id === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>` : ''}
     <div class="sec-title">Invoice</div>
@@ -1749,15 +1914,68 @@ window.openPurchase = async (id) => {
          <button class="btn ghost sm" style="margin-top:8px" onclick="addPurchaseImg(${id})">📷 Replace invoice photo</button>`
       : `<div class="hint">No invoice photo yet</div><button class="btn ghost sm" style="margin-top:6px" onclick="addPurchaseImg(${id})">📷 Add invoice photo</button>`}
     <div class="sec-title">Items</div>
-    <p class="hint" style="margin-top:-4px">Each item counts as material cost on the dress named here. Pick a different one to move it.</p>
-    <div class="card" style="box-shadow:none;margin:0">${inv.lines.map((li) => `<div class="pl-row">
-      <div class="pl-top"><span class="pl-item">${li.item ? esc(li.item) : 'Item'}</span><span class="pl-amt">${money(li.amount)}</span></div>
-      <select onchange="moveLine(${li.id},this.value)">
-        <option value="">— not on a dress —</option>
-        ${(window._allDressesForPurchase || []).map((d) => `<option value="${d.id}" ${d.id === li.dress_id ? 'selected' : ''}>${esc(dressOptionLabel(d))}</option>`).join('')}
-      </select></div>`).join('')}</div>
+    <p class="hint" style="margin-top:-4px">Each item counts as material cost on the dress named here. Edit the name or the amount, move it to another dress, or take it off.</p>
+    <div class="card" style="box-shadow:none;margin:0" id="plines_${id}">${inv.lines.map((li) => purchaseLineRow(li, id)).join('') || '<div class="hint">No items on this invoice</div>'}</div>
+    <button class="btn ghost sm" style="margin-top:8px" onclick="addInvoiceLine(${id})">＋ Add item</button>
+    <div class="item" style="border-top:2px solid var(--line);margin-top:8px">
+      <div class="main"><div class="nm">Total</div></div>
+      <div style="font-weight:800;letter-spacing:-.3px">${money(inv.total)}</div></div>
     <div class="divider"></div>
     <button class="btn danger" onclick="delPurchase(${id})">Delete purchase</button>`);
+};
+/* One item on an invoice: its name and amount are editable in place, and the
+   select moves it to whichever dress it was really bought for. */
+function purchaseLineRow(li, invId) {
+  return `<div class="pl-row" data-line="${li.id}">
+    <div class="row" style="gap:6px;align-items:center">
+      <input value="${esc(li.item || '')}" placeholder="Item" id="li_item_${li.id}" style="flex:2;min-width:0" />
+      <input value="${li.amount || 0}" type="number" inputmode="decimal" id="li_amt_${li.id}" style="flex:1;min-width:0" />
+    </div>
+    <select id="li_dress_${li.id}">
+      <option value="">— not on a dress —</option>
+      ${(window._allDressesForPurchase || []).map((d) => `<option value="${d.id}" ${d.id === li.dress_id ? 'selected' : ''}>${esc(dressOptionLabel(d))}</option>`).join('')}
+    </select>
+    <div class="row" style="gap:6px;margin-top:6px">
+      <button class="btn sec sm" style="flex:1" onclick="saveInvoiceLine(${li.id},${invId})">Save item</button>
+      <button class="btn-icon" onclick="delInvoiceLine(${li.id},${invId})">🗑</button>
+    </div></div>`;
+}
+window.saveInvoiceLine = async (lineId, invId) => {
+  const item = document.getElementById('li_item_' + lineId).value;
+  const amount = Number(document.getElementById('li_amt_' + lineId).value) || 0;
+  const dress = document.getElementById('li_dress_' + lineId).value;
+  try {
+    await PUT('/api/purchase-lines/' + lineId, { item, amount, dress_id: dress ? Number(dress) : null });
+    toast('Item saved ✓');
+    window._purchases = await GET('/api/purchases'); openPurchase(invId);
+  } catch (e) { toast(e.message, 'error'); }
+};
+window.delInvoiceLine = (lineId, invId) => confirmDel('Take this item off the invoice?', async () => {
+  await DEL('/api/purchase-lines/' + lineId);
+  toast('Item removed'); window._purchases = await GET('/api/purchases'); openPurchase(invId);
+});
+window.addInvoiceLine = (invId) => formModal('Add an item', [
+  { name: 'item', label: 'What was bought', required: true, placeholder: 'Swiss tulle, 9.5m' },
+  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'dress_id', label: 'For which dress', type: 'select',
+    options: [{ value: '', label: '— not on a dress —' }, ...(window._allDressesForPurchase || []).map((d) => ({ value: d.id, label: dressOptionLabel(d) }))] },
+], async (d) => {
+  await POST('/api/purchases/' + invId + '/lines', d);
+  toast('Item added ✓'); closeModal();
+  window._purchases = await GET('/api/purchases'); openPurchase(invId);
+});
+/* The invoice's own details — which shop, when, and the note on it. */
+window.editPurchase = (id) => {
+  const inv = (window._purchases || []).find((x) => x.id === id); if (!inv) return;
+  formModal('Edit the invoice', [
+    { name: 'shop', label: 'Shop name', value: inv.shop || '' },
+    { name: 'invoice_date', label: 'Invoice date', type: 'date', value: (inv.invoice_date || '').slice(0, 10) },
+    { name: 'note', label: 'Note', value: inv.note || '' },
+  ], async (d) => {
+    await PUT('/api/purchases/' + id, d);
+    toast('Invoice saved ✓'); closeModal();
+    window._purchases = await GET('/api/purchases'); openPurchase(id);
+  });
 };
 window.setPurchaseVendor = async (id, vid) => { await PUT('/api/purchases/' + id, { vendor_id: Number(vid) || null }); toast('Vendor saved ✅'); window._purchases = await GET('/api/purchases'); const inv = window._purchases.find((x) => x.id === id); if (inv) window._purVendors = await GET('/api/vendors'); };
 window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purchases/' + id, { image: b64 }); toast('Invoice photo saved'); window._purchases = await GET('/api/purchases'); openPurchase(id); });
@@ -1813,8 +2031,33 @@ window.addExpense = () => { const { vendors, types } = window._expRef; formModal
   { name: 'image', label: 'Invoice photo (optional)', type: 'image' },
 ], async (d) => { await POST('/api/expenses', d); toast('Saved'); go('expenses'); }); };
 window.delExpense = (id) => confirmDel('Delete expense?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
-window.addVendor = () => formModal('Add vendor', [{ name: 'name', label: 'Vendor name', required: true }, { name: 'phone', label: 'Phone' }, { name: 'note', label: 'Note' }], async (d) => { await POST('/api/vendors', d); toast('Added'); go('expenses'); });
-window.delVendor = (id) => confirmDel('Delete vendor?', async () => { await DEL('/api/vendors/' + id); go('expenses'); });
+const VENDOR_FIELDS = (v = {}) => [
+  { name: 'name', label: 'Supplier name', required: true, value: v.name || '' },
+  { name: 'specialty', label: 'What they supply', value: v.specialty || '', placeholder: 'Lace · Tulle · Beading · Silk' },
+  { name: 'phone', label: 'Phone', value: v.phone || '' },
+  { name: 'email', label: 'Email', type: 'email', value: v.email || '' },
+  { name: 'address', label: 'Address / area', value: v.address || '' },
+  { name: 'note', label: 'Note', value: v.note || '' },
+];
+window.addVendor = (from) => formModal('Add a supplier', VENDOR_FIELDS(), async (d) => {
+  await POST('/api/vendors', d); toast('Supplier added ✓'); go(from === 'config' ? 'config' : 'expenses');
+}, { perStep: 6 });
+/* A shop that was only ever typed onto invoices. Adding it under exactly that
+   name is what joins the spending to it — so the name is fixed, not a suggestion. */
+window.adoptShop = (shop) => formModal('Add ' + shop, VENDOR_FIELDS({ name: shop }).map((f) => (
+  f.name === 'name' ? { ...f, label: 'Supplier name (keep it as written on the invoices)' } : f
+)), async (d) => {
+  await POST('/api/vendors', { ...d, name: shop });
+  toast('Supplier added — its invoices are on it now ✓'); go('config');
+}, { perStep: 6 });
+window.editVendor = (id) => {
+  const v = (window._cfgVendors || window._expRef?.vendors || []).find((x) => x.id === id);
+  if (!v) return;
+  formModal('Edit ' + v.name, VENDOR_FIELDS(v), async (d) => {
+    await PUT('/api/vendors/' + id, d); toast('Supplier saved ✓'); go('config');
+  }, { perStep: 6 });
+};
+window.delVendor = (id) => confirmDel('Delete this supplier?', async () => { await DEL('/api/vendors/' + id); go(window._cfgTab === 'vendors' ? 'config' : 'expenses'); });
 /* ---- Vendor report: unified spend (material purchases + general expenses) + printable PDF ---- */
 window.openVendorReport = async (id) => {
   const rep = await GET('/api/vendors/' + id + '/report');
@@ -1999,6 +2242,94 @@ window.addFitting = (id) => formModal('Fitting date', [
 ], async (d) => { await POST(`/api/dresses/${id}/fittings`, d); toast('Added'); closeModal(); refreshDress(id); });
 window.delFitting = async (fid, id) => { await DEL('/api/fittings/' + fid); refreshDress(id); };
 window.addDressImg = (id) => pickImages(async (b64) => { await POST(`/api/dresses/${id}/images`, { image: b64 }); toast('Photo added'); refreshDress(id); });
+/* A clip off the phone goes up as a file — streamed, never squeezed through a
+   data URL like the photos, because a fitting video is tens of megabytes. */
+window.addDressVideo = (id) => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'video/*';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    toast('Uploading the video…');
+    try {
+      const up = await uploadFile(f, (p) => { if (p < 1) toast(`Uploading… ${Math.round(p * 100)}%`); });
+      await POST(`/api/dresses/${id}/images`, { image: up.file });
+      toast('Video added ✓'); refreshDress(id);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  inp.click();
+};
+/* A video that already lives on Instagram, YouTube or TikTok is linked, not
+   re-uploaded — it plays inside the app from its own address. */
+window.addDressVideoLink = (id) => formModal('Add a video link', [
+  { name: 'video_url', label: 'Paste the link', required: true, placeholder: 'https://www.instagram.com/reel/…' },
+  { name: 'caption', label: 'What is it? (optional)', placeholder: 'Second fitting' },
+], async (d) => {
+  await POST(`/api/dresses/${id}/images`, { video_url: d.video_url, caption: d.caption });
+  toast('Video added ✓'); closeModal(); refreshDress(id);
+}, { hint: 'Instagram, YouTube and TikTok play inside the app. Any other link opens in a new tab.' });
+/* "Adjust preview": the card crops the cover to a tall rectangle, and a cover
+   shot wide often loses the face to that crop. Dragging moves the photo inside
+   the very rectangle the card uses, so what is dragged into view is exactly what
+   the card will show. Stored as an object-position, not a new cropped file, so
+   the original photo is never touched. */
+let _coverPos = null;
+window.adjustCover = (id) => {
+  const d = (window._dresses || []).find((x) => x.id === id);
+  if (!d || !d.cover_image) return toast('Add a cover photo first');
+  const [sx, sy] = String(d.cover_pos || '50% 50%').split(' ').map((n) => parseFloat(n) || 50);
+  _coverPos = { x: sx, y: sy };
+  modal(`<h3>Adjust preview</h3>
+    <p class="hint" style="margin-top:-4px">Drag the photo to choose what the card shows.</p>
+    <div id="acBox" style="position:relative;width:100%;max-width:280px;margin:0 auto;aspect-ratio:3/4;
+      border-radius:14px;overflow:hidden;background:#000;touch-action:none;cursor:grab">
+      <img id="acImg" src="/uploads/${esc(d.cover_image)}" alt=""
+        style="width:100%;height:100%;object-fit:cover;object-position:${sx}% ${sy}%;pointer-events:none;user-select:none" />
+      <div id="acGrid" style="position:absolute;inset:0;pointer-events:none;opacity:.55;
+        background:linear-gradient(to right,transparent 0 33.2%,#fff 33.2% 33.5%,transparent 33.5% 66.5%,#fff 66.5% 66.8%,transparent 66.8%),
+                   linear-gradient(to bottom,transparent 0 33.2%,#fff 33.2% 33.5%,transparent 33.5% 66.5%,#fff 66.5% 66.8%,transparent 66.8%)"></div>
+    </div>
+    <div class="hint" style="text-align:center;margin-top:8px" id="acLbl">${Math.round(sx)}% · ${Math.round(sy)}%</div>
+    <div class="row" style="margin-top:12px;gap:8px">
+      <button class="btn sec" style="flex:1" onclick="centreCover()">Centre</button>
+      <button class="btn" style="flex:2" onclick="saveCover(${id})">Save</button>
+    </div>`);
+  wireCoverDrag();
+};
+function paintCover() {
+  const img = document.getElementById('acImg'), lbl = document.getElementById('acLbl');
+  if (!img || !_coverPos) return;
+  img.style.objectPosition = `${_coverPos.x}% ${_coverPos.y}%`;
+  if (lbl) lbl.textContent = `${Math.round(_coverPos.x)}% · ${Math.round(_coverPos.y)}%`;
+}
+window.centreCover = () => { _coverPos = { x: 50, y: 50 }; paintCover(); };
+function wireCoverDrag() {
+  const box = document.getElementById('acBox'); if (!box) return;
+  let from = null;
+  const clamp = (n) => Math.min(100, Math.max(0, n));
+  box.addEventListener('pointerdown', (e) => {
+    from = { px: e.clientX, py: e.clientY, x: _coverPos.x, y: _coverPos.y };
+    box.setPointerCapture(e.pointerId); box.style.cursor = 'grabbing';
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!from) return;
+    e.preventDefault();
+    const r = box.getBoundingClientRect();
+    // Dragging the photo down reveals what sits above it, so the focus moves up.
+    _coverPos.x = clamp(from.x - ((e.clientX - from.px) / r.width) * 100);
+    _coverPos.y = clamp(from.y - ((e.clientY - from.py) / r.height) * 100);
+    paintCover();
+  });
+  const stop = () => { from = null; box.style.cursor = 'grab'; };
+  box.addEventListener('pointerup', stop);
+  box.addEventListener('pointercancel', stop);
+}
+window.saveCover = async (id) => {
+  if (!_coverPos) return;
+  try {
+    await PUT('/api/dresses/' + id, { cover_pos: `${Math.round(_coverPos.x)}% ${Math.round(_coverPos.y)}%` });
+    toast('Preview saved ✓'); closeModal(); refreshDress(id);
+  } catch (e) { toast(e.message, 'error'); }
+};
 window.delDress = (id) => confirmDel('Delete dress booking?', async () => { await DEL('/api/dresses/' + id); closeModal(); go('dresses'); });
 async function refreshDress(id) { window._dresses = await GET('/api/dresses'); openDress(id); }
 window.saveAssign = async (id) => { await PUT('/api/dresses/' + id, { assigned_to: document.getElementById('assignSel_' + id).value }); toast('Saved'); refreshDress(id); };
@@ -2180,7 +2511,7 @@ PAGES.config = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
   const s = await GET('/api/settings');
   const tab = window._cfgTab || 'academy';
-  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment']];
+  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['vendors', 'Suppliers'], ['backup', 'Backup']];
   let inner = '';
   if (tab === 'academy') {
     inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
@@ -2223,6 +2554,56 @@ PAGES.config = async (c) => {
         <div class="hint" style="margin-top:6px">Staff & students can only check in or out inside a circle this wide around the pin. Set the switch to “No” to allow from anywhere.</div>
         <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save the pin & the rule</button>
       </div>`;
+  } else if (tab === 'vendors') {
+    const [vendors, orphans] = await Promise.all([GET('/api/vendors'), GET('/api/vendors/unlinked-shops')]);
+    window._cfgVendors = vendors;
+    // Grouped by what they supply, because that is how a supplier is looked up:
+    // not "who was that shop" but "who do we get beading from".
+    const groups = {};
+    vendors.forEach((v) => { const k = (v.specialty || '').trim() || 'Not set'; (groups[k] = groups[k] || []).push(v); });
+    const keys = Object.keys(groups).sort((a, b) => (a === 'Not set') - (b === 'Not set') || a.localeCompare(b));
+    inner = `<button class="btn" onclick="addVendor('config')">＋ Add a supplier</button>
+      <div class="hint" style="margin:10px 2px 6px">Everyone the studio buys from. Tap one to edit its details.</div>
+      ${vendors.length ? keys.map((k) => `<div class="sec-title">${esc(k)} <span class="hint" style="font-weight:400">· ${groups[k].length}</span></div>
+        <div class="card" style="margin:0 0 10px">${groups[k].map((v) => `<div class="item" style="cursor:pointer" onclick="editVendor(${v.id})">
+          <div class="av">🏬</div>
+          <div class="main"><div class="nm">${esc(v.name)}</div>
+            <div class="sub">${[v.phone, v.address, v.note].filter(Boolean).map(esc).join(' · ') || 'No details yet'}</div></div>
+          <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            ${v.total ? `<div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total)}</div>` : ''}
+            <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
+        </div>`).join('')}</div>`).join('') : empty('No suppliers yet', '🏬')}
+      ${orphans.length ? `<div class="sec-title">Shops not on the list yet</div>
+        <p class="hint" style="margin-top:-4px">These were typed onto invoices, so their spending shows against no supplier. Add one and its invoices join it.</p>
+        <div class="card">${orphans.map((o) => `<div class="item">
+          <div class="av">❓</div>
+          <div class="main"><div class="nm">${esc(o.shop)}</div><div class="sub">${o.invoices} invoice${o.invoices === 1 ? '' : 's'}</div></div>
+          <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <div class="serif" style="font-weight:700;color:var(--bad)">${money(o.total)}</div>
+            <button class="btn sec sm" onclick="adoptShop('${esc(o.shop).replace(/'/g, "\\'")}')">＋ Add</button></div>
+        </div>`).join('')}</div>` : ''}`;
+  } else if (tab === 'backup') {
+    const st = await GET('/api/storage').catch(() => null);
+    inner = `${st ? `<div class="card" style="border-inline-start:4px solid ${st.persistent ? 'var(--ok)' : 'var(--bad)'}">
+        <label style="margin-top:0">${st.persistent ? '✅ Your data is on a permanent disk' : '⚠️ Your data is NOT on a permanent disk'}</label>
+        <div class="hint" style="margin-top:6px">${st.persistent
+          ? 'It survives a restart and a new version. Nothing to do.'
+          : 'It is inside the app, so a restart or a new version wipes it. Set DATA_DIR to a mounted volume on your host, then restart.'}</div>
+        <div class="hint" style="margin-top:8px;font-family:ui-monospace,monospace;font-size:11.5px;word-break:break-all">
+          database → ${esc(st.data_dir)}<br/>photos &nbsp;&nbsp;→ ${esc(st.upload_dir)} ${st.uploads_persistent ? '' : '⚠️'}</div>
+      </div>` : ''}
+      <div class="card">
+        <label style="margin-top:0">Download a copy of everything</label>
+        <div class="hint" style="margin-top:6px">Students, dresses, payments, salaries, attendance — the whole database in one file. Keep it somewhere safe: on hosting without a permanent disk, the app's own copy is wiped every time it restarts.</div>
+        <button class="btn" style="margin-top:12px" onclick="downloadBackup('db')">⬇︎ Download backup</button>
+        <button class="btn sec" style="margin-top:8px" onclick="downloadBackup('json')">⬇︎ Readable copy (JSON)</button>
+        <div class="hint" style="margin-top:10px">The backup restores the app exactly as it is now. The readable copy opens in any browser or notes app if you just need to look something up. Neither includes uploaded photos.</div>
+      </div>
+      <div class="card">
+        <label style="margin-top:0">Put a backup back</label>
+        <div class="hint" style="margin-top:6px">Pick a backup file you downloaded before. Anything already here is kept — only what is missing is put back — so this is safe to run even if the app is not empty.</div>
+        <button class="btn sec" style="margin-top:12px" onclick="pickRestore()">⬆︎ Restore from a backup file</button>
+      </div>`;
   } else {
     inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
       <div class="hint" style="margin-top:6px">Shown next to all amounts across the app.</div>
@@ -2232,6 +2613,40 @@ PAGES.config = async (c) => {
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="cfgTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.cfgTab = (t) => { window._cfgTab = t; go('config'); };
+/* Straight navigation rather than fetch-to-blob: the endpoint sends the filename
+   in Content-Disposition, and phone browsers save that far more reliably than a
+   blob URL. The service worker leaves /api alone, so this is a real download. */
+/* Restoring from the phone. Hosting without a permanent disk starts the app
+   empty after a redeploy, and there is no terminal to run the script on — so the
+   file goes back the same way it came out. */
+window.pickRestore = () => {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    let payload;
+    try { payload = JSON.parse(await f.text()); }
+    catch (e) { return toast('That file is not a backup', 'error'); }
+    const taken = payload.exported_at ? new Date(payload.exported_at).toLocaleString() : 'an unknown date';
+    if (!confirm(`Restore from this backup?\n\nTaken: ${taken}\n\nAnything already in the app is kept — only what is missing is put back.`)) return;
+    toast('Restoring…');
+    try {
+      const r = await POST('/api/restore', { backup: payload });
+      toast(`Restored ${r.written} row(s) ✓`);
+      if (r.needPassword) alert(`${r.needPassword} account(s) came back without a password — nobody can sign in to them until you set one.\n\nAsk for a password reset for each, or add them again.`);
+      go('config');
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  inp.click();
+};
+window.downloadBackup = (kind) => {
+  const a = document.createElement('a');
+  a.href = kind === 'json' ? '/api/backup.json' : '/api/backup';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('Preparing your backup…');
+};
 window.geoPinHtml = (lat, lng) => {
   if (!lat || !lng) return `<span class="gp-dot">📍</span><span class="gp-txt" style="opacity:.6">No pin set yet — choose one of the three ways below.</span>`;
   const q = encodeURIComponent(lat + ',' + lng);
