@@ -1196,6 +1196,29 @@ api['PUT /api/settings'] = async (req, res, user) => {
   send(res, 200, { ok: true });
 };
 
+// ================= WHERE THE DATA LIVES =================
+// A volume that is mounted but not pointed at is the same as no volume at all,
+// and the difference is invisible until a redeploy has already taken the data.
+// The app says which of the two it is, rather than the studio having to read it
+// off a hosting dashboard.
+api['GET /api/storage'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const appDir = path.resolve(__dirname);
+  const dataDir = path.resolve(path.dirname(DB_PATH));
+  // Inside the app's own folder means it ships with the code and is replaced
+  // along with it on every deploy.
+  const inApp = dataDir === path.join(appDir, 'data') || dataDir.startsWith(appDir + path.sep);
+  const uploadsInApp = path.resolve(UPLOAD_DIR).startsWith(appDir + path.sep);
+  send(res, 200, {
+    data_dir: dataDir,
+    upload_dir: path.resolve(UPLOAD_DIR),
+    data_dir_set: !!process.env.DATA_DIR,
+    upload_dir_set: !!process.env.UPLOAD_DIR,
+    persistent: !inApp,
+    uploads_persistent: !uploadsInApp,
+  });
+};
+
 // ================= BACKUP =================
 // Hosting without a persistent volume keeps the database inside the container,
 // where a redeploy resets it. Until there is a volume, the studio's copy of its

@@ -2583,7 +2583,16 @@ PAGES.config = async (c) => {
             <button class="btn sec sm" onclick="adoptShop('${esc(o.shop).replace(/'/g, "\\'")}')">＋ Add</button></div>
         </div>`).join('')}</div>` : ''}`;
   } else if (tab === 'backup') {
-    inner = `<div class="card">
+    const st = await GET('/api/storage').catch(() => null);
+    inner = `${st ? `<div class="card" style="border-inline-start:4px solid ${st.persistent ? 'var(--ok)' : 'var(--bad)'}">
+        <label style="margin-top:0">${st.persistent ? '✅ Your data is on a permanent disk' : '⚠️ Your data is NOT on a permanent disk'}</label>
+        <div class="hint" style="margin-top:6px">${st.persistent
+          ? 'It survives a restart and a new version. Nothing to do.'
+          : 'It is inside the app, so a restart or a new version wipes it. Set DATA_DIR to a mounted volume on your host, then restart.'}</div>
+        <div class="hint" style="margin-top:8px;font-family:ui-monospace,monospace;font-size:11.5px;word-break:break-all">
+          database → ${esc(st.data_dir)}<br/>photos &nbsp;&nbsp;→ ${esc(st.upload_dir)} ${st.uploads_persistent ? '' : '⚠️'}</div>
+      </div>` : ''}
+      <div class="card">
         <label style="margin-top:0">Download a copy of everything</label>
         <div class="hint" style="margin-top:6px">Students, dresses, payments, salaries, attendance — the whole database in one file. Keep it somewhere safe: on hosting without a permanent disk, the app's own copy is wiped every time it restarts.</div>
         <button class="btn" style="margin-top:12px" onclick="downloadBackup('db')">⬇︎ Download backup</button>
