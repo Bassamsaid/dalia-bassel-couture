@@ -1371,7 +1371,8 @@ api['POST /api/purchases'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
   const img = maybeImage(b.image);
-  const r = db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by) VALUES (?,?,?,?,?,?)').run(b.shop || null, b.vendor_id || null, img, b.note || null, b.invoice_date || null, user.id);
+  const vid = b.vendor_id || vendorIdForShop(b.shop); // a typed shop that is already a supplier
+  const r = db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by) VALUES (?,?,?,?,?,?)').run(b.shop || null, vid, img, b.note || null, b.invoice_date || null, user.id);
   const invId = r.lastInsertRowid;
   (Array.isArray(b.lines) ? b.lines : []).forEach((li) => {
     if (li && (li.dress_id || li.amount)) db.prepare('INSERT INTO purchase_lines (invoice_id,dress_id,item,amount) VALUES (?,?,?,?)').run(invId, li.dress_id || null, li.item || null, li.amount || 0);
@@ -1383,7 +1384,9 @@ api['PUT /api/purchases/:id'] = async (req, res, user, url, params) => {
   const b = await readBody(req); const c = db.prepare('SELECT * FROM purchase_invoices WHERE id=?').get(params.id);
   if (!c) return send(res, 404, {});
   const img = (b.image && b.image.startsWith('data:')) ? maybeImage(b.image) : (b.image ?? c.image);
-  db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=? WHERE id=?').run(b.shop ?? c.shop, b.vendor_id ?? c.vendor_id, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
+  const shop = b.shop ?? c.shop;
+  const vendorId = b.vendor_id !== undefined ? b.vendor_id : (c.vendor_id || vendorIdForShop(shop));
+  db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=? WHERE id=?').run(shop, vendorId, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
   send(res, 200, { ok: true });
 };
 // Move a mis-filed item to the dress it really belongs to (or off a dress entirely)
@@ -1450,11 +1453,28 @@ api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => 
 
 // ================= EXPENSES (vendors, types, entries) =================
 // Each vendor carries its unified spend = material purchases + general expenses.
+// An invoice belongs to a vendor either because it was picked from the list, or
+// because the shop was typed by hand and the name is that vendor's. Only counting
+// the first left real spending sitting at zero on the vendor it belonged to.
+const VENDOR_MATCH = "(pi.vendor_id = ? OR (pi.vendor_id IS NULL AND TRIM(pi.shop) = TRIM(?)))";
+function vendorPurchases(vendorId, name) {
+  return db.prepare(`SELECT COALESCE(SUM(l.amount),0) s FROM purchase_lines l
+    JOIN purchase_invoices pi ON pi.id = l.invoice_id WHERE ${VENDOR_MATCH}`).get(vendorId, name || '\u0000').s;
+}
+// Typing a shop that is already a supplier links the invoice to it, so the books
+// tidy themselves instead of drifting further apart with every invoice.
+function vendorIdForShop(shop) {
+  const s = String(shop || '').trim();
+  if (!s) return null;
+  const v = db.prepare('SELECT id FROM vendors WHERE TRIM(name) = ?').get(s);
+  return v ? v.id : null;
+}
+
 api['GET /api/vendors'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const rows = db.prepare('SELECT * FROM vendors ORDER BY name').all();
   rows.forEach((v) => {
-    v.purchases_total = db.prepare('SELECT COALESCE(SUM(l.amount),0) s FROM purchase_lines l JOIN purchase_invoices pi ON pi.id=l.invoice_id WHERE pi.vendor_id=?').get(v.id).s;
+    v.purchases_total = vendorPurchases(v.id, v.name);
     v.expenses_total = db.prepare('SELECT COALESCE(SUM(amount),0) s FROM expenses WHERE vendor_id=?').get(v.id).s;
     v.total = v.purchases_total + v.expenses_total;
   });
@@ -1465,7 +1485,8 @@ api['GET /api/vendors/:id/report'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   const vendor = db.prepare('SELECT * FROM vendors WHERE id=?').get(params.id);
   if (!vendor) return send(res, 404, { error: 'not found' });
-  const purchases = db.prepare('SELECT * FROM purchase_invoices WHERE vendor_id=? ORDER BY COALESCE(invoice_date,created_at) DESC, id DESC').all(params.id);
+  const purchases = db.prepare(`SELECT pi.* FROM purchase_invoices pi WHERE ${VENDOR_MATCH}
+    ORDER BY COALESCE(pi.invoice_date,pi.created_at) DESC, pi.id DESC`).all(vendor.id, vendor.name || '\u0000');
   purchases.forEach((inv) => {
     inv.lines = db.prepare('SELECT l.*, (SELECT customer_name FROM dresses WHERE id=l.dress_id) dress_name FROM purchase_lines l WHERE l.invoice_id=?').all(inv.id);
     inv.total = inv.lines.reduce((a, x) => a + (x.amount || 0), 0);
@@ -1474,6 +1495,16 @@ api['GET /api/vendors/:id/report'] = async (req, res, user, url, params) => {
   const pTotal = purchases.reduce((a, p) => a + p.total, 0);
   const eTotal = expenses.reduce((a, e) => a + (e.amount || 0), 0);
   send(res, 200, { vendor, purchases, expenses, totals: { purchases: pTotal, expenses: eTotal, grand: pTotal + eTotal } });
+};
+// Shops typed onto invoices that are not suppliers yet. They hold real spending
+// that shows on no vendor, so the Suppliers screen offers them for adding.
+api['GET /api/vendors/unlinked-shops'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  send(res, 200, db.prepare(`SELECT TRIM(pi.shop) shop, COALESCE(SUM(l.amount),0) total, COUNT(DISTINCT pi.id) invoices
+    FROM purchase_invoices pi LEFT JOIN purchase_lines l ON l.invoice_id = pi.id
+    WHERE pi.vendor_id IS NULL AND TRIM(COALESCE(pi.shop,'')) <> ''
+      AND TRIM(pi.shop) NOT IN (SELECT TRIM(name) FROM vendors)
+    GROUP BY TRIM(pi.shop) ORDER BY total DESC`).all());
 };
 api['POST /api/vendors'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;

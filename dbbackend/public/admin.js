@@ -2042,6 +2042,14 @@ const VENDOR_FIELDS = (v = {}) => [
 window.addVendor = (from) => formModal('Add a supplier', VENDOR_FIELDS(), async (d) => {
   await POST('/api/vendors', d); toast('Supplier added ✓'); go(from === 'config' ? 'config' : 'expenses');
 }, { perStep: 6 });
+/* A shop that was only ever typed onto invoices. Adding it under exactly that
+   name is what joins the spending to it — so the name is fixed, not a suggestion. */
+window.adoptShop = (shop) => formModal('Add ' + shop, VENDOR_FIELDS({ name: shop }).map((f) => (
+  f.name === 'name' ? { ...f, label: 'Supplier name (keep it as written on the invoices)' } : f
+)), async (d) => {
+  await POST('/api/vendors', { ...d, name: shop });
+  toast('Supplier added — its invoices are on it now ✓'); go('config');
+}, { perStep: 6 });
 window.editVendor = (id) => {
   const v = (window._cfgVendors || window._expRef?.vendors || []).find((x) => x.id === id);
   if (!v) return;
@@ -2547,7 +2555,7 @@ PAGES.config = async (c) => {
         <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save the pin & the rule</button>
       </div>`;
   } else if (tab === 'vendors') {
-    const vendors = await GET('/api/vendors');
+    const [vendors, orphans] = await Promise.all([GET('/api/vendors'), GET('/api/vendors/unlinked-shops')]);
     window._cfgVendors = vendors;
     // Grouped by what they supply, because that is how a supplier is looked up:
     // not "who was that shop" but "who do we get beading from".
@@ -2564,7 +2572,16 @@ PAGES.config = async (c) => {
           <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             ${v.total ? `<div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total)}</div>` : ''}
             <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
-        </div>`).join('')}</div>`).join('') : empty('No suppliers yet', '🏬')}`;
+        </div>`).join('')}</div>`).join('') : empty('No suppliers yet', '🏬')}
+      ${orphans.length ? `<div class="sec-title">Shops not on the list yet</div>
+        <p class="hint" style="margin-top:-4px">These were typed onto invoices, so their spending shows against no supplier. Add one and its invoices join it.</p>
+        <div class="card">${orphans.map((o) => `<div class="item">
+          <div class="av">❓</div>
+          <div class="main"><div class="nm">${esc(o.shop)}</div><div class="sub">${o.invoices} invoice${o.invoices === 1 ? '' : 's'}</div></div>
+          <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <div class="serif" style="font-weight:700;color:var(--bad)">${money(o.total)}</div>
+            <button class="btn sec sm" onclick="adoptShop('${esc(o.shop).replace(/'/g, "\\'")}')">＋ Add</button></div>
+        </div>`).join('')}</div>` : ''}`;
   } else if (tab === 'backup') {
     inner = `<div class="card">
         <label style="margin-top:0">Download a copy of everything</label>
