@@ -8,6 +8,24 @@ const tls = require('node:tls');
 const { URL } = require('node:url');
 const { db, ready, hashPassword, verifyPassword, DB_PATH } = require('./db');
 const { restore } = require('./restore');
+const store = require('./storage');
+
+// Sending mail. A serverless function usually cannot open a raw socket on port
+// 465, so where RESEND_API_KEY is set the mail goes over plain HTTPS instead;
+// the SMTP path below still serves a host that allows the connection.
+async function sendMail({ user, pass, to, subject, text }) {
+  if (process.env.RESEND_API_KEY) {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: process.env.MAIL_FROM || 'Dalia Bassel Couture <onboarding@resend.dev>', to: [to], subject, text }),
+    });
+    if (!r.ok) throw new Error('Email failed: ' + (await r.text()).slice(0, 200));
+    return;
+  }
+  if (!user || !pass) throw new Error('Email is not configured');
+  return smtpSend({ user, pass, to, subject, text });
+}
 
 // Minimal SMTP-over-TLS sender (Gmail: smtp.gmail.com:465), no dependencies.
 function smtpSend({ user, pass, to, subject, text }) {
@@ -49,8 +67,7 @@ function smtpSend({ user, pass, to, subject, text }) {
 const PORT = process.env.PORT || 4000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 // UPLOAD_DIR is configurable so a hosting volume (e.g. Railway) can persist images across deploys
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
-fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const UPLOAD_DIR = store.UPLOAD_DIR;
 
 // Typed back by the admin before anything is wiped wholesale.
 const PURGE_PHRASE = 'DELETE ALL DRESSES';
@@ -109,10 +126,7 @@ async function saveImage(dataUrl, fallbackExt = '.jpg') {
     const map = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'image/gif': '.gif', 'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm' };
     ext = map[m[1]] || fallbackExt;
   }
-  const buf = Buffer.from(b64, 'base64');
-  const name = `${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, name), buf);
-  return name;
+  return store.save(Buffer.from(b64, 'base64'), ext);
 }
 // If a field looks like a base64 upload, store it and return the filename; otherwise pass through
 async function maybeImage(val) {
@@ -213,7 +227,7 @@ api['POST /api/otp/request'] = async (req, res) => {
   const expires = new Date(Date.now() + 10 * 60000).toISOString();
   await db.prepare('INSERT INTO otps (email,code,expires_at) VALUES (lower(?),?,?) ON CONFLICT(email) DO UPDATE SET code=excluded.code,expires_at=excluded.expires_at').run(email, code, expires);
   try {
-    await smtpSend({ user: gUser, pass: gPass, to: email, subject: 'Dalia Bassel — your login code', text: `Your Dalia Bassel login code is: ${code}\n\nIt expires in 10 minutes.` });
+    await sendMail({ user: gUser, pass: gPass, to: email, subject: 'Dalia Bassel — your login code', text: `Your Dalia Bassel login code is: ${code}\n\nIt expires in 10 minutes.` });
   } catch (e) { console.error('OTP email failed:', e.message); return send(res, 502, { error: 'Could not send the email — check the mail settings' }); }
   send(res, 200, { ok: true });
 };
@@ -955,7 +969,7 @@ api['DELETE /api/dresses'] = async (req, res, user) => {
   for (const t of ['dress_fittings', 'dress_images', 'dress_updates', 'dress_payments', 'dresses']) await db.exec(`DELETE FROM ${t}`);
 
   let removed = 0;
-  for (const f of files) { const p = uploadPath(f); if (p) { try { fs.unlinkSync(p); removed++; } catch (_) { /* already gone */ } } }
+  for (const f of files) { if (await store.remove(f)) removed++; }
   send(res, 200, { ok: true, dresses: dresses.length, invoices, files: removed });
 };
 // materials bought for a dress — admin + manager (operational; NOT price/deposit)
@@ -1605,26 +1619,24 @@ api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => { if (!
 // Raw file upload — the body IS the file, so an HD video does not have to be
 // base64'd into JSON (which adds a third to its size) before it can be sent.
 const UPLOAD_MAX = 400 * 1024 * 1024;
-const EXT_OK = { mp4: '.mp4', mov: '.mov', webm: '.webm', jpg: '.jpg', jpeg: '.jpg', png: '.png', webp: '.webp', gif: '.gif' };
-function receiveUpload(req, res, user) {
+const { EXT_OK } = store;
+async function receiveUpload(req, res, user) {
   if (!requireAuth(user, res)) return;
   const url = new URL(req.url, 'http://x');
   const ext = EXT_OK[String(url.searchParams.get('ext') || '').toLowerCase().replace('.', '')];
   if (!ext) return send(res, 400, { error: 'Unsupported file type' });
-  const name = `${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`;
-  const dest = path.join(UPLOAD_DIR, name);
-  const out = fs.createWriteStream(dest);
-  let size = 0, failed = false;
-  const fail = (code, msg) => {
-    if (failed) return; failed = true;
-    out.destroy(); fs.unlink(dest, () => {});
-    req.destroy(); send(res, code, { error: msg });
-  };
-  req.on('data', (c) => { size += c.length; if (size > UPLOAD_MAX) fail(413, 'File is too large (400 MB max)'); });
-  req.on('error', () => fail(400, 'Upload failed'));
-  out.on('error', () => fail(500, 'Could not save the file'));
-  req.pipe(out);
-  out.on('close', () => { if (!failed) send(res, 200, { file: name, size }); });
+  // Watch the size as it arrives rather than after: a 400 MB body should be cut
+  // off, not stored and then rejected.
+  let size = 0, tooBig = false;
+  req.on('data', (c) => { size += c.length; if (size > UPLOAD_MAX && !tooBig) { tooBig = true; req.destroy(); } });
+  try {
+    const ref = await store.saveStream(req, ext);
+    if (tooBig) { await store.remove(ref); return send(res, 413, { error: 'File is too large (400 MB max)' }); }
+    send(res, 200, { file: ref, size });
+  } catch (e) {
+    if (tooBig) return send(res, 413, { error: 'File is too large (400 MB max)' });
+    send(res, 500, { error: 'Could not save the file' });
+  }
 }
 // ---- Client invitations ----
 function appOrigin(req) {
@@ -1666,7 +1678,7 @@ api['POST /api/dresses/:id/invite-client'] = async (req, res, user, url, params)
   const gUser = process.env.GMAIL_USER, gPass = process.env.GMAIL_APP_PASSWORD;
   if (gUser && gPass) {
     try {
-      await smtpSend({ user: gUser, pass: gPass, to: email, subject: 'Dalia Bassel — your dress',
+      await sendMail({ user: gUser, pass: gPass, to: email, subject: 'Dalia Bassel — your dress',
         text: `Dear ${client.name},\n\nYou can now follow your dress with us — the fittings, the photos and every update.\n\nOpen this link and choose a password:\n${link}\n\nThe link works for 14 days.\n\nDalia Bassel Couture` });
       emailed = true;
     } catch (e) { mailError = e.message; }
@@ -1968,7 +1980,7 @@ async function handle(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
     if (pathname === '/api/upload' && req.method === 'POST') {
-      return receiveUpload(req, res, await getUser(req));
+      return await receiveUpload(req, res, await getUser(req));
     }
     if (pathname.startsWith('/api/')) {
       const m = match(req.method, pathname);

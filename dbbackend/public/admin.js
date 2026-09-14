@@ -159,7 +159,7 @@ function leaveEn(t) { return { annual: 'Annual', sick: 'Sick', unpaid: 'Unpaid' 
 /* branded hero (uses uploaded cover photo if set, else brand banner) */
 function heroBanner(about, admin) {
   const inner = about && about.home_image
-    ? `<div class="hero hero-photo" style="background-image:url('/uploads/${esc(about.home_image)}')" onclick="lightbox('/uploads/${esc(about.home_image)}')"></div>`
+    ? `<div class="hero hero-photo" style="background-image:url('${esc(mediaUrl(about.home_image))}')" onclick="lightbox('${esc(mediaUrl(about.home_image))}')"></div>`
     : `<div class="hero hero-brand"><div class="hero-mark">DB</div><div class="hero-name">Dalia Bassel</div><div class="hero-sub">Haute Couture</div></div>`;
   return `<div style="position:relative">${inner}${admin ? `<button class="hero-cta" onclick="event.stopPropagation();uploadCover()">📷 ${about && about.home_image ? 'Change photo' : 'Add photo'}</button>` : ''}</div>`;
 }
@@ -312,7 +312,7 @@ window.viewStudent = async (id) => {
     </div>
     ${canSeeMoney ? `<div class="sec-title">Payments (${pays.length})</div>
     <div class="card" style="box-shadow:none;margin:0">${pays.length ? pays.map((p) => `<div class="item">
-      <div class="av">${p.image ? `<img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : '💵'}</div>
+      <div class="av">${p.image ? `<img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/>` : '💵'}</div>
       <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`).join('') : '<div class="hint">No payments yet</div>'}</div>` : ''}
     ${(canSeeMoney || canEdit) ? `<div class="row" style="margin-top:14px">
       ${canSeeMoney ? `<button class="btn ghost" onclick="closeModal();addPaymentFor(${id})">＋ Payment</button>` : ''}
@@ -416,7 +416,7 @@ PAGES.finance = async (c) => {
       <div class="hint" style="margin:8px 2px">${shown.length} payment${shown.length === 1 ? '' : 's'}</div>
       <div class="card">${shown.length ? shown.map((p) => `
       <div class="item">
-        <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}','Transfer ${esc(p.user_name || '')}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
+        <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}','Transfer ${esc(p.user_name || '')}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
         <div class="main"><div class="nm">${esc(p.user_name || '')} · ${money(p.amount)}</div>
           <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
         <button class="btn-icon" onclick="editPayment(${p.id})" aria-label="Edit payment">✎</button>
@@ -801,10 +801,10 @@ window.linkedVideo = linkedVideo;
 
 function videoEmbed(v) {
   if (v.file) {
-    if (/\.(png|jpe?g|webp|gif)$/i.test(v.file)) return `<img src="/uploads/${esc(v.file)}" style="width:100%;border-radius:10px;margin-top:6px;cursor:zoom-in" onclick="lightbox('/uploads/${esc(v.file)}')" alt=""/>
-      <a class="btn sec sm" style="margin-top:6px;display:inline-block" href="/uploads/${esc(v.file)}" download>⬇ Download</a>`;
-    return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="/uploads/${esc(v.file)}"></video>
-      <a class="btn sec sm" style="margin-top:6px;display:inline-block" href="/uploads/${esc(v.file)}" download>⬇ Download</a>`;
+    if (/\.(png|jpe?g|webp|gif)$/i.test(v.file)) return `<img src="${esc(mediaUrl(v.file))}" style="width:100%;border-radius:10px;margin-top:6px;cursor:zoom-in" onclick="lightbox('${esc(mediaUrl(v.file))}')" alt=""/>
+      <a class="btn sec sm" style="margin-top:6px;display:inline-block" href="${esc(mediaUrl(v.file))}" download>⬇ Download</a>`;
+    return `<video controls style="width:100%;border-radius:10px;margin-top:6px" src="${esc(mediaUrl(v.file))}"></video>
+      <a class="btn sec sm" style="margin-top:6px;display:inline-block" href="${esc(mediaUrl(v.file))}" download>⬇ Download</a>`;
   }
   if (v.url) {
     const yt = v.url.match(/(?:youtu\.be\/|v=)([\w-]{11})/);
@@ -972,7 +972,7 @@ PAGES.task = async (c) => {
             ${canGrade ? `<button class="btn sm ghost" onclick="gradeSub(${s.id},'${esc(s.grade || '')}')">Grade</button>` : '<span class="st-tick">✓</span>'}
           </div>
           ${s.images.length ? `<div class="scan-strip">${s.images.map((im) => `
-            <img class="scan-thumb" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(s.user_name)}')" alt=""/>`).join('')}</div>` : ''}
+            <img class="scan-thumb" src="${esc(mediaUrl(im.image))}" onclick="lightbox('${esc(mediaUrl(im.image))}','${esc(s.user_name)}')" alt=""/>`).join('')}</div>` : ''}
           ${s.note ? `<div class="hint">“${esc(s.note)}”</div>` : ''}
         </div>`).join('') : '<div class="hint" style="padding:14px 2px">Nobody has handed in yet</div>')
       : (r.pending.length ? r.pending.map((u) => `<div class="st-row waiting">
@@ -1081,7 +1081,7 @@ PAGES.about = async (c) => {
   if (state.user.role !== 'admin') return PAGES.about_view(c, a);
   c.innerHTML = title('About the Academy', '') + `<div class="card">
     ${a.image ? `<div class="ph-frame" style="margin-bottom:10px;${frameStyle(frameVars(a))}">
-      <i style="background-image:url('/uploads/${esc(a.image)}')" onclick="lightbox('/uploads/${esc(a.image)}')"></i></div>` : ''}
+      <i style="background-image:url('${esc(mediaUrl(a.image))}')" onclick="lightbox('${esc(mediaUrl(a.image))}')"></i></div>` : ''}
     <label>Title</label><input id="abT" value="${esc(a.title || '')}" />
     <label>Description</label><textarea id="abB" style="min-height:140px">${esc(a.body || '')}</textarea>
     <div class="row" style="margin-top:10px"><button class="btn ghost" onclick="abPic()">📷 Cover image</button>
@@ -1110,7 +1110,7 @@ function frameStyle(f) {
   return `--ar:${f.shape};--pos:${f.x}% ${f.y}%;--z:${f.z}`;
 }
 function shPhoto(a, admin) {
-  const f = frameVars(a), url = '/uploads/' + esc(a.image);
+  const f = frameVars(a), url = mediaUrl(esc)(a.image);
   return `<div class="sh-photo" style="${frameStyle(f)}">
     <i style="background-image:url('${url}')" onclick="lightbox('${url}')"></i>
     ${admin ? `<button class="sh-frame" onclick="event.stopPropagation();frameAbout()">Frame photo</button>` : ''}
@@ -1123,7 +1123,7 @@ const FRAME_SHAPES = [['16/10', 'Wide'], ['3/2', 'Classic'], ['1/1', 'Square'], 
 window.frameAbout = async () => {
   const a = await GET('/api/about');
   if (!a.image) { toast('Add a photo first'); return; }
-  const f = frameVars(a), url = '/uploads/' + esc(a.image);
+  const f = frameVars(a), url = mediaUrl(esc)(a.image);
   modal(`<h3>Frame the photo</h3>
     <div class="hint" style="margin:-4px 0 12px">Drag the photo to choose what shows. Nothing is cut from the original.</div>
     <div class="sh-photo fr-stage" id="frStage" style="${frameStyle(f)}">
@@ -1274,7 +1274,7 @@ window.daliaHouse = (k) => { window._daliaHouse = k; go('dalia'); };
 function renderDaliaPost(p, admin) {
   const tpl = p.template || 'below';
   const media = p.media || [];
-  const img = p.image ? '/uploads/' + esc(p.image) : '';
+  const img = p.image ? mediaUrl(esc)(p.image) : '';
   const cap = esc((p.title || '').replace(/'/g, ''));
   const imgTag = media.length ? gallery(media) : '';
   const heads = `${p.title ? `<div class="ttl">${esc(p.title)}</div>` : ''}${p.subtitle ? `<div class="sub2">${esc(p.subtitle)}</div>` : ''}`;
@@ -1284,7 +1284,7 @@ function renderDaliaPost(p, admin) {
   const del = admin ? `<div class="row" style="margin-top:12px"><button class="btn sec sm" onclick="editDalia(${p.id})">Edit / add photo</button><button class="btn danger sm" onclick="delDalia(${p.id})">Delete</button></div>` : '';
   if (tpl === 'hero') {
     const single = media.length === 1 && media[0].kind === 'image';
-    const cover = single ? '/uploads/' + esc(media[0].file) : '';
+    const cover = single ? mediaUrl(esc)(media[0].file) : '';
     return `<div class="feed-post fp-hero">${single
       ? `<div class="hero-img" style="background-image:url('${cover}')" onclick="lightbox('${cover}','${cap}')"><div class="hero-ov">${heads}</div></div>`
       : `${imgTag}<div class="body">${heads}</div>`}<div class="body">${date}${txt}${tbl}${del}</div></div>`;
@@ -1293,7 +1293,7 @@ function renderDaliaPost(p, admin) {
     return `<div class="feed-post fp-text"><div class="body">${date}${heads}${txt}${tbl}${del}</div></div>`;
   }
   if (tpl === 'side' && media.length === 1 && media[0].kind === 'image') {
-    return `<div class="feed-post fp-side"><img class="ph" src="/uploads/${esc(media[0].file)}" onclick="lightbox('/uploads/${esc(media[0].file)}','${cap}')"/><div class="body">${date}${heads}${txt}${tbl}${del}</div></div>`;
+    return `<div class="feed-post fp-side"><img class="ph" src="${esc(mediaUrl(media[0].file))}" onclick="lightbox('${esc(mediaUrl(media[0].file))}','${cap}')"/><div class="body">${date}${heads}${txt}${tbl}${del}</div></div>`;
   }
   if (tpl === 'side') {
     return `<div class="feed-post">${imgTag}<div class="body">${date}${heads}${txt}${tbl}${del}</div></div>`;
@@ -1310,7 +1310,7 @@ function daliaForm(p) {
   p = p || {};
   window._dImg = p.image || null; window._dEditId = p.id || null;
   const tpls = [['below', '🖼️ Image on top · text below'], ['side', '↔️ Image beside text'], ['hero', '✨ Big image · title on it'], ['text', '📝 Text only (info block)']];
-  const prev = p.image ? (String(p.image).startsWith('data:') ? p.image : '/uploads/' + esc(p.image)) : '';
+  const prev = p.image ? (String(p.image).startsWith('data:') ? p.image : mediaUrl(esc)(p.image)) : '';
   const secs = [['couture', '👗 Daliessa Couture'], ['academy', '🎓 Dalia Bassel Academy'], ['studio', '✦ Studio news']];
   modal(`<h3>${p.id ? 'Edit post' : 'New post'}</h3>
     <label>Where does it belong?</label>
@@ -1339,7 +1339,7 @@ function dPaintMedia() {
       <button class="scan-del" onclick="${del}" aria-label="Remove">✕</button>
       <span class="scan-tag${tag === 'new' ? ' new' : ''}">${tag}</span></div>`;
   const old = (window._dOld || []).filter((m) => m.id).map((m) => {
-    const c = cell(m.kind === 'video' && m.poster ? '/uploads/' + esc(m.poster) : '/uploads/' + esc(m.file),
+    const c = cell(m.kind === 'video' && m.poster ? mediaUrl(esc)(m.poster) : mediaUrl(esc)(m.file),
       m.kind === 'video' && m.poster ? 'image' : m.kind, `dDelOld(${m.id})`, m.kind === 'video' ? 'video' : 'live');
     // a video can be given a cover of your choosing
     return m.kind === 'video'
@@ -1347,7 +1347,7 @@ function dPaintMedia() {
       : c;
   }).join('');
   const fresh = (window._dNew || []).map((m, i) =>
-    cell('/uploads/' + esc(m.file), m.kind, `dDelNew(${i})`, 'new')).join('');
+    cell(mediaUrl(esc)(m.file), m.kind, `dDelNew(${i})`, 'new')).join('');
   g.innerHTML = (old + fresh) || '<div class="scan-empty">No photos yet</div>';
 }
 window.dAddMedia = () => {
@@ -1423,7 +1423,7 @@ PAGES.dresses = async (c) => {
     <div class="grid g2" id="dressList">${list.length ? list.map((d) => `
       <div class="card" data-name="${esc(isStaff ? 'dress #' + d.id : (d.customer_name || '').toLowerCase())}" style="margin:0;position:relative">
         ${d.unread ? `<span class="notif-dot" title="New update">${d.unread}</span>` : ''}
-        ${d.cover_image ? `<img class="thumb" style="object-position:${esc(d.cover_pos || '50% 50%')}" src="/uploads/${esc(d.cover_image)}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
+        ${d.cover_image ? `<img class="thumb" style="object-position:${esc(d.cover_pos || '50% 50%')}" src="${esc(mediaUrl(d.cover_image))}" onclick="openDress(${d.id})"/>` : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:30px" onclick="openDress(${d.id})">👗</div>`}
         <div class="nm" style="font-weight:600;margin-top:8px">${isStaff ? 'Dress #' + d.id : esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
         <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}${isStaff ? '' : ' · ' + d.fittings.length + ' fittings'}</div>
@@ -1632,9 +1632,9 @@ PAGES.dress = async (c) => {
     <div class="sec-title">All photos ${(canEdit && files.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
     <div class="dphotos" id="dphotos_${id}">${files.map((im, i) => `<div class="dphoto" data-id="${im.id}">
       ${isVideoFile(im.image)
-        ? `<video class="thumb" style="aspect-ratio:3/4;object-fit:cover;${canEdit ? 'pointer-events:none' : ''}" src="/uploads/${esc(im.image)}" muted playsinline preload="metadata"></video>
+        ? `<video class="thumb" style="aspect-ratio:3/4;object-fit:cover;${canEdit ? 'pointer-events:none' : ''}" src="${esc(mediaUrl(im.image))}" muted playsinline preload="metadata"></video>
            <span class="cover-badge" style="left:6px;right:auto">▶ Video</span>`
-        : `<img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="/uploads/${esc(im.image)}"${canEdit ? '' : ` onclick="lightbox('/uploads/${esc(im.image)}')"`} />
+        : `<img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="${esc(mediaUrl(im.image))}"${canEdit ? '' : ` onclick="lightbox('${esc(mediaUrl(im.image))}')"`} />
            ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}`}
       ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
     ${links.length ? `<div class="sec-title">Videos 🎬</div>
@@ -1696,7 +1696,7 @@ PAGES.dress = async (c) => {
 
   c.innerHTML = luxBackdrop() + '<div class="home-lux">' +
     `<div class="dress-head">
-      ${d.cover_image ? `<div class="dh-photo" style="background-image:url('/uploads/${esc(d.cover_image)}');background-position:${esc(d.cover_pos || '50% 50%')}" onclick="dressTab(${id},'photos')"></div>`
+      ${d.cover_image ? `<div class="dh-photo" style="background-image:url('${esc(mediaUrl(d.cover_image))}');background-position:${esc(d.cover_pos || '50% 50%')}" onclick="dressTab(${id},'photos')"></div>`
         : '<div class="dh-photo dh-none">👗</div>'}
       <div class="dh-body">
         <div class="dh-name">${isStaff ? 'Dress #' + id : esc(d.customer_name)}</div>
@@ -1764,7 +1764,7 @@ async function loadDressPayments(id) {
   try {
     const pays = await GET('/api/dresses/' + id + '/payments');
     box.innerHTML = pays.length ? `<div class="card" style="box-shadow:none;margin:0">${pays.map((p) => `<div class="item">
-      <div class="av">${p.image ? `<img class="thumb" style="width:40px;height:40px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
+      <div class="av">${p.image ? `<img class="thumb" style="width:40px;height:40px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
       <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
       <button class="btn-icon" onclick="delDressPayment(${p.id},${id})">🗑</button></div>`).join('')}</div>` : '<div class="hint">No payments yet</div>';
   } catch (e) { box.innerHTML = '<div class="hint">Could not load payments</div>'; }
@@ -1790,7 +1790,7 @@ function renderUpdate(u) {
   return `<div class="upd ${studio ? 'upd-studio' : 'upd-client'}">
     <div class="upd-h">${esc(u.author_name || '')} · <span class="muted">${timeago(u.created_at)}</span></div>
     ${u.body ? `<div class="upd-b">${esc(u.body)}</div>` : ''}
-    ${u.image ? `<img class="thumb" style="max-width:170px;height:auto;aspect-ratio:auto;border-radius:8px;margin-top:6px" src="/uploads/${esc(u.image)}" onclick="lightbox('/uploads/${esc(u.image)}')"/>` : ''}
+    ${u.image ? `<img class="thumb" style="max-width:170px;height:auto;aspect-ratio:auto;border-radius:8px;margin-top:6px" src="${esc(mediaUrl(u.image))}" onclick="lightbox('${esc(mediaUrl(u.image))}')"/>` : ''}
   </div>`;
 }
 window.updateClient = (id) => formModal('Update for the client', [
@@ -1825,7 +1825,7 @@ window.openMeasurements = (id) => {
       <div><label>Fit</label><select id="ms_fit" ${canEdit ? '' : 'disabled'}><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
     </div>
     <label>Note</label><textarea id="ms_note"${ro}>${esc(d.measure_note || '')}</textarea>
-    ${canEdit ? `<div class="row" style="margin-top:8px"><button class="btn ghost sm" onclick="pickMeasImg()">📷 Reference photo</button><span class="hint" id="msImgLbl">${d.measure_image ? 'Selected ✓' : 'None'}</span></div>` : (d.measure_image ? `<div class="ref" style="margin-top:8px"><img class="thumb" style="max-width:200px" src="/uploads/${esc(d.measure_image)}" onclick="lightbox('/uploads/${esc(d.measure_image)}')"/></div>` : '')}
+    ${canEdit ? `<div class="row" style="margin-top:8px"><button class="btn ghost sm" onclick="pickMeasImg()">📷 Reference photo</button><span class="hint" id="msImgLbl">${d.measure_image ? 'Selected ✓' : 'None'}</span></div>` : (d.measure_image ? `<div class="ref" style="margin-top:8px"><img class="thumb" style="max-width:200px" src="${esc(mediaUrl(d.measure_image))}" onclick="lightbox('${esc(mediaUrl(d.measure_image))}')"/></div>` : '')}
     <div class="row" style="margin-top:14px">${canEdit ? `<button class="btn" onclick="saveMeasurements(${id})">Save</button>` : ''}
       <button class="btn sec" onclick="printMeasurements(${id})">🖨 PDF</button></div>`);
 };
@@ -1864,7 +1864,7 @@ window.printMeasurements = (id) => {
     <div class="meta"><div><b>${state.user.role === 'staff' ? 'Dress' : 'Client'}:</b> ${who}</div><div><b>Delivery:</b> ${d.delivery_date ? dt(d.delivery_date) : '—'}</div><div><b>Fit:</b> ${esc(fit || '—')}</div></div>
     <table>${rows}</table>
     ${note ? `<div class="note"><b>Note:</b> ${esc(note)}</div>` : ''}
-    ${img ? `<div class="ref"><div style="font-weight:700;margin-bottom:6px">Reference</div><img src="${img.startsWith('data:') ? img : '/uploads/' + img}"></div>` : ''}
+    ${img ? `<div class="ref"><div style="font-weight:700;margin-bottom:6px">Reference</div><img src="${img.startsWith('data:') ? img : mediaUrl(img)}"></div>` : ''}
     <scr` + `ipt>window.onload=function(){setTimeout(function(){window.print()},400)}</scr` + `ipt>
   </body></html>`;
   const w = window.open('', '_blank');
@@ -1897,7 +1897,7 @@ PAGES.purchases = async (c) => {
       const n = inv.lines ? inv.lines.length : 0;
       return `<div class="card pu-card" onclick="openPurchase(${inv.id})">
       <div class="inv-head">
-        ${inv.image ? `<img class="inv-scan" src="/uploads/${esc(inv.image)}" alt=""/>` : '<div class="inv-scan pu-noscan">🧾</div>'}
+        ${inv.image ? `<img class="inv-scan" src="${esc(mediaUrl(inv.image))}" alt=""/>` : '<div class="inv-scan pu-noscan">🧾</div>'}
         <div class="inv-who">
           <div class="inv-name"><bdi>${esc(inv.vendor_name || inv.shop || 'Shop')}</bdi></div>
           <div class="inv-meta"><bdi>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</bdi> · ${n} item${n === 1 ? '' : 's'}${inv.note ? ` · <bdi>${esc(inv.note)}</bdi>` : ''}</div>
@@ -1922,7 +1922,7 @@ window.openPurchase = async (id) => {
       <select id="pv_${id}" onchange="setPurchaseVendor(${id},this.value)" style="width:100%"><option value="">— none —</option>${window._purVendors.map((v) => `<option value="${v.id}" ${inv.vendor_id === v.id ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>` : ''}
     <div class="sec-title">Invoice</div>
     ${inv.image
-      ? `<img style="width:100%;max-height:360px;object-fit:contain;background:#faf7ff;border-radius:12px;cursor:zoom-in" src="/uploads/${esc(inv.image)}" onclick="lightbox('/uploads/${esc(inv.image)}','${esc(inv.shop || '')}')"/>
+      ? `<img style="width:100%;max-height:360px;object-fit:contain;background:#faf7ff;border-radius:12px;cursor:zoom-in" src="${esc(mediaUrl(inv.image))}" onclick="lightbox('${esc(mediaUrl(inv.image))}','${esc(inv.shop || '')}')"/>
          <button class="btn ghost sm" style="margin-top:8px" onclick="addPurchaseImg(${id})">📷 Replace invoice photo</button>`
       : `<div class="hint">No invoice photo yet</div><button class="btn ghost sm" style="margin-top:6px" onclick="addPurchaseImg(${id})">📷 Add invoice photo</button>`}
     <div class="sec-title">Items</div>
@@ -2003,7 +2003,7 @@ PAGES.expenses = async (c) => {
   if (tab === 'entries') {
     inner = `<button class="btn" onclick="addExpense()">＋ New expense</button>
       <div class="card" style="margin-top:12px">${expenses.length ? expenses.map((e) => `<div class="item">
-        ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="/uploads/${esc(e.image)}" onclick="lightbox('/uploads/${esc(e.image)}')"/></div>` : '<div class="av">💸</div>'}
+        ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : '<div class="av">💸</div>'}
         <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div>
         <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty('No expenses yet', '💸')}</div>`;
   } else if (tab === 'analysis') {
@@ -2294,7 +2294,7 @@ window.adjustCover = (id) => {
     <p class="hint" style="margin-top:-4px">Drag the photo to choose what the card shows.</p>
     <div id="acBox" style="position:relative;width:100%;max-width:280px;margin:0 auto;aspect-ratio:3/4;
       border-radius:14px;overflow:hidden;background:#000;touch-action:none;cursor:grab">
-      <img id="acImg" src="/uploads/${esc(d.cover_image)}" alt=""
+      <img id="acImg" src="${esc(mediaUrl(d.cover_image))}" alt=""
         style="width:100%;height:100%;object-fit:cover;object-position:${sx}% ${sy}%;pointer-events:none;user-select:none" />
       <div id="acGrid" style="position:absolute;inset:0;pointer-events:none;opacity:.55;
         background:linear-gradient(to right,transparent 0 33.2%,#fff 33.2% 33.5%,transparent 33.5% 66.5%,#fff 66.5% 66.8%,transparent 66.8%),
@@ -2413,7 +2413,7 @@ PAGES.staffmember = async (c) => {
       <button class="btn" style="margin-top:12px" onclick="sendSalary(${id},${sal.net},'${month}')">＋ Send salary (with transfer)</button>
       <div class="sec-title">Salary sent</div>
       <div class="card">${pays.length ? pays.map((p) => `<div class="item">
-        ${p.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/></div>` : '<div class="av">💵</div>'}
+        ${p.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/></div>` : '<div class="av">💵</div>'}
         <div class="main"><div class="nm">${money(p.amount)} · ${esc(p.month || '')}</div><div class="sub">${p.note ? esc(p.note) + ' · ' : ''}Sent ${dt(p.created_at)}</div></div>
         <span class="badge ${p.status === 'confirmed' ? 'ok' : 'warn'}">${p.status === 'confirmed' ? 'Confirmed ✓' : 'Sent'}</span>
         <button class="btn-icon" onclick="delSalaryPay(${p.id})">🗑</button></div>`).join('') : empty('No salary sent yet')}</div>`;

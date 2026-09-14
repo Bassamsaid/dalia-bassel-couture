@@ -7,7 +7,7 @@ PAGES.profile = async (c) => {
   window._pfAvatar = undefined; // undefined = photo unchanged
   c.innerHTML = title('My Profile', '') + `
     <div class="card" style="text-align:center">
-      <div id="pfBigAv" style="width:92px;height:92px;border-radius:50%;margin:0 auto 8px;overflow:hidden;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:30px;font-weight:700">${u.avatar ? `<img src="/uploads/${esc(u.avatar)}" style="width:100%;height:100%;object-fit:cover" alt=""/>` : esc(initials(u.name))}</div>
+      <div id="pfBigAv" style="width:92px;height:92px;border-radius:50%;margin:0 auto 8px;overflow:hidden;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:30px;font-weight:700">${u.avatar ? `<img src="${esc(mediaUrl(u.avatar))}" style="width:100%;height:100%;object-fit:cover" alt=""/>` : esc(initials(u.name))}</div>
       <button class="btn ghost sm" onclick="changeAvatar()">📷 Change photo</button>
       <div class="serif" style="font-size:22px;font-weight:700;margin-top:10px">${esc(u.name)}</div>
       <div class="muted">${roleLabel(u.role)}${u.email ? ' · ' + esc(u.email) : ''}</div>
@@ -109,7 +109,7 @@ PAGES.homework_trainee = async (c) => {
       ${h.measurements ? `<div class="hint">Measurements: ${esc(h.measurements)}</div>` : ''}
       ${h.instructions ? `<div class="hint">${esc(h.instructions)}</div>` : ''}
       ${sub ? `<div class="scan-strip">${sub.images.map((im) => `
-            <img class="scan-thumb" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}')" alt=""/>`).join('')}
+            <img class="scan-thumb" src="${esc(mediaUrl(im.image))}" onclick="lightbox('${esc(mediaUrl(im.image))}')" alt=""/>`).join('')}
           </div>
           <div class="hint">${n} photo${n === 1 ? '' : 's'} · sent ${dt(sub.submitted_at)}${sub.grade ? ' · ' + esc(sub.grade) : ''}</div>
           ${sub.feedback ? `<div class="upd upd-studio" style="max-width:100%"><div class="upd-h">Dalia's note</div><div class="upd-b">${esc(sub.feedback)}</div></div>` : ''}
@@ -139,7 +139,7 @@ window.submitHw = (id) => {
 function hwPaint() {
   const g = $('#hwGrid'); if (!g) return;
   const old = window._hwOld.map((im) => `<div class="scan-cell">
-      <img src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}')" alt=""/>
+      <img src="${esc(mediaUrl(im.image))}" onclick="lightbox('${esc(mediaUrl(im.image))}')" alt=""/>
       <button class="scan-del" onclick="hwDelOld(${im.id})" aria-label="Remove photo">✕</button>
       <span class="scan-tag">sent</span></div>`).join('');
   const fresh = window._hwNew.map((b64, i) => `<div class="scan-cell">
@@ -242,7 +242,7 @@ PAGES.mypay = async (c) => {
       <div class="stat"><div class="n">${pay.length}</div><div class="l">Payments</div></div></div>
     <div class="sec-title">My payments</div>
     <div class="card">${pay.length ? pay.map((p, i) => `<div class="item">
-      <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/>` : '💵'}</div>
+      <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/>` : '💵'}</div>
       <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
       <button class="btn sec sm" onclick="printMyPay(${i})">🖨 Receipt</button></div>`).join('') : empty('No payments yet', '💵')}</div>
     ${rem.filter((r) => !r.done).length ? `<div class="sec-title">Upcoming payments</div><div class="card">${rem.filter((r) => !r.done).map((r) => `<div class="item"><div class="av">◷</div><div class="main"><div class="nm">${dt(r.due_date)}</div><div class="sub">${money(r.amount)}${r.note ? ' · ' + esc(r.note) : ''}</div></div></div>`).join('')}</div>` : ''}`;
@@ -255,7 +255,7 @@ window.printDressPay = (did, i) => { const d = (window._custDresses || []).find(
 PAGES.about_view = async (c, a) => {
   a = a || await GET('/api/about');
   c.innerHTML = title(a.title || 'Dalia Bassel Couture', '') + `<div class="card">
-    ${a.image ? `<img class="thumb" style="aspect-ratio:16/9;margin-bottom:10px" src="/uploads/${esc(a.image)}" onclick="lightbox('/uploads/${esc(a.image)}')"/>` : ''}
+    ${a.image ? `<img class="thumb" style="aspect-ratio:16/9;margin-bottom:10px" src="${esc(mediaUrl(a.image))}" onclick="lightbox('${esc(mediaUrl(a.image))}')"/>` : ''}
     <div style="font-size:15px;white-space:pre-wrap">${esc(a.body || 'A couture academy for pattern-making and tailoring.')}</div></div>`;
 };
 
@@ -431,7 +431,7 @@ PAGES.mysalary = async (c) => {
     </div>` : empty('No salary info yet', '💵')) +
     `<div class="sec-title">Salary sent to me</div>
      <div class="card">${pays.length ? pays.map((p) => `<div class="item">
-        ${p.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="/uploads/${esc(p.image)}" onclick="lightbox('/uploads/${esc(p.image)}')"/></div>` : '<div class="av">💵</div>'}
+        ${p.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/></div>` : '<div class="av">💵</div>'}
         <div class="main"><div class="nm">${money(p.amount)} · ${esc(p.month || '')}</div><div class="sub">${p.note ? esc(p.note) + ' · ' : ''}${dt(p.created_at)}</div></div>
         ${p.status === 'confirmed' ? '<span class="badge ok">Confirmed ✓</span>' : `<button class="btn sm" onclick="confirmSalary(${p.id})">Confirm received</button>`}</div>`).join('') : empty('No salary sent yet', '💵')}</div>`;
 };
@@ -497,7 +497,7 @@ PAGES.mydresses = async (c, opts = {}) => {
           <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.method === 'cash' ? 'Cash' : 'Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
           <button class="btn sec sm" onclick="printDressPay(${d.id},${i})">🖨 Receipt</button></div>`).join('') : '<div class="hint">No payments yet</div>'}</div>` : ''}
       ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
-      ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="/uploads/${esc(im.image)}" onclick="lightbox('/uploads/${esc(im.image)}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
+      ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="${esc(mediaUrl(im.image))}" onclick="lightbox('${esc(mediaUrl(im.image))}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}
       <div class="sec-title">Updates 💬</div>
       <div id="dupd_${d.id}"><div class="hint">Loading…</div></div>
       <button class="btn sec sm" style="margin-top:8px" onclick="sendDressNote(${d.id})">📝 Send a note about your dress</button>
@@ -667,8 +667,8 @@ window.briefDel = (i) => { window._briefMedia.splice(i, 1); briefPaint(); };
 function briefPaint() {
   const g = $('#bMedia'); if (!g) return;
   g.innerHTML = window._briefMedia.map((m, i) => `<div class="scan-cell">
-      ${m.kind === 'video' ? `<video src="/uploads/${esc(m.file)}" muted playsinline preload="metadata"></video><span class="scan-play">▶</span>`
-        : `<img src="/uploads/${esc(m.file)}" alt=""/>`}
+      ${m.kind === 'video' ? `<video src="${esc(mediaUrl(m.file))}" muted playsinline preload="metadata"></video><span class="scan-play">▶</span>`
+        : `<img src="${esc(mediaUrl(m.file))}" alt=""/>`}
       <button class="scan-del" onclick="briefDel(${i})" aria-label="Remove">✕</button>
     </div>`).join('') || '<div class="scan-empty">No photos yet — optional</div>';
 }
@@ -793,7 +793,7 @@ function chatBubbles(r) {
       <div class="bub">
         ${!sameAsPrev ? `<div class="bub-who">${esc(who)}</div>` : ''}
         ${media.length ? `<div class="bub-media">${gallery(media)}</div>` : ''}
-        ${x.image ? `<img class="bub-img" src="/uploads/${esc(x.image)}" onclick="lightbox('/uploads/${esc(x.image)}')" alt=""/>` : ''}
+        ${x.image ? `<img class="bub-img" src="${esc(mediaUrl(x.image))}" onclick="lightbox('${esc(mediaUrl(x.image))}')" alt=""/>` : ''}
         ${x.body ? `<div class="bub-t">${esc(x.body)}</div>` : ''}
         <span class="bub-time">${esc(hm(x.created_at))}</span>
       </div>
