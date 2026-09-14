@@ -1976,7 +1976,11 @@ const VISITOR_OK = [
 // http server below when the file is run directly.
 async function handle(req, res) {
   try {
-    await ready; // the schema is built once per cold start, before anything reads
+    // The schema is built once per cold start, before anything reads. A failure
+    // here is configuration, not a bad request, and saying so beats the browser's
+    // generic connection error.
+    try { await ready; }
+    catch (e) { return send(res, 503, { error: 'The app is not connected to its database. ' + e.message }); }
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const pathname = url.pathname;
     if (pathname === '/api/upload' && req.method === 'POST') {

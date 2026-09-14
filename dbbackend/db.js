@@ -13,10 +13,17 @@ const fs = require('node:fs');
 
 const TURSO = process.env.TURSO_DATABASE_URL;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
-if (!TURSO) fs.mkdirSync(DATA_DIR, { recursive: true });
+// Without a hosted database the data has to go on disk — and a serverless file
+// system is read-only, so this fails at startup rather than on the first login
+// with something that reads like a network problem.
+let diskError = null;
+if (!TURSO) {
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); }
+  catch (e) { diskError = `No TURSO_DATABASE_URL is set, and ${DATA_DIR} cannot be written to (${e.code}). Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN.`; }
+}
 const DB_PATH = path.join(DATA_DIR, 'daliessa.db');
 
-const client = createClient(TURSO
+const client = diskError ? null : createClient(TURSO
   ? { url: TURSO, authToken: process.env.TURSO_AUTH_TOKEN }
   : { url: 'file:' + DB_PATH });
 
@@ -82,6 +89,7 @@ function verifyPassword(pw, stored) {
 
 // Schema, migrations and the first-run seed, in order.
 const ready = (async () => {
+  if (diskError) throw new Error(diskError);
   await db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -623,5 +631,9 @@ const ready = (async () => {
   await tryExec('ALTER TABLE vendors ADD COLUMN email TEXT');
 
 })();
+
+// Nobody awaits this at load time, and an unhandled rejection takes the process
+// with it — so it is marked handled here. Whoever awaits it still gets the error.
+ready.catch(() => {});
 
 module.exports = { db, ready, hashPassword, verifyPassword, DB_PATH };
