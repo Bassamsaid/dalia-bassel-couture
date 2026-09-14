@@ -58,28 +58,28 @@ function tablesFrom(raw) {
   return tables;
 }
 
-function planFor(tables) {
+async function planFor(tables) {
+  // One round trip for the table list, rather than one per table in the file.
+  const have = new Set((await db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()).map((r) => r.name));
   const present = new Set(Object.keys(tables).filter((t) => Array.isArray(tables[t]) && tables[t].length));
-  return [...ORDER.filter((t) => present.has(t)), ...[...present].filter((t) => !ORDER.includes(t))]
-    .filter((t) => db.prepare("SELECT COUNT(*) c FROM sqlite_master WHERE type='table' AND name=?").get(t).c);
+  return [...ORDER.filter((t) => present.has(t)), ...[...present].filter((t) => !ORDER.includes(t))].filter((t) => have.has(t));
 }
 
 // Rows whose id is already used are skipped, so restoring twice is safe and
 // restoring onto a database that has moved on cannot overwrite newer work.
 // replace:true overwrites those rows instead.
-function restore(raw, { replace = false } = {}) {
+async function restore(raw, { replace = false } = {}) {
   const tables = tablesFrom(raw);
-  const plan = planFor(tables);
+  const plan = await planFor(tables);
   if (!plan.length) return { tables: [], written: 0, skipped: 0, needPassword: 0 };
 
   let written = 0, skipped = 0;
   const perTable = [];
-  db.exec('BEGIN');
-  try {
+  await db.transaction(async (tx) => {
     for (const t of plan) {
       // Only columns this database actually has — a backup from an older version
       // will not carry the newer ones, and must still restore.
-      const cols = db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
+      const cols = (await db.prepare(`PRAGMA table_info(${t})`).all()).map((c) => c.name);
       let w = 0;
       for (const row of tables[t]) {
         // A backup never carries password hashes, and the column cannot be null:
@@ -90,17 +90,13 @@ function restore(raw, { replace = false } = {}) {
         const sql = `INSERT OR ${replace ? 'REPLACE' : 'IGNORE'} INTO ${t} (${use.join(',')}) VALUES (${use.map(() => '?').join(',')})`;
         // Nested objects (a dress's measurements) are stored as their JSON text.
         const vals = use.map((c) => (row[c] !== null && typeof row[c] === 'object' ? JSON.stringify(row[c]) : row[c]));
-        const r = db.prepare(sql).run(...vals);
+        const r = await tx.prepare(sql).run(...vals);
         if (r.changes) { written++; w++; } else skipped++;
       }
       perTable.push({ table: t, inFile: tables[t].length, written: w });
     }
-    db.exec('COMMIT');
-  } catch (e) {
-    db.exec('ROLLBACK');
-    throw e;
-  }
-  const needPassword = db.prepare('SELECT COUNT(*) c FROM users WHERE password_hash = ?').get(NEEDS_RESET).c;
+  });
+  const needPassword = (await db.prepare('SELECT COUNT(*) c FROM users WHERE password_hash = ?').get(NEEDS_RESET)).c;
   return { tables: perTable, written, skipped, needPassword };
 }
 
