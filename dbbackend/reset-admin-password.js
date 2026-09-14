@@ -3,7 +3,7 @@
 // database the server does (DATA_DIR is resolved by db.js, volume included):
 //   node --experimental-sqlite reset-admin-password.js '<new password>' [email]
 // The password is never written to this repo — it is passed in at run time.
-const { db, hashPassword } = require('./db');
+const { db, ready, hashPassword } = require('./db');
 
 const pw = process.argv[2] || process.env.NEW_PASSWORD;
 const email = process.argv[3];
@@ -20,8 +20,8 @@ if (String(pw).length < 10) {
 // Without an email: only safe when there is exactly one admin, otherwise we'd be
 // guessing which account to lock the owner out of.
 const admins = email
-  ? db.prepare("SELECT id, name, email FROM users WHERE email = ? AND role = 'admin'").all(email)
-  : db.prepare("SELECT id, name, email FROM users WHERE role = 'admin'").all();
+  ? await db.prepare("SELECT id, name, email FROM users WHERE email = ? AND role = 'admin'").all(email)
+  : await db.prepare("SELECT id, name, email FROM users WHERE role = 'admin'").all();
 
 if (admins.length === 0) {
   console.error(email ? `No admin found with email ${email}` : 'No admin account found.');
@@ -34,5 +34,5 @@ if (admins.length > 1) {
 }
 
 const admin = admins[0];
-db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(pw), admin.id);
+await db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(pw), admin.id);
 console.log(`Password updated for ${admin.email} (${admin.name}). Sign in with the new one.`);

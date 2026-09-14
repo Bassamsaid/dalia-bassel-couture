@@ -1,0 +1,12 @@
+{
+  "name": "dalia-bassel-couture",
+  "private": true,
+  "description": "Vercel entry point; the app itself lives in dbbackend/.",
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0",
+    "@vercel/blob": "^0.27.0"
+  }
+}

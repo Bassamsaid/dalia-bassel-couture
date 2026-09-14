@@ -4,13 +4,17 @@
   "description": "Daliessa Academy — pattern & tailoring courses, dresses, and staff app (website + PWA).",
   "private": true,
   "scripts": {
-    "start": "node --experimental-sqlite server.js",
-    "seed": "node --experimental-sqlite seed.js",
-    "reset-admin-password": "node --experimental-sqlite reset-admin-password.js",
-    "delete-dresses": "node --experimental-sqlite delete-dresses.js",
-    "restore-backup": "node --experimental-sqlite restore-backup.js"
+    "start": "node server.js",
+    "seed": "node seed.js",
+    "reset-admin-password": "node reset-admin-password.js",
+    "delete-dresses": "node delete-dresses.js",
+    "restore-backup": "node restore-backup.js"
   },
   "engines": {
     "node": "22.x"
+  },
+  "dependencies": {
+    "@libsql/client": "^0.15.0",
+    "@vercel/blob": "^2.8.0"
   }
 }

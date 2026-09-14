@@ -10,6 +10,12 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
    currency ends up across the line from its number. <bdi> isolates the amount so
    it is laid out on its own terms whichever script surrounds it. Every caller
    renders into HTML, never textContent or a toast, so this is safe everywhere. */
+/* A stored photo is either a filename from when files lived on this server, or a
+   full URL from blob storage. Both appear in the same column, so every place that
+   shows one asks here instead of gluing "/uploads/" on the front. */
+const mediaUrl = (v) => (/^https?:\/\//i.test(String(v || '')) ? String(v) : '/uploads/' + String(v || ''));
+window.mediaUrl = mediaUrl;
+
 const money = (n) => `<bdi>${(Number(n || 0)).toLocaleString('en-US')} ${(window._cfg && window._cfg.currency) || 'EGP'}</bdi>`;
 const dt = (s) => s ? String(s).slice(0, 10) : '—';
 const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
@@ -205,11 +211,11 @@ function gallery(media, opts = {}) {
   if (!list.length) return '';
   const id = 'g' + Math.round(performance.now() * 1000) + '_' + list.length;
   const slides = list.map((m) => m.kind === 'video'
-    ? `<div class="gl-slide"><video class="gl-video" src="/uploads/${esc(m.file)}" controls playsinline muted
-         preload="metadata" ${m.poster ? `poster="/uploads/${esc(m.poster)}"` : ''}></video>
+    ? `<div class="gl-slide"><video class="gl-video" src="${esc(mediaUrl(m.file))}" controls playsinline muted
+         preload="metadata" ${m.poster ? `poster="${esc(mediaUrl(m.poster))}"` : ''}></video>
          <button class="gl-sound" onclick="glSound(this)" aria-label="Sound on">🔇</button></div>`
-    : `<div class="gl-slide"><img class="gl-img" src="/uploads/${esc(m.file)}" alt=""
-         onclick="lightbox('/uploads/${esc(m.file)}')"/></div>`).join('');
+    : `<div class="gl-slide"><img class="gl-img" src="${esc(mediaUrl(m.file))}" alt=""
+         onclick="lightbox('${esc(mediaUrl(m.file))}')"/></div>`).join('');
   return `<div class="gl" data-n="${list.length}">
     <div class="gl-track" id="${id}" onscroll="glScroll('${id}')">${slides}</div>
     ${list.length > 1 ? `<div class="gl-dots" id="${id}_d">${list.map((m, i) =>
@@ -623,7 +629,7 @@ function roleLabel(r) { return { admin: 'Admin', manager: 'Manager', trainee: 'S
 function avatarHtml(u, cls) {
   const c = cls || 'pav';
   return (u && u.avatar)
-    ? `<span class="${c}" style="padding:0;overflow:hidden"><img src="/uploads/${esc(u.avatar)}" style="width:100%;height:100%;object-fit:cover" alt=""/></span>`
+    ? `<span class="${c}" style="padding:0;overflow:hidden"><img src="${esc(mediaUrl(u.avatar))}" style="width:100%;height:100%;object-fit:cover" alt=""/></span>`
     : `<span class="${c}">${esc(initials(u && u.name))}</span>`;
 }
 window.avatarHtml = avatarHtml;
@@ -914,7 +920,7 @@ PAGES.notifications = async (c) => {
           <div class="av">${NOTIF_ICON[n.type] || '🔔'}</div>
           <div class="main"><div class="nm">${esc(n.title || '')}</div>
             <div class="sub">${n.body ? esc(n.body) + ' · ' : ''}${timeago(n.created_at)}</div></div>
-          ${n.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1;border-radius:8px" src="/uploads/${esc(n.image)}"/>` : ''}
+          ${n.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1;border-radius:8px" src="${esc(mediaUrl(n.image))}"/>` : ''}
         </div>`).join('')}</div>`
       : empty('No notifications yet', '🔔'));
 };

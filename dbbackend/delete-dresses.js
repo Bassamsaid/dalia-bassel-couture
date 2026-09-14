@@ -16,7 +16,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const readline = require('node:readline');
-const { db } = require('./db');
+const { db, ready } = require('./db');
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
 // The seed's demo customer (seed.js) — the one dress a fresh install ships with.
@@ -27,17 +27,19 @@ const has = (f) => argv.includes(f);
 const yes = has('--yes') || has('-y');
 const withPurchases = has('--with-purchases');
 
-function pickDresses() {
-  if (has('--all')) return db.prepare('SELECT * FROM dresses ORDER BY id').all();
+async function pickDresses() {
+  if (has('--all')) return await db.prepare('SELECT * FROM dresses ORDER BY id').all();
   if (has('--demo')) {
-    return db.prepare(`SELECT d.* FROM dresses d LEFT JOIN users u ON u.id = d.customer_user_id
+    return await db.prepare(`SELECT d.* FROM dresses d LEFT JOIN users u ON u.id = d.customer_user_id
                        WHERE u.email = ? ORDER BY d.id`).all(DEMO_CUSTOMER_EMAIL);
   }
   const i = argv.indexOf('--ids');
   if (i !== -1) {
     const ids = String(argv[i + 1] || '').split(',').map((s) => parseInt(s.trim(), 10)).filter(Number.isInteger);
     if (!ids.length) { console.error('--ids needs a list, e.g. --ids 3,7'); process.exit(1); }
-    return ids.map((id) => db.prepare('SELECT * FROM dresses WHERE id = ?').get(id)).filter(Boolean);
+    const picked = [];
+    for (const id of ids) picked.push(await db.prepare('SELECT * FROM dresses WHERE id = ?').get(id));
+    return picked.filter(Boolean);
   }
   return null; // no flag -> listing mode
 }
@@ -50,24 +52,24 @@ const CHILD_TABLES = ['dress_fittings', 'dress_images', 'dress_updates', 'dress_
 // shrink that invoice's total (server.js sums its lines) and quietly drop the
 // expense from the books, so the line is detached instead — the same state the
 // app already allows via PUT /api/purchase-lines/:id.
-function countChildren(ids) {
+async function countChildren(ids) {
   const marks = ids.map(() => '?').join(',');
   const out = {};
   for (const t of CHILD_TABLES) {
-    out[t] = db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE dress_id IN (${marks})`).get(...ids).c;
+    out[t] = (await db.prepare(`SELECT COUNT(*) c FROM ${t} WHERE dress_id IN (${marks})`).get(...ids)).c;
   }
-  const lines = db.prepare(`SELECT COUNT(*) c FROM purchase_lines WHERE dress_id IN (${marks})`).get(...ids).c;
+  const lines = (await db.prepare(`SELECT COUNT(*) c FROM purchase_lines WHERE dress_id IN (${marks})`).get(...ids)).c;
   out[withPurchases ? 'purchase_lines (DELETED)' : 'purchase_lines (detached, kept)'] = lines;
-  if (withPurchases) out['purchase_invoices left empty (DELETED)'] = emptiedInvoices(ids).length;
+  if (withPurchases) out['purchase_invoices left empty (DELETED)'] = await emptiedInvoices(ids).length;
   return out;
 }
 
 // Invoices that would have no lines left once the dress lines go. A line with no
 // dress (general spending) keeps its invoice alive, so only fully-dress invoices
 // are swept up here.
-function emptiedInvoices(ids) {
+async function emptiedInvoices(ids) {
   const marks = ids.map(() => '?').join(',');
-  return db.prepare(`SELECT id, image FROM purchase_invoices WHERE id IN (
+  return await db.prepare(`SELECT id, image FROM purchase_invoices WHERE id IN (
                        SELECT DISTINCT invoice_id FROM purchase_lines WHERE dress_id IN (${marks})
                      ) AND id NOT IN (
                        SELECT invoice_id FROM purchase_lines
@@ -84,8 +86,8 @@ function uploadPath(stored) {
   return full.startsWith(path.resolve(UPLOAD_DIR) + path.sep) ? full : null;
 }
 
-function listAll() {
-  const rows = db.prepare(`SELECT d.id, d.customer_name, d.status, d.delivery_date, u.email
+async function listAll() {
+  const rows = await db.prepare(`SELECT d.id, d.customer_name, d.status, d.delivery_date, u.email
                            FROM dresses d LEFT JOIN users u ON u.id = d.customer_user_id
                            ORDER BY d.id`).all();
   if (!rows.length) { console.log('No dresses in this database.'); return; }
@@ -104,20 +106,20 @@ function confirm(question) {
 }
 
 (async () => {
-  const targets = pickDresses();
-  if (targets === null) return listAll();
+  const targets = await pickDresses();
+  if (targets === null) return await listAll();
   if (!targets.length) { console.log('Nothing matched — no dresses deleted.'); return; }
 
   const ids = targets.map((d) => d.id);
   console.log(`About to delete ${targets.length} dress(es):\n`);
   for (const d of targets) console.log(`  #${d.id}  ${d.customer_name || '(no name)'}  [${d.status || '-'}]`);
-  const children = countChildren(ids);
+  const children = await countChildren(ids);
   console.log('\nand the rows attached to them:');
   for (const [t, c] of Object.entries(children)) console.log(`  ${t}: ${c}`);
 
-  const emptied = withPurchases ? emptiedInvoices(ids) : [];
-  const files = db.prepare(`SELECT image FROM dress_images WHERE dress_id IN (${ids.map(() => '?').join(',')})`)
-    .all(...ids).map((r) => r.image)
+  const emptied = withPurchases ? await emptiedInvoices(ids) : [];
+  const files = (await db.prepare(`SELECT image FROM dress_images WHERE dress_id IN (${ids.map(() => '?').join(',')})`)
+    .all(...ids)).map((r) => r.image)
     .concat(emptied.map((inv) => inv.image))
     .map(uploadPath).filter((p) => p && fs.existsSync(p));
   console.log(`  uploaded image files on disk: ${files.length}`);
@@ -129,19 +131,18 @@ function confirm(question) {
   }
 
   const marks = ids.map(() => '?').join(',');
-  db.exec('BEGIN');
   try {
-    for (const t of CHILD_TABLES) db.prepare(`DELETE FROM ${t} WHERE dress_id IN (${marks})`).run(...ids);
-    if (withPurchases) {
-      db.prepare(`DELETE FROM purchase_lines WHERE dress_id IN (${marks})`).run(...ids);
-      for (const inv of emptied) db.prepare('DELETE FROM purchase_invoices WHERE id = ?').run(inv.id);
-    } else {
-      db.prepare(`UPDATE purchase_lines SET dress_id = NULL WHERE dress_id IN (${marks})`).run(...ids);
-    }
-    db.prepare(`DELETE FROM dresses WHERE id IN (${marks})`).run(...ids);
-    db.exec('COMMIT');
+    await db.transaction(async (tx) => {
+      for (const t of CHILD_TABLES) await tx.prepare(`DELETE FROM ${t} WHERE dress_id IN (${marks})`).run(...ids);
+      if (withPurchases) {
+        await tx.prepare(`DELETE FROM purchase_lines WHERE dress_id IN (${marks})`).run(...ids);
+        for (const inv of emptied) await tx.prepare('DELETE FROM purchase_invoices WHERE id = ?').run(inv.id);
+      } else {
+        await tx.prepare(`UPDATE purchase_lines SET dress_id = NULL WHERE dress_id IN (${marks})`).run(...ids);
+      }
+      await tx.prepare(`DELETE FROM dresses WHERE id IN (${marks})`).run(...ids);
+    });
   } catch (e) {
-    db.exec('ROLLBACK');
     console.error('Failed, nothing was deleted:', e.message);
     process.exit(1);
   }
