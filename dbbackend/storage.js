@@ -14,7 +14,14 @@ const crypto = require('node:crypto');
 
 const BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
-if (!BLOB) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// A serverless file system is read-only. Creating the directory must not be what
+// decides whether the app starts — uploads can report the problem when one is
+// attempted, and everything else works meanwhile.
+let diskError = null;
+if (!BLOB) {
+  try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); }
+  catch (e) { diskError = `Uploads have nowhere to go: ${UPLOAD_DIR} cannot be written to (${e.code}), and BLOB_READ_WRITE_TOKEN is not set.`; }
+}
 
 const EXT_OK = { mp4: '.mp4', mov: '.mov', webm: '.webm', jpg: '.jpg', jpeg: '.jpg', png: '.png', webp: '.webp', gif: '.gif' };
 const MIME = {
@@ -38,6 +45,7 @@ function diskPath(stored) {
 
 // Save bytes; returns what to store in the database.
 async function save(buf, ext) {
+  if (diskError) throw new Error(diskError);
   const name = newName(ext);
   if (!BLOB) { fs.writeFileSync(path.join(UPLOAD_DIR, name), buf); return name; }
   const { put } = require('@vercel/blob');
@@ -48,6 +56,7 @@ async function save(buf, ext) {
 // Save a request body without holding it in memory — a fitting video is tens of
 // megabytes, and Blob takes the stream straight through.
 async function saveStream(stream, ext) {
+  if (diskError) throw new Error(diskError);
   const name = newName(ext);
   if (!BLOB) {
     await new Promise((res, rej) => {
