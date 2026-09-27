@@ -9,6 +9,7 @@ const { URL } = require('node:url');
 const { db, ready, hashPassword, verifyPassword, DB_PATH } = require('./db');
 const { restore } = require('./restore');
 const store = require('./storage');
+const { writeZip } = require('./zip');
 
 // Sending mail. A serverless function usually cannot open a raw socket on port
 // 465, so where RESEND_API_KEY is set the mail goes over plain HTTPS instead;
@@ -1224,6 +1225,7 @@ api['GET /api/storage'] = async (req, res, user) => {
   // along with it on every deploy.
   const inApp = dataDir === path.join(appDir, 'data') || dataDir.startsWith(appDir + path.sep);
   const uploadsInApp = path.resolve(UPLOAD_DIR).startsWith(appDir + path.sep);
+  const photos = listUploads();
   send(res, 200, {
     data_dir: dataDir,
     upload_dir: path.resolve(UPLOAD_DIR),
@@ -1231,8 +1233,26 @@ api['GET /api/storage'] = async (req, res, user) => {
     upload_dir_set: !!process.env.UPLOAD_DIR,
     persistent: !inApp,
     uploads_persistent: !uploadsInApp,
+    // What a photo download would contain. On blob storage the photos are
+    // already at addresses of their own and there is nothing here to pack.
+    photos: store.BLOB ? null : photos.length,
+    photos_bytes: store.BLOB ? null : photos.reduce((n, f) => n + f.size, 0),
   });
 };
+
+// Every file sitting in UPLOAD_DIR, newest last. Not the database's idea of
+// which photos exist — the disk's, so nothing is left behind.
+function listUploads() {
+  try {
+    return fs.readdirSync(UPLOAD_DIR)
+      .map((name) => {
+        const full = path.join(UPLOAD_DIR, name);
+        try { const s = fs.statSync(full); return s.isFile() ? { full, size: s.size } : null; }
+        catch (e) { return null; }
+      })
+      .filter(Boolean);
+  } catch (e) { return []; }
+}
 
 // ================= BACKUP =================
 // Hosting without a persistent volume keeps the database inside the container,
@@ -1276,6 +1296,24 @@ api['GET /api/backup.json'] = async (req, res, user) => {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Disposition': `attachment; filename="${backupName('json')}"`,
   });
+};
+
+// The photos. A backup holds the studio's records; these are the fabric shots,
+// the fittings and the receipts, and they live as files rather than rows — so
+// leaving a host without them means losing them. One archive, one download.
+api['GET /api/uploads.zip'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  if (store.BLOB) {
+    return send(res, 400, { error: 'The photos are on blob storage, each at an address of its own, so there is nothing here to pack.' });
+  }
+  const files = listUploads();
+  if (!files.length) return send(res, 404, { error: 'There are no photos on this copy yet.' });
+  res.writeHead(200, {
+    'Content-Type': 'application/zip',
+    'Content-Disposition': `attachment; filename="${backupName('zip').replace('backup', 'photos')}"`,
+  });
+  try { await writeZip(res, files.map((f) => f.full)); }
+  catch (e) { res.destroy(); } // headers are already out; the truncated file is the error
 };
 
 // Putting a backup back from the phone. Hosting without a volume means a

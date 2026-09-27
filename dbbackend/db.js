@@ -506,18 +506,25 @@ const ready = (async () => {
 
   // ---- password helpers (scrypt, no deps) ----
 
+  // The first admin's password. This repository is public, so a fixed default
+  // here would be a published password on every install that ever ran it: take
+  // it from the environment, and otherwise generate one and print it once.
+  // Either way reset-admin-password can set a new one later.
+  const firstAdminPassword = process.env.ADMIN_PASSWORD || crypto.randomBytes(9).toString('base64url');
+
   // Seed a default admin (Dalia) if no users exist
   async function seed() {
     const count = (await db.prepare('SELECT COUNT(*) c FROM users').get()).c;
     if (count === 0) {
       await db.prepare(
         `INSERT INTO users (name,email,phone,password_hash,role) VALUES (?,?,?,?,'admin')`
-      ).run('Dalia Bassel', 'admin@daliessa.com', '', hashPassword('daliessa123'));
+      ).run('Dalia Bassel', 'admin@daliessa.com', '', hashPassword(firstAdminPassword));
       await db.prepare(`INSERT INTO about (id,title,body) VALUES (1,?,?)`).run(
         'Dalia Bassel Couture',
         'A couture academy specialized in teaching pattern-making and tailoring. Est. 2019.'
       );
-      console.log('Seeded admin: admin@daliessa.com / daliessa123');
+      console.log(`Seeded admin: admin@daliessa.com / ${firstAdminPassword}`
+        + (process.env.ADMIN_PASSWORD ? ' (from ADMIN_PASSWORD)' : ' — generated; change it or note it down now'));
     }
   }
   await seed();

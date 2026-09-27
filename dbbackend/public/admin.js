@@ -2611,6 +2611,12 @@ PAGES.config = async (c) => {
         <button class="btn sec" style="margin-top:8px" onclick="downloadBackup('json')">⬇︎ Readable copy (JSON)</button>
         <div class="hint" style="margin-top:10px">The backup restores the app exactly as it is now. The readable copy opens in any browser or notes app if you just need to look something up. Neither includes uploaded photos.</div>
       </div>
+      ${st && st.photos ? `<div class="card">
+        <label style="margin-top:0">Download the photos</label>
+        <div class="hint" style="margin-top:6px">${st.photos} file${st.photos === 1 ? '' : 's'} (${mb(st.photos_bytes)}) — dress photos, fitting shots, receipts and profile pictures. These are files, not rows, so no backup above contains them: leaving this hosting without them loses them.</div>
+        <button class="btn sec" style="margin-top:12px" onclick="downloadPhotos()">⬇︎ Download all photos (ZIP)</button>
+        <div class="hint" style="margin-top:10px">Opens on any phone or computer without installing anything. To put them back, upload them again — or copy them into the new host's uploads folder under the same names.</div>
+      </div>` : ''}
       <div class="card">
         <label style="margin-top:0">Put a backup back</label>
         <div class="hint" style="margin-top:6px">Pick a backup file you downloaded before. Anything already here is kept — only what is missing is put back — so this is safe to run even if the app is not empty.</div>
@@ -2650,6 +2656,21 @@ window.pickRestore = () => {
     } catch (e) { toast(e.message, 'error'); }
   };
   inp.click();
+};
+// Bytes as a person reads them, so "how big is this download" has an answer.
+const mb = (n) => {
+  const b = Number(n || 0);
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return Math.round(b / 1024) + ' KB';
+  return (b / (1024 * 1024)).toFixed(1) + ' MB';
+};
+window.downloadPhotos = () => {
+  const a = document.createElement('a');
+  a.href = '/api/uploads.zip';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast('Packing the photos… a large one takes a moment');
 };
 window.downloadBackup = (kind) => {
   const a = document.createElement('a');
