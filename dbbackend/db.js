@@ -526,7 +526,7 @@ const ready = (async () => {
     // default expense types (once, if none)
     if ((await db.prepare('SELECT COUNT(*) c FROM expense_types').get()).c === 0) {
       const et = await db.prepare('INSERT INTO expense_types (name) VALUES (?)');
-      ['Fabric & materials', 'Rent', 'Utilities', 'Salaries', 'Marketing', 'Supplies', 'Shipping', 'Other'].forEach((n) => et.run(n));
+      ['Fabric & materials', 'Rent', 'Utilities', 'Salaries', 'Marketing', 'Coffee corner', 'Cleaning', 'Supplies', 'Shipping', 'Other'].forEach((n) => et.run(n));
     }
   } catch (e) { /* ignore */ }
 
@@ -725,6 +725,25 @@ const ready = (async () => {
     }
   } catch (e) {
     console.warn('Studio hours could not be corrected:', e.message);
+  }
+
+  // Two headings the studio spends under that the first list of types did not
+  // have. Added once, and the flag means deleting one later keeps it deleted —
+  // a type taken off the list is a decision, not something to put back every
+  // time the app starts.
+  try {
+    const flag = await db.prepare("SELECT value FROM settings WHERE key = 'expense_types_2026_10'").get();
+    if (!flag) {
+      let added = 0;
+      for (const name of ['Coffee corner', 'Cleaning']) {
+        const r = await db.prepare('INSERT INTO expense_types (name) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM expense_types WHERE name = ?)').run(name, name);
+        added += Number(r.changes || 0);
+      }
+      await db.prepare("INSERT INTO settings (key,value) VALUES ('expense_types_2026_10',?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(new Date().toISOString());
+      if (added) console.log(`Studio costs: ${added} type(s) added — Coffee corner, Cleaning.`);
+    }
+  } catch (e) {
+    console.warn('Expense types could not be added:', e.message);
   }
 
   // Last, deliberately: months kept on paper go in after the old rows have been
