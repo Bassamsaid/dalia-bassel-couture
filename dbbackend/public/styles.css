@@ -1074,3 +1074,4 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .att-note{font-size:10px;font-weight:700}
 .att-note.bad{color:var(--bad)}
 .att-note.ok{color:var(--ok)}
+.att-tbl tr.today td{background:color-mix(in srgb,var(--warn,#c8a200) 7%,transparent)}

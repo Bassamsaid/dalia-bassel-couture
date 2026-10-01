@@ -2479,6 +2479,7 @@ window.attBadge = (d) => ({
   paid_leave:   '<span class="badge ok">Paid absence</span>',
   unpaid_leave: '<span class="badge bad">Unpaid leave</span>',
   off:          '<span class="badge">Day off</span>',
+  today:        '<span class="badge warn">Today — not in yet</span>',
 }[d.status] || '');
 
 /* What the month has come to so far, filled in after the page draws so the rest
