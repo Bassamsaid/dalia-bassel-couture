@@ -775,9 +775,14 @@ api['PUT /api/home-cover'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   const img = b.image && b.image.startsWith('data:') ? await saveImage(b.image) : b.image;
-  const ex = await db.prepare('SELECT id FROM about WHERE id=1').get();
+  const ex = await db.prepare('SELECT id, home_image FROM about WHERE id=1').get();
   if (ex) await db.prepare('UPDATE about SET home_image=? WHERE id=1').run(img || null);
   else await db.prepare('INSERT INTO about (id,home_image) VALUES (1,?)').run(img || null);
+  // Forgetting the name is not the same as the photo being gone: the file would
+  // still answer to anyone holding its address. Taking a photo down means
+  // taking it down, and a replaced one has nothing left pointing at it either.
+  const old = ex && ex.home_image;
+  if (old && old !== img) await store.remove(old);
   send(res, 200, { ok: true });
 };
 
