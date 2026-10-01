@@ -1105,3 +1105,11 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
   .ps-net{break-inside:avoid}
   .ps-sign{margin-top:56px}
 }
+
+/* ===== A merged screen: several pages side by side under one heading ===== */
+.grp-tabs{margin-top:10px}
+.grp-body{margin-top:12px;animation:rise .26s ease both}
+/* the page inside brings its own first element — do not double the gap */
+.grp-body > .filters:first-child,
+.grp-body > .btn:first-child,
+.grp-body > .card:first-child{margin-top:0}
