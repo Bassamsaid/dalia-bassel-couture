@@ -206,8 +206,8 @@ PAGES.home_admin = async (c) => {
         ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
         ['rounds', '🗓', 'Rounds & groups', `${big(rounds.length)} round${rounds.length === 1 ? '' : 's'}`],
         ['courses', '🎬', 'Courses', `${big(videos.length)} video${videos.length === 1 ? '' : 's'}`],
-        ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`],
-        ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`],
+        ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`, "openClassroom('homework')"],
+        ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`, "openClassroom('quizzes')"],
         ['finance', '💳', 'Course money', sheet.totals.remaining ? `${big(moneyText(sheet.totals.remaining))} still due` : `${big(moneyText(sheet.totals.paid))} collected`],
       ],
       figuresGo: "go('finance')",
@@ -853,6 +853,31 @@ window.addVideo = async (kind, presetRound) => {
 };
 window.delVideo = (id) => confirmDel('Delete video?', async () => { await DEL('/api/videos/' + id); go('courses'); });
 
+/* ============ CLASSROOM — tasks, quizzes and notes in one screen ============
+   The three used to be three lines in the menu and three screens. They are the
+   same work seen three ways, so they are now one screen with three tabs. The
+   pages below are unchanged apart from their heading: when one is drawn inside
+   this screen the screen carries the title, so the page leaves it out. */
+PAGES.classroom = async (c) => {
+  const tabs = CLASSROOM_TABS.filter(([k]) => !isHidden(k));
+  if (!tabs.length) { c.innerHTML = empty('Nothing here for you', '📚'); return; }
+  let tab = window._clsTab;
+  if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
+  window._clsTab = tab;
+  c.innerHTML = title('Classroom', '📚') +
+    `<div class="filters">${tabs.map(([k, l, ic]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="clsTab('${k}')">${ic} ${l}</span>`).join('')}</div>
+     <div id="clsBody"><div class="spinner"></div></div>`;
+  const body = document.getElementById('clsBody');
+  window._inClassroom = true;
+  try { await PAGES[tab](body); } finally { window._inClassroom = false; }
+  lazyImgs('#clsBody');
+};
+window.clsTab = (k) => { window._clsTab = k; go('classroom'); };
+/* Open the screen on a chosen tab — the home cards still point at one each */
+window.openClassroom = (k) => { window._clsTab = k; go('classroom'); };
+/* The heading belongs to whoever is showing the page */
+function clsHead(t, ic) { return window._inClassroom ? '' : title(t, ic || ''); }
+
 /* ============ HOMEWORK / TASKS ============ */
 PAGES.homework = async (c) => {
   if (!['admin', 'manager', 'staff'].includes(state.user.role)) return PAGES.homework_trainee(c);
@@ -861,7 +886,7 @@ PAGES.homework = async (c) => {
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   const gMap = Object.fromEntries(groups.map((g) => [g.id, g.name]));
   window._rounds = rounds; window._hwGroups = groups;
-  c.innerHTML = title('Tasks (Patterns)', '') +
+  c.innerHTML = clsHead('Tasks (Patterns)') +
     `${canSend ? '<button class="btn" onclick="addHomework()">＋ Send task</button>' : ''}
     ${hw.length ? hw.map((h) => {
       const done = h.submitted_count || 0, all = h.expected_count || 0;
@@ -943,16 +968,16 @@ window.sendHomework = async () => {
       mode: $('#hMode').value, measurements: $('#hMeas').value, instructions: $('#hInstr').value,
       due_date: $('#hDue').value || null,
     });
-    closeModal(); toast('Sent ✓'); go('homework');
+    closeModal(); toast('Sent ✓'); go('classroom');
   } catch (e) { btn.disabled = false; btn.textContent = 'Send task'; toast(e.message); }
 };
-window.delHomework = (id) => confirmDel('Delete task?', async () => { await DEL('/api/homeworks/' + id); go('homework'); });
+window.delHomework = (id) => confirmDel('Delete task?', async () => { await DEL('/api/homeworks/' + id); go('classroom'); });
 /* Who handed a task in — a screen, not a pop-up */
 window.viewSubs = (id) => { window._taskId = id; go('task'); };
 
 PAGES.task = async (c) => {
   const id = window._taskId;
-  if (!id) return go('homework');
+  if (!id) return go('classroom');
   const [r, groups] = await Promise.all([GET(`/api/homeworks/${id}/submissions`), GET('/api/groups')]);
   window._hwGroups = groups;
   const canGrade = ['admin', 'manager'].includes(state.user.role);
@@ -1002,7 +1027,7 @@ window.taskTab = (t) => { window._taskTab = t; go('task'); };
 window.gradeSub = (id, cur) => formModal('Grade submission', [
   { name: 'grade', label: 'Grade', value: cur },
   { name: 'feedback', label: 'Feedback', type: 'textarea' },
-], async (d) => { await PUT('/api/submissions/' + id, d); toast('Saved'); closeModal(); go(state.page === 'task' ? 'task' : 'homework'); });
+], async (d) => { await PUT('/api/submissions/' + id, d); toast('Saved'); closeModal(); go(state.page === 'task' ? 'task' : 'classroom'); });
 
 /* ============ QUIZZES ============ */
 PAGES.quizzes = async (c) => {
@@ -1010,7 +1035,7 @@ PAGES.quizzes = async (c) => {
   const [quizzes, rounds] = await Promise.all([GET('/api/quizzes'), GET('/api/rounds')]);
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   window._rounds = rounds;
-  c.innerHTML = title('Quizzes', '') +
+  c.innerHTML = clsHead('Quizzes') +
     `<button class="btn" onclick="newQuiz()">＋ New quiz</button>
     ${quizzes.length ? quizzes.map((q) => `<div class="card">
       <div class="item"><div class="av">📝</div>
@@ -1019,7 +1044,7 @@ PAGES.quizzes = async (c) => {
         <button class="btn sm sec" onclick="quizResults(${q.id},'${esc(q.title)}')">Results</button>
         <button class="btn-icon" onclick="delQuiz(${q.id})">🗑</button></div></div>`).join('') : empty('No quizzes yet', '📝')}`;
 };
-window.delQuiz = (id) => confirmDel('Delete quiz?', async () => { await DEL('/api/quizzes/' + id); go('quizzes'); });
+window.delQuiz = (id) => confirmDel('Delete quiz?', async () => { await DEL('/api/quizzes/' + id); go('classroom'); });
 window.quizResults = async (id, tt) => {
   const rows = await GET(`/api/quizzes/${id}/results`);
   modal(`<h3>Results: ${esc(tt)}</h3>${rows.length ? `<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Name</th><th>Score</th><th>Date</th></tr></thead>
@@ -1057,7 +1082,7 @@ window.saveQuiz = async () => {
   const qs = _qDraft.filter((q) => q.text.trim());
   try {
     await POST('/api/quizzes', { title: t, round_id: $('#qRound').value || null, duration_min: Number($('#qDur').value) || 15, ref_code: $('#qRef').value || null, questions: qs });
-    closeModal(); toast('Saved'); go('quizzes');
+    closeModal(); toast('Saved'); go('classroom');
   } catch (e) { const x = $('#qErr'); x.textContent = e.message; x.classList.remove('hidden'); }
 };
 
@@ -1068,7 +1093,7 @@ PAGES.notes = async (c) => {
   window._noteRef = { rounds, users };
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   const uMap = Object.fromEntries(users.map((u) => [u.id, u.name]));
-  c.innerHTML = title('Notes & Instructions', '') +
+  c.innerHTML = clsHead('Notes & Instructions') +
     `<button class="btn" onclick="addNote()">＋ Send note</button>
     ${notes.length ? notes.map((n) => `<div class="card">
       <div class="item"><div class="av">📌</div>
@@ -1085,9 +1110,9 @@ window.addNote = () => {
     { name: 'scope', label: 'Send to', type: 'select', options: [{ value: 'all', label: 'All students' }, { value: 'round', label: 'A specific round' }, { value: 'user', label: 'A specific student' }] },
     { name: 'round_id', label: 'Round (if round)', type: 'select', options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'user_id', label: 'Student (if specific)', type: 'select', options: [{ value: '', label: '—' }, ...users.map((u) => ({ value: u.id, label: u.name }))] },
-  ], async (d) => { await POST('/api/notes', d); toast('Sent'); go('notes'); });
+  ], async (d) => { await POST('/api/notes', d); toast('Sent'); go('classroom'); });
 };
-window.delNote = (id) => confirmDel('Delete note?', async () => { await DEL('/api/notes/' + id); go('notes'); });
+window.delNote = (id) => confirmDel('Delete note?', async () => { await DEL('/api/notes/' + id); go('classroom'); });
 
 /* ============ ABOUT (edit) ============ */
 PAGES.about = async (c) => {
