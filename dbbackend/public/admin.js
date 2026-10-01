@@ -2605,7 +2605,7 @@ PAGES.config = async (c) => {
   } else if (tab === 'salary') {
     inner = `<div class="card">
       <label>Working days per month</label><input id="cfg_work_days_per_month" type="number" inputmode="numeric" value="${esc(s.work_days_per_month || '30')}" />
-      <div class="hint" style="margin-top:6px">Counted from the calendar now — the month's days less each person's days off, so September is 26 and October 27. This is only used for somebody with no days off set.</div>
+      <div class="hint" style="margin-top:6px">The salary is divided over this many days. Days off and approved leave are paid, so this is the whole month — 30 — not just the days somebody is expected in.</div>
       <label>Check-in time</label><input id="cfg_check_in_time" type="time" value="${esc(s.check_in_time || '09:00')}" />
       <label>Check-out time</label><input id="cfg_check_out_time" type="time" value="${esc(s.check_out_time || '17:00')}" />
       <label>Late grace (minutes)</label><input id="cfg_late_grace_min" type="number" inputmode="numeric" value="${esc(s.late_grace_min || '15')}" />

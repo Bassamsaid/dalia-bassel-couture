@@ -12,11 +12,12 @@
 // twice.
 //
 // Only the tables below can be written this way. An import is a record of days
-// worked, not a way to reach the rest of the database from a file on disk.
+// worked and days off, not a way to reach the rest of the database from a file
+// on disk.
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ALLOWED = ['attendance', 'absences'];
+const ALLOWED = ['attendance', 'absences', 'leaves'];
 const DIR = path.join(__dirname, 'imports');
 
 async function applyImports(db) {

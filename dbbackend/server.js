@@ -1712,18 +1712,24 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   // studio means by one — and nothing has to be entered for it to count.
   const first = `${month}-01`;
   const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
-  // What a day of this month is worth depends on how many working days it has,
-  // and that is not a constant: September has twenty-six once its four Sundays
-  // are out, October twenty-seven. Counted from the calendar and this person's
-  // own days off rather than taken from a fixed number that is right one month
-  // in three. The old setting stands in only for somebody with no days off.
-  let wd = 0;
-  for (let d = 1; d <= lastDay; d++) {
-    if (!off.has(weekdayOf(`${month}-${String(d).padStart(2, '0')}`))) wd++;
-  }
-  if (!wd) wd = Number(cfg.work_days_per_month) || lastDay;
+  // Two divisors, because two different questions are being asked.
+  //
+  // What a day is worth, for an absence: the salary spread over the whole month.
+  // Sundays are paid and so is approved leave, so a month that pays for all
+  // thirty of its days is valued over thirty, and a day missed costs a thirtieth.
+  const wd = Number(cfg.work_days_per_month) || lastDay;
   const daily = wd ? base / wd : 0;
-  const hourly = daily / workHours;
+  //
+  // What an hour is worth, for overtime: the salary over the hours actually owed
+  // — the days somebody is expected in, times the length of their day. September
+  // asks for twenty-six days of nine hours, so an hour is a two-hundred-and-
+  // thirty-fourth of the month, which is what the studio's own timesheet pays.
+  let owedDays = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    if (!off.has(weekdayOf(`${month}-${String(d).padStart(2, '0')}`))) owedDays++;
+  }
+  if (!owedDays) owedDays = wd;
+  const hourly = base / (owedDays * workHours);
   // Nobody is absent on a day that has not happened. This is what makes the
   // figure move with each check-in rather than only at the end of the month.
   const today = studioNow().date;
@@ -1784,7 +1790,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const earnedToDate = r2(daily * paidDays + bonus + overtimePay - lateDeduction - advTotal - deductions);
 
   send(res, 200, {
-    user: u.name, month, base, work_days: wd, work_days_from: 'calendar', days_in_month: lastDay,
+    user: u.name, month, base, work_days: wd, days_in_month: lastDay, owed_days: owedDays,
     daily: r2(daily), hourly: r2(hourly), work_hours: workHours,
     shift_start: shiftIn, shift_end: shiftOut, shift_is_own: !!(u.shift_start || u.shift_end),
     absent_days: absDays, absence_deduction: absenceDeduction,
