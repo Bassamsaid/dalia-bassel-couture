@@ -2132,11 +2132,12 @@ PAGES.expenses = async (c) => {
      <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
-window.addExpense = () => { const { vendors, types } = window._expRef; formModal('New studio cost', [
+window.addExpense = async () => { await loadFloatHolders(); const { vendors, types } = window._expRef; formModal('New studio cost', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'type', label: 'Type', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
-  { name: 'vendor_id', label: 'Vendor', type: 'select', options: [{ value: '', label: '—' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
-  // whose money it came out of: the studio's, or a float somebody is holding
+  // a cost like electricity or rent has no vendor to name, so this stays optional
+  { name: 'vendor_id', label: 'Vendor (optional)', type: 'select', options: [{ value: '', label: '— none —' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
+  // whose money it came out of: the bank, or a float somebody is holding
   { name: 'paid_by', label: 'Paid from', type: 'select', options: paidFromOptions() },
   { name: 'date', label: 'Date', type: 'date', value: today() },
   { name: 'note', label: 'Note' },
@@ -2148,7 +2149,8 @@ window.addExpense = () => { const { vendors, types } = window._expRef; formModal
    quietly open one for somebody who was never given any. */
 function paidFromOptions() {
   const holders = window._floatHolders || [];
-  return [{ value: '', label: 'The studio' }, ...holders.map((h) => ({ value: h.id, label: `${h.name}'s float · ${moneyText(h.balance)} in hand` }))];
+  return [{ value: '', label: '🏦 The bank' },
+    ...holders.map((h) => ({ value: h.id, label: `🧰 ${h.name}'s float · ${moneyText(h.balance)} in hand` }))];
 }
 /* kept fresh wherever spending is recorded, so the list is never a guess */
 async function loadFloatHolders() {
@@ -2407,11 +2409,11 @@ window.newPurchase = async (presetDressId) => {
   const forDress = presetDressId ? dresses.find((d) => String(d.id) === String(presetDressId)) : null;
   modal(`<h3>${forDress ? 'Materials for ' + esc(forDress.customer_name) : 'New purchase (invoice)'}</h3>
     ${forDress ? `<div class="pu-for">Everything you add here goes on <b>${esc(forDress.customer_name)}</b>${forDress.note ? ' · ' + esc(forDress.note) : ''}</div>` : ''}
-    ${vendors.length ? `<label>Vendor</label>
-    <select id="pu_vendor" style="width:100%"><option value="">— none / one-off shop —</option>${vendors.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</select>` : '<input id="pu_vendor" type="hidden" value="" />'}
-    <label>Shop name <span class="hint">(if not a regular vendor)</span></label><input id="pu_shop" placeholder="Shop name" />
-    ${(window._floatHolders || []).length ? `<label>Paid from</label>
-    <select id="pu_paidby" style="width:100%">${paidFromOptions().map((o) => `<option value="${o.value}">${esc(o.label)}</option>`).join('')}</select>` : '<input id="pu_paidby" type="hidden" value="" />'}
+    ${vendors.length ? `<label>Vendor *</label>
+    <select id="pu_vendor" style="width:100%"><option value="">— a one-off shop, named below —</option>${vendors.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</select>` : '<input id="pu_vendor" type="hidden" value="" />'}
+    <label>Shop name * <span class="hint">(if not a regular vendor above)</span></label><input id="pu_shop" placeholder="Who the invoice is from" />
+    <label>Paid from</label>
+    <select id="pu_paidby" style="width:100%">${paidFromOptions().map((o) => `<option value="${o.value}">${esc(o.label)}</option>`).join('')}</select>
     <label>Invoice date</label><input id="pu_date" type="date" value="${today()}" />
     <label>Note</label><input id="pu_note" />
     <div class="row" style="margin-top:6px"><button class="btn ghost sm" onclick="pickPuImg()">📷 Invoice photo</button><span class="hint" id="puImgLbl">None</span></div>
@@ -2467,7 +2469,14 @@ window.savePurchase = async () => {
   const vSel = document.getElementById('pu_vendor');
   const vendorId = Number(vSel.value) || null;
   const vendorName = vendorId ? vSel.selectedOptions[0].textContent : '';
-  const shop = document.getElementById('pu_shop').value.trim() || vendorName;
+  const shopEl = document.getElementById('pu_shop');
+  const shop = shopEl.value.trim() || vendorName;
+  // an invoice is from somebody — without a name the spending shows against
+  // nobody, and the vendor reports quietly lose it
+  if (!shop) {
+    if (shopEl.focus) shopEl.focus();
+    return toast('Who is the invoice from? Pick a vendor or type the shop name');
+  }
   const paidBy = Number((document.getElementById('pu_paidby') || {}).value) || null;
   await POST('/api/purchases', { vendor_id: vendorId, shop, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines, paid_by: paidBy });
   closeModal(); toast('Purchase saved');

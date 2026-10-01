@@ -1833,6 +1833,10 @@ api['GET /api/purchases'] = async (req, res, user) => {
 api['POST /api/purchases'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
+  // every invoice carries who it is from; without it the spending belongs to
+  // nobody and never reaches a vendor's report
+  const shopName = String(b.shop || '').trim();
+  if (!b.vendor_id && !shopName) return send(res, 400, { error: 'a vendor or a shop name is required' });
   const img = await maybeImage(b.image);
   const vid = b.vendor_id || await vendorIdForShop(b.shop); // a typed shop that is already a supplier
   const r = await db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by,paid_by) VALUES (?,?,?,?,?,?,?)').run(b.shop || null, vid, img, b.note || null, b.invoice_date || null, user.id, b.paid_by || null);
