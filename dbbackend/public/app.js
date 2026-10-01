@@ -16,7 +16,13 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const mediaUrl = (v) => (/^https?:\/\//i.test(String(v || '')) ? String(v) : '/uploads/' + String(v || ''));
 window.mediaUrl = mediaUrl;
 
-const money = (n) => `<bdi>${(Number(n || 0)).toLocaleString('en-US')} ${(window._cfg && window._cfg.currency) || 'EGP'}</bdi>`;
+// An amount as plain characters, and the same wrapped for dropping into HTML.
+// The wrapper keeps "10,000 EGP" together when it sits beside a name in Arabic,
+// which otherwise ends up reading "10,000 · المصرى للاقمشه EGP". Anywhere the
+// result is set as text or escaped, the tags would be shown rather than obeyed —
+// so those places take moneyText.
+const moneyText = (n) => `${(Number(n || 0)).toLocaleString('en-US')} ${(window._cfg && window._cfg.currency) || 'EGP'}`;
+const money = (n) => `<bdi>${moneyText(n)}</bdi>`;
 const dt = (s) => s ? String(s).slice(0, 10) : '—';
 const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
 const today = () => new Date().toISOString().slice(0, 10);
@@ -758,7 +764,9 @@ function runCounters(root) {
   const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   (root || document).querySelectorAll('[data-count]').forEach((el) => {
     const to = Number(el.dataset.count || 0);
-    const fmt = el.dataset.fmt === 'money' ? money : (v) => Number(v).toLocaleString('en-US');
+    // Written with textContent, so the plain form: markup here would be read out
+    // character by character instead of rendered.
+    const fmt = el.dataset.fmt === 'money' ? moneyText : (v) => Number(v).toLocaleString('en-US');
     if (reduce || !to) { el.textContent = fmt(to); return; }
     const dur = 900; let t0 = null;
     const step = (t) => {
@@ -846,6 +854,7 @@ window.tintVars = tintVars;
 window.navList = navList;
 window.brandGroup = brandGroup;
 window.big = big;
+window.moneyText = moneyText;
 
 const PAGES = {};
 
