@@ -363,7 +363,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v101';
+const APP_VERSION = 'v102';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -452,6 +452,10 @@ function renderAuth(mode) {
       <div class="err hidden" id="authErr"></div>
       <button class="btn" style="margin-top:18px" type="submit">${isReg ? 'Create account' : 'Sign in'}</button>
     </form>
+    ${isReg ? '' : `<div id="pkWrap" class="hidden" style="margin-top:14px">
+      <div class="pk-or"><span>or</span></div>
+      <button class="btn sec" style="margin-top:12px" onclick="passkeyLogin()">${faceLabel()}</button>
+    </div>`}
     <p class="hint" style="margin-top:16px">${isReg ? 'Already have an account? ' : "Don't have an account? "}
       <a href="#" onclick="renderAuth('${isReg ? '' : 'register'}');return false" style="font-weight:700">${isReg ? 'Sign in' : 'Create one'}</a></p>`;
   }
@@ -474,14 +478,16 @@ function renderAuth(mode) {
   };
   // Shown only where the device can actually do it, so the button is never a
   // promise the phone cannot keep.
-  // The button appears only on a phone that has actually been set up. Offered
-  // on one that has not, tapping it sends iOS hunting for a key on some other
-  // device and puts a QR code on the screen — which is not a thing to show
-  // somebody who only wanted to sign in. Setting up is offered after a password
-  // sign-in instead, where it belongs.
-  if (!isReg && pkSetUpHere()) hasPlatformAuthenticator().then((yes) => {
-    const el = document.getElementById('pkTop');
-    if (yes && el) el.classList.remove('hidden');
+  // A phone that has been set up leads with the button; one that has not still
+  // shows it, below the password, because a sign-in screen with no sign of the
+  // thing somebody was told to look for is its own kind of broken. Tapping it
+  // there does not reach the operating system — passkeyLogin says in words that
+  // this phone is not set up yet, instead of letting iOS answer an empty list
+  // with a QR code for some other device.
+  if (!isReg) hasPlatformAuthenticator().then((yes) => {
+    if (!yes) return;
+    const el = document.getElementById(pkSetUpHere() ? 'pkTop' : 'pkWrap');
+    if (el) el.classList.remove('hidden');
   });
 }
 window.renderAuth = renderAuth;
