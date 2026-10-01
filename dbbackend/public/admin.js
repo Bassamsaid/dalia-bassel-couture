@@ -1689,13 +1689,17 @@ PAGES.dress = async (c) => {
 
   const moneyPane = canEdit ? pane('money', `
     ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
-      <input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" />
+      <input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" oninput="dressPriceLive(${id})" />
+      <div class="row" id="dPriceSave_${id}" style="display:none;margin-top:10px">
+        <button class="btn sm" onclick="saveDressPrice(${id})">Save the price</button>
+        <button class="btn ghost sm" onclick="undoDressPrice(${id})">Undo</button>
+      </div>
       <div class="sec-title">Pricing & deposits 💰</div>
       <div class="card" style="box-shadow:none;margin:0 0 8px">
         ${kv('Material cost', money(d.material_cost || 0), 'bad')}
-        ${kv('Profit', money(d.profit || 0), (d.profit || 0) >= 0 ? 'ok' : 'bad')}
+        <span id="dProfit_${id}">${kv('Profit', money(d.profit || 0), (d.profit || 0) >= 0 ? 'ok' : 'bad')}</span>
         ${kv('Paid (deposits)', money(d.paid || 0), 'ok')}
-        ${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}
+        <span id="dRemain_${id}">${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}</span>
       </div>
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
       <button class="btn sec sm" style="margin-top:6px" onclick="addDressPayment(${id})">＋ Add payment / deposit</button>` : ''}`) : '';
@@ -1847,6 +1851,40 @@ window.saveDressDetails = async (id) => {
   if (priceEl) body.price = Number(priceEl.value) || 0;
   await PUT('/api/dresses/' + id, body);
   toast('Changes saved'); refreshDress(id);
+};
+
+/* The figures under the price follow it as it is typed. They are worked out the
+   same way the server works them out, so what is on screen while typing is what
+   will be there once it is saved — and the Save button only shows itself once
+   the number is no longer the one on file. */
+window.dressPriceLive = (id) => {
+  const el = document.getElementById('dPrice_' + id);
+  const d = (window._dresses || []).find((x) => x.id === id);
+  if (!el || !d) return;
+  const price = Number(el.value) || 0;
+  const profit = price - (d.material_cost || 0);
+  const remaining = Math.max(0, price - (d.paid || 0));
+  const p = document.getElementById('dProfit_' + id);
+  const r = document.getElementById('dRemain_' + id);
+  if (p) p.innerHTML = kv('Profit', money(profit), profit >= 0 ? 'ok' : 'bad');
+  if (r) r.innerHTML = kv('Remaining', money(remaining), remaining ? 'bad' : 'ok');
+  const save = document.getElementById('dPriceSave_' + id);
+  if (save) save.style.display = price === (d.price || 0) ? 'none' : '';
+};
+window.undoDressPrice = (id) => {
+  const d = (window._dresses || []).find((x) => x.id === id);
+  const el = document.getElementById('dPrice_' + id);
+  if (!d || !el) return;
+  el.value = d.price || 0;
+  dressPriceLive(id);
+};
+window.saveDressPrice = async (id) => {
+  const el = document.getElementById('dPrice_' + id);
+  if (!el) return;
+  await PUT('/api/dresses/' + id, { price: Number(el.value) || 0 });
+  toast('Price saved ✓');
+  window._dressTab = 'money'; // stay where she was working
+  refreshDress(id);
 };
 
 /* ---- Dress measurements editor + printable PDF sheet ---- */
