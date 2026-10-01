@@ -2408,6 +2408,7 @@ PAGES.staffmember = async (c) => {
       <div id="mtdCard" class="card"><div class="hint" style="margin:0">Working it out…</div></div>`;
   } else if (tab === 'salary') {
     const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
+    window._salSheet = sal; // the payslip prints exactly what is on screen
     const [pays, adjustments] = await Promise.all([GET(`/api/salary-payments?user_id=${id}`), GET(`/api/adjustments?user_id=${id}`)]);
     inner = `<div class="filters"><input type="month" value="${month}" onchange="setSalMonth(this.value)" style="width:auto;padding:8px" /></div>
       <div class="card">
@@ -2426,6 +2427,7 @@ PAGES.staffmember = async (c) => {
         <div class="divider"></div>
         <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
       </div>
+      <button class="btn sec" style="margin-top:10px" onclick="openPayslip(window._salSheet)">🖨 Print payslip</button>
       <div class="row" style="margin-top:10px"><button class="btn sec" onclick="addAdjustment(${id},'bonus','${month}')">＋ Bonus</button><button class="btn danger" onclick="addAdjustment(${id},'deduction','${month}')">＋ Deduction</button></div>
       ${adjustments.length ? `<div class="card" style="margin-top:10px">${adjustments.map((a) => `<div class="item"><div class="av">${a.type === 'bonus' ? '➕' : '➖'}</div>
         <div class="main"><div class="nm" style="color:var(--${a.type === 'bonus' ? 'ok' : 'bad'})">${a.type === 'bonus' ? '+' : '−'} ${money(a.amount)} <span class="badge">${esc(a.month || '')}</span></div><div class="sub">${a.note ? esc(a.note) : a.type}</div></div>

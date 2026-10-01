@@ -1075,3 +1075,33 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .att-note.bad{color:var(--bad)}
 .att-note.ok{color:var(--ok)}
 .att-tbl tr.today td{background:color-mix(in srgb,var(--warn,#c8a200) 7%,transparent)}
+
+/* ===== Payslip ===== */
+.ps-sheet{max-width:560px}
+.ps-who{display:flex;gap:18px;justify-content:space-between;margin:18px 0 14px}
+.ps-k{font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.ps-v{font-family:var(--serif);font-size:18px;font-weight:700;color:#14101a;margin-top:2px}
+.ps-days{display:flex;flex-wrap:wrap;gap:6px 14px;padding:10px 12px;border-radius:10px;
+  background:#f6f2fe;font-size:12px;color:#4a2f8f;margin-bottom:16px}
+.ps-days b{font-size:14px}
+.ps-days .ps-bad{color:var(--bad)}
+.ps-table td{vertical-align:top}
+.ps-table td:first-child{background:#fff;font-weight:700;width:auto;color:#14101a}
+.ps-detail{display:block;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:2px}
+.ps-amt{text-align:end!important;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700}
+.ps-plus .ps-amt{color:var(--ok)}
+.ps-minus .ps-amt{color:var(--bad)}
+.ps-net{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin-top:18px;padding-top:14px;border-top:3px solid var(--purple-d)}
+.ps-net-k{font-size:10.5px;letter-spacing:3px;text-transform:uppercase;color:var(--muted)}
+.ps-net-v{font-family:var(--serif);font-size:30px;font-weight:800;color:var(--purple-d);
+  font-variant-numeric:tabular-nums}
+.ps-sign{display:flex;gap:28px;margin-top:40px;font-size:11px;color:var(--muted);text-align:center}
+.ps-sign > div{flex:1}
+.ps-line{border-top:1px solid #c9bedd;margin-bottom:6px}
+@media print{
+  .ps-sheet{max-width:none}
+  .ps-days{background:#f6f2fe!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .ps-net{break-inside:avoid}
+  .ps-sign{margin-top:56px}
+}
