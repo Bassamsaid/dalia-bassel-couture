@@ -1694,9 +1694,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const u = await db.prepare('SELECT id,name,base_salary,off_days,shift_start,shift_end FROM users WHERE id=?').get(params.id);
   if (!u) return send(res, 404, { error: 'not found' });
   const cfg = {}; (await db.prepare('SELECT key,value FROM settings').all()).forEach((r) => { cfg[r.key] = r.value; });
-  const wd = Number(cfg.work_days_per_month) || 30;
   const base = Number(u.base_salary) || 0;
-  const daily = wd ? base / wd : 0;
   // This person's hours if they have their own, the studio's otherwise. Both
   // lateness and overtime are measured from these, so somebody whose day starts
   // at eleven is neither late every morning nor paid overtime from eight.
@@ -1707,7 +1705,6 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const grace = Number(cfg.late_grace_min) || 0;
   const otMult = Number(cfg.overtime_mult) || 1.5;
   const workHours = Math.max(1, (outMin - inMin) / 60);
-  const hourly = daily / workHours;
   const off = new Set((u.off_days || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 
   // A month is read day by day rather than counted from the rows that happen to
@@ -1715,6 +1712,18 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   // studio means by one — and nothing has to be entered for it to count.
   const first = `${month}-01`;
   const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
+  // What a day of this month is worth depends on how many working days it has,
+  // and that is not a constant: September has twenty-six once its four Sundays
+  // are out, October twenty-seven. Counted from the calendar and this person's
+  // own days off rather than taken from a fixed number that is right one month
+  // in three. The old setting stands in only for somebody with no days off.
+  let wd = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    if (!off.has(weekdayOf(`${month}-${String(d).padStart(2, '0')}`))) wd++;
+  }
+  if (!wd) wd = Number(cfg.work_days_per_month) || lastDay;
+  const daily = wd ? base / wd : 0;
+  const hourly = daily / workHours;
   // Nobody is absent on a day that has not happened. This is what makes the
   // figure move with each check-in rather than only at the end of the month.
   const today = studioNow().date;
@@ -1775,7 +1784,8 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const earnedToDate = r2(daily * paidDays + bonus + overtimePay - lateDeduction - advTotal - deductions);
 
   send(res, 200, {
-    user: u.name, month, base, work_days: wd, daily: r2(daily), hourly: r2(hourly), work_hours: workHours,
+    user: u.name, month, base, work_days: wd, work_days_from: 'calendar', days_in_month: lastDay,
+    daily: r2(daily), hourly: r2(hourly), work_hours: workHours,
     shift_start: shiftIn, shift_end: shiftOut, shift_is_own: !!(u.shift_start || u.shift_end),
     absent_days: absDays, absence_deduction: absenceDeduction,
     present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
