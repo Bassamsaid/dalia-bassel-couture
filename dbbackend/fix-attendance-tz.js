@@ -92,4 +92,27 @@ async function fixAttendanceTz(db, tz = 'Africa/Cairo') {
   return { examined: rows.length, corrected, left, skipped, odd };
 }
 
-module.exports = { fixAttendanceTz, offsetHoursOn, shift };
+// Clearing out the shifts from before the studio started keeping this properly.
+//
+// Deleting a timesheet is not undoable, so: it happens once for a given date
+// and remembers that it has, it touches nothing but the attendance rows, and it
+// writes what it removed to the log first — a count per person and the span of
+// dates — so there is a record of what was there even though the rows are gone.
+async function pruneAttendanceBefore(db, dateStr) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateStr || ''))) return { deleted: 0, invalid: true };
+  const done = await db.prepare("SELECT value FROM settings WHERE key = 'attendance_pruned_before'").get();
+  if (done && done.value === dateStr) return { deleted: 0, alreadyDone: true };
+
+  const going = await db.prepare(
+    `SELECT u.name, COUNT(*) n, MIN(a.date) first, MAX(a.date) last
+       FROM attendance a LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.date < ? GROUP BY a.user_id ORDER BY n DESC`
+  ).all(dateStr);
+  const r = await db.prepare('DELETE FROM attendance WHERE date < ?').run(dateStr);
+  await db.prepare(
+    "INSERT INTO settings (key,value) VALUES ('attendance_pruned_before',?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  ).run(dateStr);
+  return { deleted: Number(r.changes || 0), perPerson: going, before: dateStr };
+}
+
+module.exports = { fixAttendanceTz, pruneAttendanceBefore, offsetHoursOn, shift };
