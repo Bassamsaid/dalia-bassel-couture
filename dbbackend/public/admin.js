@@ -2226,30 +2226,115 @@ PAGES.float = async (c) => {
   const id = window._floatId;
   if (!id) return go('floats');
   const f = await GET('/api/floats/' + id);
+  window._float = f;
+  const spending = f.entries.filter((e) => e.kind === 'cost' || e.kind === 'invoice');
   c.innerHTML = title(f.user.name, '🧰') +
-    `<div class="card" style="text-align:center;padding:18px 15px">
-      <div class="sub muted" style="letter-spacing:2px;text-transform:uppercase;font-size:11px;font-weight:700">Still in hand</div>
-      <div class="serif" style="font-size:34px;font-weight:700;margin-top:4px;color:var(--${f.balance < 0 ? 'bad' : 'ink'})">${money(f.balance)}</div>
-      <div class="sub muted" style="margin-top:6px">${money(f.handed)} handed · ${money(f.spent)} spent${f.back ? ' · ' + money(f.back) + ' given back' : ''}</div>
-      ${f.balance < 0 ? '<div class="hint" style="color:var(--bad);margin-top:8px">She has spent more than she was given — she is owed the difference.</div>' : ''}
+    `<div class="grid g3 fl-figs">
+      <div class="stat"><div class="n serif">${money(f.handed)}</div><div class="l">received</div></div>
+      <div class="stat"><div class="n serif" style="color:var(--bad)">${money(f.spent)}</div><div class="l">spent</div></div>
+      <div class="stat fl-left"><div class="n serif" style="color:var(--${f.balance < 0 ? 'bad' : 'ok'})">${money(f.balance)}</div><div class="l">still in hand</div></div>
     </div>
+    ${f.back ? `<div class="hint" style="margin:2px 2px 8px">${money(f.back)} of it was given back.</div>` : ''}
+    ${f.balance < 0 ? `<div class="card" style="border-inline-start:4px solid var(--bad)"><div class="nm" style="color:var(--bad)">She has spent ${money(-f.balance)} of her own</div>
+      <div class="sub muted">Hand that over to settle it, or take the spending off this float.</div></div>` : ''}
     <div class="row" style="margin-top:10px">
       <button class="btn sm" onclick="handFloat(${f.user.id})">＋ Hand over more</button>
       <button class="btn sec sm" onclick="returnFloat(${f.user.id})">↩ Take cash back</button>
+      <button class="btn ghost sm" onclick="openFloatSheet()">🖨 Settlement</button>
     </div>
-    <div class="sec-title">Everything on this float</div>
-    ${f.entries.length ? `<div class="card">${f.entries.map((e) => {
-      const m = FLOAT_ENTRY[e.kind] || FLOAT_ENTRY.cost;
-      return `<div class="item">
-        <div class="av">${m.ic}</div>
-        <div class="main"><div class="nm">${m.label}${e.note ? ' · ' + esc(e.note) : ''}</div>
-          <div class="sub">${e.date ? dt(e.date) : ''}</div></div>
-        <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-          <div class="serif" style="font-weight:700;color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
-          ${(e.kind === 'handed' || e.kind === 'back') ? `<button class="btn-icon" onclick="delFloatMove(${e.id},${f.user.id})">🗑</button>` : ''}</div>
-      </div>`;
-    }).join('')}</div>` : empty('Nothing on this float yet', '🧰')}
-    <p class="hint" style="margin-top:10px">A studio cost or an invoice comes onto this float by choosing her under <b>Paid from</b> when it is recorded.</p>`;
+
+    <div class="sec-title">Spent out of it <span class="hint" style="font-weight:400">· ${spending.length}</span></div>
+    ${spending.length ? `<div class="card">${spending.map((e) => floatRow(e, f.user.id)).join('')}</div>`
+      : `<p class="hint">Nothing has been spent from this float yet. A studio cost or an invoice comes onto it by choosing <b>${esc(f.user.name)}'s float</b> under <b>Paid from</b> when it is recorded.</p>`}
+
+    <div class="sec-title">The cash itself</div>
+    <div class="card">${f.entries.filter((e) => e.kind === 'handed' || e.kind === 'back').map((e) => floatRow(e, f.user.id)).join('')}</div>`;
+};
+
+/* One line of a float, whichever of the four kinds it is. The cash movements
+   can be put right; a cost or an invoice is corrected where it was recorded. */
+function floatRow(e, userId) {
+  const m = FLOAT_ENTRY[e.kind] || FLOAT_ENTRY.cost;
+  const cash = e.kind === 'handed' || e.kind === 'back';
+  return `<div class="item">
+    <div class="av">${m.ic}</div>
+    <div class="main"><div class="nm">${m.label}${e.note ? ' · ' + esc(e.note) : ''}</div>
+      <div class="sub">${e.date ? dt(e.date) : ''}</div></div>
+    <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+      <div class="serif" style="font-weight:700;color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
+      ${cash ? `<div class="row" style="gap:2px">
+        <button class="btn-icon" onclick="editFloatMove(${e.id},${userId})">✏️</button>
+        <button class="btn-icon" onclick="delFloatMove(${e.id},${userId})">🗑</button></div>` : ''}</div>
+  </div>`;
+}
+
+window.editFloatMove = (id, userId) => {
+  const e = ((window._float || {}).entries || []).find((x) => x.id === id && (x.kind === 'handed' || x.kind === 'back'));
+  if (!e) return;
+  const out = e.kind === 'back';
+  formModal(out ? 'Edit cash taken back' : 'Edit the handover', [
+    { name: 'amount', label: 'How much', type: 'number', required: true, value: e.amount },
+    { name: 'date', label: 'Date', type: 'date', value: e.date || today() },
+    { name: 'note', label: out ? 'Note' : 'What for', value: e.note || '' },
+  ], async (d) => {
+    await PUT('/api/floats/' + id, { ...d, kind: out ? 'out' : 'in' });
+    toast('Saved ✓'); window._floatId = userId; go('float');
+  });
+};
+
+/* The settlement — what she took, what it went on, what is left — on one sheet
+   she can sign when the cash is counted back. */
+window.openFloatSheet = () => { window._floatSheet = window._float; go('floatsheet'); };
+
+PAGES.floatsheet = async (c) => {
+  const f = window._floatSheet;
+  if (!f) return goBack();
+  const row = (label, detail, amount, cls) => `<tr class="${cls || ''}">
+    <td>${esc(label)}${detail ? `<span class="ps-detail">${esc(detail)}</span>` : ''}</td>
+    <td class="ps-amt">${amount}</td></tr>`;
+  const spending = f.entries.filter((e) => e.kind === 'cost' || e.kind === 'invoice');
+  const handovers = f.entries.filter((e) => e.kind === 'handed');
+  const backs = f.entries.filter((e) => e.kind === 'back');
+  c.innerHTML = `<div class="rc-actions no-print">
+      <button class="btn sec" onclick="goBack()">‹ Back</button>
+      <button class="btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+    </div>
+    <div class="receipt-sheet ps-sheet">
+      <div class="rc-head">
+        <div class="rc-brand">DALIA BASSEL</div>
+        <div class="rc-sub">Haute Couture · Float settlement</div>
+      </div>
+
+      <div class="ps-who">
+        <div><div class="ps-k">Held by</div><div class="ps-v">${esc(f.user.name)}</div></div>
+        <div><div class="ps-k">Counted on</div><div class="ps-v">${esc(dt(today()))}</div></div>
+      </div>
+
+      <table class="rc-table ps-table"><tbody>
+        ${handovers.map((e) => row('Received', e.date ? dt(e.date) + (e.note ? ' · ' + e.note : '') : (e.note || ''), money(e.amount), 'ps-plus')).join('')
+          || row('Received', '', money(0))}
+        ${spending.length ? `<tr class="ps-head-row"><td colspan="2">Spent</td></tr>` : ''}
+        ${spending.map((e) => row(e.kind === 'invoice' ? 'Invoice' : 'Studio cost', [e.date ? dt(e.date) : '', e.note].filter(Boolean).join(' · '), '− ' + money(e.amount), 'ps-minus')).join('')}
+        ${backs.map((e) => row('Given back', e.date ? dt(e.date) : '', '− ' + money(e.amount), 'ps-minus')).join('')}
+      </tbody></table>
+
+      <div class="ps-days">
+        <span><b>${moneyText(f.handed)}</b> received</span>
+        <span><b>${moneyText(f.spent)}</b> spent</span>
+        ${f.back ? `<span><b>${moneyText(f.back)}</b> given back</span>` : ''}
+      </div>
+
+      <div class="ps-net">
+        <div class="ps-net-k">Still in hand</div>
+        <div class="ps-net-v">${money(f.balance)}</div>
+      </div>
+
+      <div class="ps-sign">
+        <div><div class="ps-line"></div>Counted back by</div>
+        <div><div class="ps-line"></div>Dalia Bassel Couture</div>
+      </div>
+      <div class="rc-foot">Float settlement · ${esc(f.user.name)} · issued ${esc(dt(today()))}</div>
+    </div>`;
 };
 
 /* ============ VENDORS ============
