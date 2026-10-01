@@ -2228,7 +2228,9 @@ PAGES.float = async (c) => {
   const f = await GET('/api/floats/' + id);
   window._float = f;
   const spending = f.entries.filter((e) => e.kind === 'cost' || e.kind === 'invoice');
-  c.innerHTML = title(f.user.name, '🧰') +
+  c.innerHTML = `<div class="row" style="margin-bottom:4px">
+      <button class="btn sec sm" onclick="go('floats')">‹ All floats</button>
+    </div>` + title(f.user.name, '🧰') +
     `<div class="grid g3 fl-figs">
       <div class="stat"><div class="n serif">${money(f.handed)}</div><div class="l">received</div></div>
       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(f.spent)}</div><div class="l">spent</div></div>
