@@ -363,7 +363,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v118';
+const APP_VERSION = 'v119';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1104,6 +1104,70 @@ PAGES.receipt = async (c) => {
       <div class="rc-foot">Thank you 💜 · Dalia Bassel Couture</div>
     </div>`;
 };
+
+/* ---------- the payslip ----------
+   The salary screen is a working view, full of buttons. This is the piece of
+   paper that comes out of it: what the month was, what was added and taken off
+   and why, and a line for each of them to sign. */
+PAGES.payslip = async (c) => {
+  const o = window._payslip;
+  if (!o) return goBack();
+  const s = o.sheet;
+  const line = (label, detail, amount, kind) => `<tr class="${kind || ''}">
+    <td>${esc(label)}${detail ? `<span class="ps-detail">${esc(detail)}</span>` : ''}</td>
+    <td class="ps-amt">${amount}</td></tr>`;
+  const plus = [];
+  const minus = [];
+  if (s.overtime_minutes) plus.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h`, money(s.overtime_pay), 'ps-plus'));
+  if (s.extra_hours) plus.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, money(s.extra_task_pay), 'ps-plus'));
+  if (s.bonus) plus.push(line('Bonus', '', money(s.bonus), 'ps-plus'));
+  if (s.absent_days) minus.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'ps-minus'));
+  if (s.late_minutes) minus.push(line('Lateness', `${s.late_minutes} min beyond the grace period`, '− ' + money(s.late_deduction), 'ps-minus'));
+  if (s.deductions) minus.push(line('Deductions', '', '− ' + money(s.deductions), 'ps-minus'));
+  if (s.advances) minus.push(line('Advances taken this month', '', '− ' + money(s.advances), 'ps-minus'));
+
+  const monthName = new Date(s.month + '-01T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  c.innerHTML = `<div class="rc-actions no-print">
+      <button class="btn sec" onclick="goBack()">‹ Back</button>
+      <button class="btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+    </div>
+    <div class="receipt-sheet ps-sheet">
+      <div class="rc-head">
+        <div class="rc-brand">DALIA BASSEL</div>
+        <div class="rc-sub">Haute Couture · Payslip</div>
+      </div>
+
+      <div class="ps-who">
+        <div><div class="ps-k">Employee</div><div class="ps-v">${esc(s.user)}</div></div>
+        <div><div class="ps-k">Month</div><div class="ps-v">${esc(monthName)}</div></div>
+      </div>
+
+      <div class="ps-days">
+        <span><b>${s.present_days}</b> present</span>
+        ${s.paid_leave_days ? `<span><b>${s.paid_leave_days}</b> paid leave</span>` : ''}
+        <span><b>${s.off_days}</b> day(s) off</span>
+        ${s.absent_days ? `<span class="ps-bad"><b>${s.absent_days}</b> absent</span>` : ''}
+      </div>
+
+      <table class="rc-table ps-table"><tbody>
+        ${line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, money(s.base))}
+        ${plus.join('')}
+        ${minus.join('')}
+      </tbody></table>
+
+      <div class="ps-net">
+        <div class="ps-net-k">Net salary</div>
+        <div class="ps-net-v">${money(s.net)}</div>
+      </div>
+
+      <div class="ps-sign">
+        <div><div class="ps-line"></div>Received by</div>
+        <div><div class="ps-line"></div>Dalia Bassel Couture</div>
+      </div>
+      <div class="rc-foot">${esc(monthName)} · issued ${esc(dt(today()))}</div>
+    </div>`;
+};
+window.openPayslip = (sheet) => { window._payslip = { sheet }; go('payslip'); };
 
 /* ---------- notifications ---------- */
 function timeago(s) {
