@@ -1,0 +1,214 @@
+{
+  "exported_at": "2026-10-01T20:00:04.537Z",
+  "tables": {
+    "attendance": [
+      {
+        "id": 9101,
+        "user_id": 74,
+        "date": "2026-09-01",
+        "check_in": "11:45",
+        "check_out": "21:20",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9102,
+        "user_id": 74,
+        "date": "2026-09-02",
+        "check_in": "09:30",
+        "check_out": "22:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9103,
+        "user_id": 74,
+        "date": "2026-09-03",
+        "check_in": "10:00",
+        "check_out": "19:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9104,
+        "user_id": 74,
+        "date": "2026-09-04",
+        "check_in": "11:00",
+        "check_out": "18:15",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9105,
+        "user_id": 74,
+        "date": "2026-09-05",
+        "check_in": "10:20",
+        "check_out": "21:20",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9106,
+        "user_id": 74,
+        "date": "2026-09-07",
+        "check_in": "11:15",
+        "check_out": "20:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9107,
+        "user_id": 74,
+        "date": "2026-09-08",
+        "check_in": "12:30",
+        "check_out": "21:45",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9108,
+        "user_id": 74,
+        "date": "2026-09-09",
+        "check_in": "11:45",
+        "check_out": "20:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9109,
+        "user_id": 74,
+        "date": "2026-09-10",
+        "check_in": "11:15",
+        "check_out": "19:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9110,
+        "user_id": 74,
+        "date": "2026-09-11",
+        "check_in": "12:30",
+        "check_out": "21:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9111,
+        "user_id": 74,
+        "date": "2026-09-12",
+        "check_in": "12:30",
+        "check_out": "21:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9112,
+        "user_id": 74,
+        "date": "2026-09-14",
+        "check_in": "11:15",
+        "check_out": "22:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9113,
+        "user_id": 74,
+        "date": "2026-09-16",
+        "check_in": "10:30",
+        "check_out": "19:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9114,
+        "user_id": 74,
+        "date": "2026-09-17",
+        "check_in": "11:00",
+        "check_out": "19:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9115,
+        "user_id": 74,
+        "date": "2026-09-21",
+        "check_in": "09:45",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9116,
+        "user_id": 74,
+        "date": "2026-09-22",
+        "check_in": "10:45",
+        "check_out": "20:45",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9117,
+        "user_id": 74,
+        "date": "2026-09-23",
+        "check_in": "11:15",
+        "check_out": "22:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9118,
+        "user_id": 74,
+        "date": "2026-09-24",
+        "check_in": "09:20",
+        "check_out": "16:20",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9119,
+        "user_id": 74,
+        "date": "2026-09-25",
+        "check_in": "10:00",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9120,
+        "user_id": 74,
+        "date": "2026-09-26",
+        "check_in": "10:15",
+        "check_out": "20:45",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9121,
+        "user_id": 74,
+        "date": "2026-09-28",
+        "check_in": "10:30",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9122,
+        "user_id": 74,
+        "date": "2026-09-29",
+        "check_in": "10:30",
+        "check_out": "19:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9123,
+        "user_id": 74,
+        "date": "2026-09-30",
+        "check_in": "11:00",
+        "check_out": "19:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      }
+    ]
+  }
+}

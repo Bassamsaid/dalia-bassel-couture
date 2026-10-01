@@ -2396,6 +2396,9 @@ PAGES.staffmember = async (c) => {
     const offSet = new Set((s.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
     inner = `<div class="card">
       ${kv('Role', roleLabel(s.role))}${kv('Job title', s.job_title || '—')}${kv('Base salary', money(s.base_salary))}
+      ${kv('Working hours', (s.shift_start || s.shift_end)
+        ? `${esc(s.shift_start || '—')} – ${esc(s.shift_end || '—')}`
+        : `${esc((window._cfg && window._cfg.check_in_time) || '09:00')} – ${esc((window._cfg && window._cfg.check_out_time) || '17:00')} <span class="hint">· the studio's</span>`)}
       ${kv('Phone', s.phone || '—')}${kv('Email', s.email || '—')}${kv('Hired', s.hire_date ? dt(s.hire_date) : '—')}
       <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>
       <div class="sec-title">Paid weekly off-days</div>
@@ -2512,6 +2515,8 @@ window.addStaff = () => formModal('New staff member', [
   { name: 'password', label: 'Password' },
   { name: 'job_title', label: 'Job title' },
   { name: 'base_salary', label: 'Base salary', type: 'number' },
+  { name: 'shift_start', label: 'Starts at (leave empty for the studio hours)', type: 'time' },
+  { name: 'shift_end', label: 'Ends at', type: 'time' },
   { name: 'hire_date', label: 'Hire date', type: 'date' },
 ], async (d) => { d.role = d.role === 'manager' ? 'manager' : 'staff'; await POST('/api/users', d); toast('Added'); go('staff'); });
 window.editStaff = (id) => {
@@ -2524,6 +2529,8 @@ window.editStaff = (id) => {
     { name: 'password', label: 'New password (optional)' },
     { name: 'job_title', label: 'Job title', value: s.job_title },
     { name: 'base_salary', label: 'Base salary', type: 'number', value: s.base_salary },
+    { name: 'shift_start', label: 'Starts at (empty = the studio hours)', type: 'time', value: s.shift_start },
+    { name: 'shift_end', label: 'Ends at', type: 'time', value: s.shift_end },
     { name: 'hire_date', label: 'Hire date', type: 'date', value: s.hire_date },
   ], async (d) => { d.role = d.role === 'manager' ? 'manager' : 'staff'; await PUT('/api/users/' + id, d); toast('Saved'); go(state.page); });
 };
