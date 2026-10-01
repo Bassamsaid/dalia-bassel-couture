@@ -1686,7 +1686,7 @@ api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => { if (!
 api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   if (!requireAuth(user, res)) return;
   if (user.role !== 'admin' && user.id !== Number(params.id)) return send(res, 403, { error: 'forbidden' });
-  const month = url.searchParams.get('month') || new Date().toISOString().slice(0, 7);
+  const month = url.searchParams.get('month') || studioNow().date.slice(0, 7);
   const u = await db.prepare('SELECT id,name,base_salary,off_days FROM users WHERE id=?').get(params.id);
   if (!u) return send(res, 404, { error: 'not found' });
   const cfg = {}; (await db.prepare('SELECT key,value FROM settings').all()).forEach((r) => { cfg[r.key] = r.value; });
@@ -1701,17 +1701,55 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const hourly = daily / workHours;
   const off = new Set((u.off_days || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 
-  // confirmed absences (skip the staff's paid weekly off-days)
-  const absRows = await db.prepare("SELECT date FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").all(params.id, month);
-  const absDays = absRows.filter((a) => !off.has(weekdayOf(a.date))).length;
+  // A month is read day by day rather than counted from the rows that happen to
+  // exist. A day nobody recorded anything for is an absence — that is what the
+  // studio means by one — and nothing has to be entered for it to count.
+  const first = `${month}-01`;
+  const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
+  // Nobody is absent on a day that has not happened. This is what makes the
+  // figure move with each check-in rather than only at the end of the month.
+  const today = studioNow().date;
+  const stop = `${month}-${String(lastDay).padStart(2, '0')}` <= today
+    ? `${month}-${String(lastDay).padStart(2, '0')}` : today;
 
-  // lateness + overtime from attendance (skip off-days; grace period on lateness)
-  let lateMin = 0, otMin = 0;
-  (await db.prepare('SELECT date,check_in,check_out FROM attendance WHERE user_id=? AND substr(date,1,7)=?').all(params.id, month)).forEach((a) => {
-    if (off.has(weekdayOf(a.date))) return;
-    if (a.check_in) { const late = hm2min(a.check_in) - inMin; if (late > grace) lateMin += (late - grace); }
-    if (a.check_out) { const ot = hm2min(a.check_out) - outMin; if (ot > 0) otMin += ot; }
-  });
+  const att = {};
+  for (const a of await db.prepare('SELECT date,check_in,check_out FROM attendance WHERE user_id=? AND substr(date,1,7)=?').all(params.id, month)) att[a.date] = a;
+  const marked = new Set((await db.prepare("SELECT date FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").all(params.id, month)).map((a) => a.date));
+  // Approved leave. Annual and sick are paid and cost nothing; unpaid is a day
+  // off that is still a day unpaid, so it is deducted like an absence.
+  const leave = {};
+  for (const l of await db.prepare("SELECT from_date,to_date,type FROM leaves WHERE user_id=? AND (status IS NULL OR status='approved')").all(params.id)) {
+    for (let d = 1; d <= lastDay; d++) {
+      const iso = `${month}-${String(d).padStart(2, '0')}`;
+      if (iso >= String(l.from_date).slice(0, 10) && iso <= String(l.to_date).slice(0, 10)) leave[iso] = l.type || 'annual';
+    }
+  }
+
+  const days = [];
+  let absDays = 0, presentDays = 0, offDays = 0, paidLeaveDays = 0, lateMin = 0, otMin = 0;
+  for (let d = 1; d <= lastDay; d++) {
+    const date = `${month}-${String(d).padStart(2, '0')}`;
+    const a = att[date];
+    const row = { date, weekday: weekdayOf(date), check_in: (a && a.check_in) || null, check_out: (a && a.check_out) || null, late_min: 0, ot_min: 0 };
+    if (date > stop) { row.status = 'future'; days.push(row); continue; }
+
+    if (a && a.check_in) {
+      row.status = 'present'; presentDays++;
+      const late = hm2min(a.check_in) - inMin;
+      if (!off.has(row.weekday) && late > grace) { row.late_min = late - grace; lateMin += row.late_min; }
+      if (a.check_out) { const ot = hm2min(a.check_out) - outMin; if (!off.has(row.weekday) && ot > 0) { row.ot_min = ot; otMin += ot; } }
+    } else if (off.has(row.weekday)) {
+      row.status = 'off'; offDays++;
+    } else if (leave[date] && leave[date] !== 'unpaid') {
+      row.status = 'paid_leave'; row.leave_type = leave[date]; paidLeaveDays++;
+    } else if (leave[date] === 'unpaid') {
+      row.status = 'unpaid_leave'; absDays++;
+    } else {
+      // Marked by hand or simply never turned up — the same thing on the sheet.
+      row.status = 'absent'; row.recorded = marked.has(date); absDays++;
+    }
+    days.push(row);
+  }
 
   const advTotal = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=? AND (status IS NULL OR status='approved')").get(params.id, month)).s;
   const bonus = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='bonus'").get(params.id, month)).s;
@@ -1721,11 +1759,19 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const lateDeduction = r2((lateMin / 60) * hourly);
   const overtimePay = r2((otMin / 60) * otMult * hourly);
   const net = r2(base + bonus + overtimePay - absenceDeduction - lateDeduction - advTotal - deductions);
+  // What the month is worth so far: the days already paid for, rather than the
+  // whole salary with the missing days taken back off it. Same arithmetic at the
+  // end of the month, but it reads correctly in the middle of one.
+  const paidDays = presentDays + offDays + paidLeaveDays;
+  const earnedToDate = r2(daily * paidDays + bonus + overtimePay - lateDeduction - advTotal - deductions);
+
   send(res, 200, {
     user: u.name, month, base, work_days: wd, daily: r2(daily), hourly: r2(hourly), work_hours: workHours,
     absent_days: absDays, absence_deduction: absenceDeduction,
+    present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
     late_minutes: lateMin, late_deduction: lateDeduction, overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
     bonus, deductions, advances: advTotal, net,
+    as_of: stop, earned_to_date: earnedToDate, paid_days: paidDays, days,
   });
 };
 

@@ -1058,3 +1058,19 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 /* ===== Face ID / fingerprint sign-in ===== */
 .pk-or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase}
 .pk-or::before,.pk-or::after{content:"";flex:1;height:1px;background:var(--line,rgba(0,0,0,.12))}
+
+/* ===== The month's attendance sheet ===== */
+/* Four narrow columns rather than three spread across the width: the day on the
+   left, then status, then the two times side by side where they can be compared.
+   Without this the table stretches and leaves a gulf between in and out. */
+.att-tbl{min-width:0}
+.att-tbl th,.att-tbl td{padding:10px 8px;text-align:center}
+.att-tbl th:first-child,.att-tbl td:first-child{text-align:left;padding-inline-start:12px}
+.att-tbl th:nth-child(2),.att-tbl td:nth-child(2){width:1%;white-space:nowrap}
+.att-tbl th:nth-child(3),.att-tbl td:nth-child(3),
+.att-tbl th:nth-child(4),.att-tbl td:nth-child(4){width:64px;font-variant-numeric:tabular-nums}
+.att-tbl tr.absent td,.att-tbl tr.unpaid_leave td{background:color-mix(in srgb,var(--bad) 6%,transparent)}
+.att-tbl tr.off td{color:var(--muted)}
+.att-note{font-size:10px;font-weight:700}
+.att-note.bad{color:var(--bad)}
+.att-note.ok{color:var(--ok)}
