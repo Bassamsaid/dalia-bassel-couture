@@ -1,0 +1,16 @@
+{
+  "exported_at": "2026-10-01T21:30:00Z",
+  "tables": {
+    "leaves": [
+      {
+        "id": 9303,
+        "user_id": 72,
+        "from_date": "2026-09-30",
+        "to_date": "2026-09-30",
+        "type": "sick",
+        "status": "approved",
+        "reason": "sick leave"
+      }
+    ]
+  }
+}
