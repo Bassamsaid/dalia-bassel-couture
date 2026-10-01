@@ -1,0 +1,44 @@
+{
+  "exported_at": "2026-10-01T23:30:00Z",
+  "replace": true,
+  "tables": {
+    "attendance": [
+      {
+        "id": 9010,
+        "date": "2026-09-26",
+        "check_in": "10:08",
+        "check_out": "19:20",
+        "user_id": 73,
+        "note": "hours confirmed by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9011,
+        "date": "2026-09-28",
+        "check_in": "10:35",
+        "check_out": "19:40",
+        "user_id": 73,
+        "note": "hours confirmed by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9012,
+        "date": "2026-09-29",
+        "check_in": "11:00",
+        "check_out": "19:30",
+        "user_id": 73,
+        "note": "hours confirmed by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9013,
+        "date": "2026-09-30",
+        "check_in": "09:20",
+        "check_out": "13:30",
+        "user_id": 73,
+        "note": "hours confirmed by the studio",
+        "tz_ok": 1
+      }
+    ]
+  }
+}
