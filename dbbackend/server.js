@@ -1207,6 +1207,42 @@ function haversine(lat1, lon1, lat2, lon2) { // metres between two lat/lng point
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
+// The studio's clock, which is the only one that means anything on a timesheet.
+//
+// A container's own clock is UTC unless somebody says otherwise, so reading the
+// date and the time off it recorded a seven in the evening in Cairo as four —
+// three hours short on every shift, and the staff watching a clock on their own
+// phone showing the right time while the row said something else. Worse, a time
+// typed into a manual log is whatever the person in Cairo meant by it, so the
+// two sources disagreed and a day could end before it began.
+//
+// Named zone rather than a fixed offset, so the hour Egypt moves its clocks is
+// not an hour this gets wrong.
+const STUDIO_TZ = process.env.STUDIO_TZ || 'Africa/Cairo';
+let studioClock;
+try {
+  studioClock = new Intl.DateTimeFormat('en-GB', {
+    timeZone: STUDIO_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  });
+} catch (e) {
+  console.warn(`STUDIO_TZ "${STUDIO_TZ}" is not a timezone this system knows; falling back to UTC.`);
+  studioClock = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  });
+}
+function studioNow(at = new Date()) {
+  const p = {};
+  for (const part of studioClock.formatToParts(at)) p[part.type] = part.value;
+  return { date: `${p.year}-${p.month}-${p.day}`, time: `${p.hour}:${p.minute}` };
+}
+
+api['GET /api/clock'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  send(res, 200, { ...studioNow(), zone: STUDIO_TZ });
+};
+
 api['POST /api/attendance/check'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
   const b = await readBody(req);
@@ -1218,8 +1254,7 @@ api['POST /api/attendance/check'] = async (req, res, user) => {
     const radius = Number(cfg.geo_radius) || 150;
     if (dist > radius) return send(res, 403, { error: `You are ${Math.round(dist)}m from the studio — you must be within ${radius}m to check in/out` });
   }
-  const today = new Date().toISOString().slice(0, 10);
-  const now = new Date().toTimeString().slice(0, 5);
+  const { date: today, time: now } = studioNow();
   let rec = await db.prepare('SELECT * FROM attendance WHERE user_id=? AND date=?').get(user.id, today);
   if (!rec) { await db.prepare('INSERT INTO attendance (user_id,date,check_in) VALUES (?,?,?)').run(user.id, today, now); return send(res, 200, { action: 'in', time: now }); }
   if (!rec.check_out) { await db.prepare('UPDATE attendance SET check_out=? WHERE id=?').run(now, rec.id); return send(res, 200, { action: 'out', time: now }); }
@@ -1248,7 +1283,7 @@ api['PUT /api/attendance-requests/:id/decide'] = async (req, res, user, url, par
   const st = b.status === 'approved' ? 'approved' : 'rejected';
   await db.prepare("UPDATE attendance_requests SET status=?, decided_at=datetime('now') WHERE id=?").run(st, params.id);
   if (st === 'approved') {
-    const time = rq.time || new Date().toTimeString().slice(0, 5);
+    const time = rq.time || studioNow().time;
     const rec = await db.prepare('SELECT * FROM attendance WHERE user_id=? AND date=?').get(rq.user_id, rq.date);
     if (rq.kind === 'in') {
       if (rec) await db.prepare('UPDATE attendance SET check_in=? WHERE id=?').run(time, rec.id);
@@ -1342,6 +1377,9 @@ api['GET /api/settings'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
   const rows = await db.prepare('SELECT key,value FROM settings').all();
   const out = {}; rows.forEach((r) => { out[r.key] = r.value; });
+  // The zone the timesheet is kept in, so the clock on the screen and the row it
+  // writes cannot disagree — even on a phone set to somewhere else.
+  out.studio_tz = STUDIO_TZ;
   send(res, 200, out);
 };
 api['PUT /api/settings'] = async (req, res, user) => {
