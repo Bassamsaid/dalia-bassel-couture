@@ -363,7 +363,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v102';
+const APP_VERSION = 'v103';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -488,6 +488,7 @@ function renderAuth(mode) {
     if (!yes) return;
     const el = document.getElementById(pkSetUpHere() ? 'pkTop' : 'pkWrap');
     if (el) el.classList.remove('hidden');
+    autoPasskey();
   });
 }
 window.renderAuth = renderAuth;
@@ -850,7 +851,8 @@ window.passkeyRegister = async () => {
   }
 };
 
-window.passkeyLogin = async () => {
+window.passkeyLogin = async (opts) => {
+  const o_ = opts || {};
   try {
     const typed = document.querySelector('#authForm input[name=email]');
     const email = typed ? (typed.value || '').trim() : '';
@@ -861,7 +863,7 @@ window.passkeyLogin = async () => {
     if (!(o.allowCredentials || []).length && !pkSetUpHere()) {
       throw new Error('This phone is not set up yet. Sign in with your password once and it will offer to set it up.');
     }
-    const cred = await navigator.credentials.get({
+    const req = {
       publicKey: {
         challenge: pkFromB64(o.challenge),
         rpId: o.rpId,
@@ -869,7 +871,12 @@ window.passkeyLogin = async () => {
         userVerification: o.userVerification,
         timeout: o.timeout,
       },
-    });
+    };
+    // Conditional means: do not open anything, just wait, and offer the key if
+    // the person taps the email box. Safari allows that without a gesture where
+    // it refuses to open a prompt on its own.
+    if (o_.conditional) req.mediation = 'conditional';
+    const cred = await navigator.credentials.get(req);
     if (!cred) throw new Error('Nothing came back from the device');
     await POST('/api/passkey/login/finish', {
       challenge: o.challenge,
@@ -883,15 +890,41 @@ window.passkeyLogin = async () => {
     state.user = (await GET('/api/me')).user;
     await loadPerms(); await loadConfig();
     renderApp();
+    return true;
   } catch (e) {
-    if (pkCancelled(e)) return;
+    if (pkCancelled(e)) return false;
     // Only "this device is not known here" means the note is stale. An expired
     // challenge or a dropped connection is a retry, not a reason to forget.
     if (/not set up/i.test(e.message || '')) pkRemember(false);
+    // An attempt nobody asked for stays silent: it was a convenience, and the
+    // button is still sitting there to be pressed.
+    if (o_.quiet) return false;
     const el = document.getElementById('authErr');
     if (el) { el.textContent = e.message || 'Could not sign in with this device'; el.classList.remove('hidden'); }
     else toast(e.message || 'Could not sign in', 'error');
+    return false;
   }
+};
+/* Opening Face ID without being asked to.
+
+   Browsers disagree about this on purpose. Chrome on Android will open the
+   prompt as the page loads; Safari will not, because a page that can raise
+   Face ID unprompted can raise it over and over until somebody glances at the
+   screen. So: ask straight away, and where that is refused, fall back to the
+   conditional request, which opens nothing but offers the key the moment the
+   email box is tapped. Either way the button is still there. */
+window.autoPasskey = async () => {
+  if (window.__pkAutoTried) return;
+  window.__pkAutoTried = true;
+  if (!pkSetUpHere()) return;
+  if (!(await hasPlatformAuthenticator())) return;
+  if (await passkeyLogin({ quiet: true })) return;   // signed in, nothing more to do
+  try {
+    if (!(await PublicKeyCredential.isConditionalMediationAvailable?.())) return;
+    const inp = document.querySelector('#authForm input[name=email]');
+    if (inp) inp.setAttribute('autocomplete', 'username webauthn');
+    passkeyLogin({ quiet: true, conditional: true });  // left pending on purpose
+  } catch (e) { /* the button remains */ }
 };
 window.faceLabel = faceLabel;
 window.hasPlatformAuthenticator = hasPlatformAuthenticator;
