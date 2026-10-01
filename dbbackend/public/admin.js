@@ -870,10 +870,6 @@ function groupPage(key) {
       `<div class="dtabs grp-tabs">${tabs.map(([k, l, ic]) => `<button class="dtab${k === tab ? ' on' : ''}" onclick="groupTab('${key}','${k}')">
         <span class="dtab-ic">${ic}</span>${esc(l)}</button>`).join('')}</div>
        <div id="grpBody" class="grp-body"><div class="spinner"></div></div>`;
-    // on a phone the row scrolls — bring the open tab into view so it is never
-    // the one hidden off the right edge
-    const on = c.querySelector('.grp-tabs .dtab.on');
-    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
     const body = document.getElementById('grpBody');
     window._inGroup = key;
     try { await PAGES[tab](body); } finally { window._inGroup = null; }
@@ -2628,7 +2624,7 @@ PAGES.config = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
   const s = await GET('/api/settings');
   const tab = window._cfgTab || 'academy';
-  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['vendors', 'Suppliers'], ['backup', 'Backup']];
+  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['vendors', 'Suppliers'], ['perms', 'Who sees what'], ['backup', 'Backup']];
   let inner = '';
   if (tab === 'academy') {
     inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
@@ -2728,6 +2724,8 @@ PAGES.config = async (c) => {
         <div class="hint" style="margin-top:6px">Pick a backup file you downloaded before. Anything already here is kept — only what is missing is put back — so this is safe to run even if the app is not empty.</div>
         <button class="btn sec" style="margin-top:12px" onclick="pickRestore()">⬆︎ Restore from a backup file</button>
       </div>`;
+  } else if (tab === 'perms') {
+    inner = await permissionsPane();
   } else {
     inner = `<div class="card"><label>Currency</label><input id="cfg_currency" value="${esc(s.currency || 'EGP')}" />
       <div class="hint" style="margin-top:6px">Shown next to all amounts across the app.</div>
@@ -2871,8 +2869,9 @@ window.saveCfg = async (keys) => {
 };
 
 /* ============ PERMISSIONS (per-role section visibility) ============ */
-PAGES.permissions = async (c) => {
-  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🔒'); return; }
+/* Who sees what — a tab of Configuration, and still its own screen for anyone
+   who arrives at it by its old address. */
+async function permissionsPane() {
   const data = await GET('/api/permissions');
   const hidden = data.hidden || {};
   const roles = [['trainee', 'Students'], ['manager', 'Managers'], ['staff', 'Staff'], ['customer', 'Clients']];
@@ -2884,21 +2883,33 @@ PAGES.permissions = async (c) => {
     : [[k, l, ic]]));
   const hiddenForRole = hidden[role] || [];
   const isHid = (p) => hiddenForRole.includes(p);
-  c.innerHTML = title('Permissions', '🔒') +
-    `<div class="filters">${roles.map(([k, l]) => `<span class="chip ${role === k ? 'active' : ''}" onclick="permRole('${k}')">${l}</span>`).join('')}</div>
-    <div class="hint" style="margin:2px 2px 10px">Choose what <b>${esc(roles.find((r) => r[0] === role)[1])}</b> can see when they log in. Home is always visible.</div>
+  // its own card, so the row of roles is never mistaken for the row of tabs above it
+  return `<div class="card" style="margin-top:12px">
+      <label style="margin-top:0">Who are you setting up?</label>
+      <div class="filters" style="margin-top:8px">${roles.map(([k, l]) => `<span class="chip ${role === k ? 'active' : ''}" onclick="permRole('${k}')">${l}</span>`).join('')}</div>
+      <div class="hint" style="margin-top:8px">Choose what <b>${esc(roles.find((r) => r[0] === role)[1])}</b> can see when they log in. Home is always visible.</div>
+    </div>
     <div class="card">${pages.map(([k, l, ic]) => `
       <div class="item">
         <div class="av">${ic}</div>
         <div class="main"><div class="nm">${esc(l)}</div><div class="sub muted">${isHid(k) ? 'Hidden from this role' : 'Visible'}</div></div>
         <button class="btn sm ${isHid(k) ? 'sec' : ''}" onclick="togglePerm('${role}','${k}',${isHid(k) ? 1 : 0})">${isHid(k) ? '🚫 Hidden' : '✓ Visible'}</button>
       </div>`).join('')}</div>`;
+}
+PAGES.permissions = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🔒'); return; }
+  c.innerHTML = title('Permissions', '🔒') + await permissionsPane();
 };
-window.permRole = (r) => { window._permRole = r; go('permissions'); };
+/* redraw wherever it is being shown from, on the tab it is being shown on */
+const permsRefresh = () => {
+  if (state.page !== 'config') return go('permissions');
+  window._cfgTab = 'perms'; go('config');
+};
+window.permRole = (r) => { window._permRole = r; permsRefresh(); };
 window.togglePerm = async (role, page, currentlyHidden) => {
   // if it's currently hidden, clicking makes it visible (and vice-versa)
   await PUT('/api/permissions', { role, page, visible: currentlyHidden ? 1 : 0 });
-  toast('Updated'); go('permissions');
+  toast('Updated'); permsRefresh();
 };
 
 
