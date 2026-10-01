@@ -346,7 +346,11 @@ async function boot() {
   if (invite) return renderInvite(invite);   // she arrived on her invitation link
   try {
     const { user } = await GET('/api/me');
-    if (user) { state.user = user; await loadPerms(); await loadConfig(); renderApp(); }
+    // Somebody already signed in never passes through the sign-in screen again,
+    // so without this the offer would never reach the people who have been using
+    // the app all along — exactly the ones typing a password least often and
+    // noticing it most.
+    if (user) { state.user = user; await loadPerms(); await loadConfig(); renderApp(); offerPasskey(); }
     else renderAuth();
   } catch (e) { renderAuth(); }
   if ('serviceWorker' in navigator) {
@@ -898,13 +902,23 @@ const pkSetUpHere = () => { try { return localStorage.getItem(PK_HERE) === '1'; 
 const pkRemember = (on) => { try { on ? localStorage.setItem(PK_HERE, '1') : localStorage.removeItem(PK_HERE); } catch (e) {} };
 
 const PK_ASKED = 'pk-asked';
+const PK_ASKED_AT = 'pk-asked-at';
 window.offerPasskey = async () => {
   try {
     if (!(await hasPlatformAuthenticator())) return;
-    // Asked twice and waved away twice is an answer; stop asking.
-    let asked = 0;
-    try { asked = Number(localStorage.getItem(PK_ASKED) || 0); } catch (e) { asked = 0; }
-    if (asked >= 2) return;
+    // Waved away twice, it goes quiet — but for a fortnight, not forever. A
+    // "not now" on a busy morning should not be the last the studio ever hears
+    // of it. My Profile has it permanently for anyone who wants it sooner.
+    let asked = 0, when = 0;
+    try {
+      asked = Number(localStorage.getItem(PK_ASKED) || 0);
+      when = Number(localStorage.getItem(PK_ASKED_AT) || 0);
+    } catch (e) { asked = 0; }
+    if (asked >= 2 && Date.now() - when < 14 * 24 * 3600 * 1000) return;
+    if (asked >= 2) { try { localStorage.setItem(PK_ASKED, '0'); } catch (e) {} }
+    // Only once per visit, however many times the app is re-rendered.
+    if (window.__pkOffered) return;
+    window.__pkOffered = true;
     const keys = await GET('/api/passkeys').catch(() => []);
     if (keys.some((k) => k.usable_here)) return; // already set up on this phone
     modal(`<h3 style="margin:0 0 6px">Skip the password next time?</h3>
@@ -914,7 +928,10 @@ window.offerPasskey = async () => {
   } catch (e) { /* never let this get in the way of signing in */ }
 };
 window.dismissPasskeyOffer = () => {
-  try { localStorage.setItem(PK_ASKED, String(Number(localStorage.getItem(PK_ASKED) || 0) + 1)); } catch (e) {}
+  try {
+    localStorage.setItem(PK_ASKED, String(Number(localStorage.getItem(PK_ASKED) || 0) + 1));
+    localStorage.setItem(PK_ASKED_AT, String(Date.now()));
+  } catch (e) {}
   closeModal();
 };
 
