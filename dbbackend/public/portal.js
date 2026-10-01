@@ -303,7 +303,17 @@ PAGES.about_view = async (c, a) => {
 };
 
 /* ============ CHECK-IN / OUT (shared: staff home + student attendance) ============ */
-const _hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+// The time the studio keeps, not the time this phone happens to be set to —
+// the clock on the check-in screen has to read the same as the row it writes.
+const _hhmm = (d) => {
+  const tz = (window._cfg && window._cfg.studio_tz) || '';
+  if (tz) {
+    try {
+      return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d);
+    } catch (e) { /* unknown zone: the phone's own clock is the better guess */ }
+  }
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+};
 function attMins(ci, co) { // minutes between two "HH:MM" times
   if (!ci || !co) return 0;
   const [ih, im] = ci.split(':').map(Number); const [oh, om] = co.split(':').map(Number);
