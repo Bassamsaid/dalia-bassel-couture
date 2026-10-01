@@ -1,0 +1,217 @@
+{
+  "exported_at": "2026-10-01T19:32:30.676Z",
+  "tables": {
+    "attendance": [
+      {
+        "id": 9001,
+        "user_id": 73,
+        "date": "2026-09-01",
+        "check_in": "10:00",
+        "check_out": "19:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9002,
+        "user_id": 73,
+        "date": "2026-09-02",
+        "check_in": "10:00",
+        "check_out": "19:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9003,
+        "user_id": 73,
+        "date": "2026-09-03",
+        "check_in": "09:00",
+        "check_out": "18:00",
+        "note": "laila",
+        "tz_ok": 1
+      },
+      {
+        "id": 9004,
+        "user_id": 73,
+        "date": "2026-09-04",
+        "check_in": "09:00",
+        "check_out": "15:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9005,
+        "user_id": 73,
+        "date": "2026-09-17",
+        "check_in": "10:00",
+        "check_out": "20:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9006,
+        "user_id": 73,
+        "date": "2026-09-19",
+        "check_in": "10:15",
+        "check_out": "19:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9007,
+        "user_id": 73,
+        "date": "2026-09-21",
+        "check_in": "09:55",
+        "check_out": "18:55",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9008,
+        "user_id": 73,
+        "date": "2026-09-22",
+        "check_in": "10:00",
+        "check_out": "19:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9009,
+        "user_id": 73,
+        "date": "2026-09-24",
+        "check_in": "10:00",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9010,
+        "user_id": 73,
+        "date": "2026-09-26",
+        "check_in": "10:08",
+        "check_out": "19:20",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9011,
+        "user_id": 73,
+        "date": "2026-09-28",
+        "check_in": "10:35",
+        "check_out": "19:40",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9012,
+        "user_id": 73,
+        "date": "2026-09-29",
+        "check_in": "11:00",
+        "check_out": "19:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9013,
+        "user_id": 73,
+        "date": "2026-09-30",
+        "check_in": "09:20",
+        "check_out": "13:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      }
+    ],
+    "absences": [
+      {
+        "id": 9501,
+        "user_id": 73,
+        "date": "2026-09-05",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9502,
+        "user_id": 73,
+        "date": "2026-09-07",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9503,
+        "user_id": 73,
+        "date": "2026-09-08",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9504,
+        "user_id": 73,
+        "date": "2026-09-09",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9505,
+        "user_id": 73,
+        "date": "2026-09-10",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9506,
+        "user_id": 73,
+        "date": "2026-09-11",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9507,
+        "user_id": 73,
+        "date": "2026-09-12",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9508,
+        "user_id": 73,
+        "date": "2026-09-14",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9509,
+        "user_id": 73,
+        "date": "2026-09-15",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9510,
+        "user_id": 73,
+        "date": "2026-09-16",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9511,
+        "user_id": 73,
+        "date": "2026-09-18",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9512,
+        "user_id": 73,
+        "date": "2026-09-23",
+        "reason": "absent",
+        "status": "confirmed"
+      },
+      {
+        "id": 9513,
+        "user_id": 73,
+        "date": "2026-09-25",
+        "reason": "absent",
+        "status": "confirmed"
+      }
+    ]
+  }
+}
