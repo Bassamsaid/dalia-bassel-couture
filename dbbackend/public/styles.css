@@ -1144,3 +1144,9 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .dr-money .v.ok{color:var(--ok)}
 .dr-money .v.bad{color:var(--bad)}
 .dr-money.none{display:block;font-size:11px;color:var(--muted);font-weight:600}
+
+/* A field somebody may read but not change should look like it, not like an
+   empty box waiting to be filled in. */
+input[readonly], textarea[readonly], select:disabled{
+  background:var(--soft); color:var(--ink); border-style:dashed; cursor:default}
+input[readonly]:focus, textarea[readonly]:focus{box-shadow:none; border-color:var(--line)}
