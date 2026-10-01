@@ -1124,7 +1124,7 @@ function frameStyle(f) {
   return `--ar:${f.shape};--pos:${f.x}% ${f.y}%;--z:${f.z}`;
 }
 function shPhoto(a, admin) {
-  const f = frameVars(a), url = mediaUrl(esc)(a.image);
+  const f = frameVars(a), url = esc(mediaUrl(a.image));
   return `<div class="sh-photo" style="${frameStyle(f)}">
     <i style="background-image:url('${url}')" onclick="lightbox('${url}')"></i>
     ${admin ? `<button class="sh-frame" onclick="event.stopPropagation();frameAbout()">Frame photo</button>` : ''}
@@ -1137,7 +1137,7 @@ const FRAME_SHAPES = [['16/10', 'Wide'], ['3/2', 'Classic'], ['1/1', 'Square'], 
 window.frameAbout = async () => {
   const a = await GET('/api/about');
   if (!a.image) { toast('Add a photo first'); return; }
-  const f = frameVars(a), url = mediaUrl(esc)(a.image);
+  const f = frameVars(a), url = esc(mediaUrl(a.image));
   modal(`<h3>Frame the photo</h3>
     <div class="hint" style="margin:-4px 0 12px">Drag the photo to choose what shows. Nothing is cut from the original.</div>
     <div class="sh-photo fr-stage" id="frStage" style="${frameStyle(f)}">
@@ -1288,7 +1288,7 @@ window.daliaHouse = (k) => { window._daliaHouse = k; go('dalia'); };
 function renderDaliaPost(p, admin) {
   const tpl = p.template || 'below';
   const media = p.media || [];
-  const img = p.image ? mediaUrl(esc)(p.image) : '';
+  const img = p.image ? esc(mediaUrl(p.image)) : '';
   const cap = esc((p.title || '').replace(/'/g, ''));
   const imgTag = media.length ? gallery(media) : '';
   const heads = `${p.title ? `<div class="ttl">${esc(p.title)}</div>` : ''}${p.subtitle ? `<div class="sub2">${esc(p.subtitle)}</div>` : ''}`;
@@ -1298,7 +1298,7 @@ function renderDaliaPost(p, admin) {
   const del = admin ? `<div class="row" style="margin-top:12px"><button class="btn sec sm" onclick="editDalia(${p.id})">Edit / add photo</button><button class="btn danger sm" onclick="delDalia(${p.id})">Delete</button></div>` : '';
   if (tpl === 'hero') {
     const single = media.length === 1 && media[0].kind === 'image';
-    const cover = single ? mediaUrl(esc)(media[0].file) : '';
+    const cover = single ? esc(mediaUrl(media[0].file)) : '';
     return `<div class="feed-post fp-hero">${single
       ? `<div class="hero-img" style="background-image:url('${cover}')" onclick="lightbox('${cover}','${cap}')"><div class="hero-ov">${heads}</div></div>`
       : `${imgTag}<div class="body">${heads}</div>`}<div class="body">${date}${txt}${tbl}${del}</div></div>`;
@@ -1324,7 +1324,7 @@ function daliaForm(p) {
   p = p || {};
   window._dImg = p.image || null; window._dEditId = p.id || null;
   const tpls = [['below', '🖼️ Image on top · text below'], ['side', '↔️ Image beside text'], ['hero', '✨ Big image · title on it'], ['text', '📝 Text only (info block)']];
-  const prev = p.image ? (String(p.image).startsWith('data:') ? p.image : mediaUrl(esc)(p.image)) : '';
+  const prev = p.image ? (String(p.image).startsWith('data:') ? p.image : esc(mediaUrl(p.image))) : '';
   const secs = [['couture', '👗 Daliessa Couture'], ['academy', '🎓 Dalia Bassel Academy'], ['studio', '✦ Studio news']];
   modal(`<h3>${p.id ? 'Edit post' : 'New post'}</h3>
     <label>Where does it belong?</label>
@@ -1353,7 +1353,7 @@ function dPaintMedia() {
       <button class="scan-del" onclick="${del}" aria-label="Remove">✕</button>
       <span class="scan-tag${tag === 'new' ? ' new' : ''}">${tag}</span></div>`;
   const old = (window._dOld || []).filter((m) => m.id).map((m) => {
-    const c = cell(m.kind === 'video' && m.poster ? mediaUrl(esc)(m.poster) : mediaUrl(esc)(m.file),
+    const c = cell(m.kind === 'video' && m.poster ? esc(mediaUrl(m.poster)) : esc(mediaUrl(m.file)),
       m.kind === 'video' && m.poster ? 'image' : m.kind, `dDelOld(${m.id})`, m.kind === 'video' ? 'video' : 'live');
     // a video can be given a cover of your choosing
     return m.kind === 'video'
@@ -1361,7 +1361,7 @@ function dPaintMedia() {
       : c;
   }).join('');
   const fresh = (window._dNew || []).map((m, i) =>
-    cell(mediaUrl(esc)(m.file), m.kind, `dDelNew(${i})`, 'new')).join('');
+    cell(esc(mediaUrl(m.file)), m.kind, `dDelNew(${i})`, 'new')).join('');
   g.innerHTML = (old + fresh) || '<div class="scan-empty">No photos yet</div>';
 }
 window.dAddMedia = () => {

@@ -448,10 +448,6 @@ function renderAuth(mode) {
       <div class="err hidden" id="authErr"></div>
       <button class="btn" style="margin-top:18px" type="submit">${isReg ? 'Create account' : 'Sign in'}</button>
     </form>
-    ${isReg ? '' : `<div id="pkWrap" class="hidden" style="margin-top:14px">
-      <div class="pk-or"><span>or</span></div>
-      <button class="btn sec" style="margin-top:12px" onclick="passkeyLogin()">${faceLabel()}</button>
-    </div>`}
     <p class="hint" style="margin-top:16px">${isReg ? 'Already have an account? ' : "Don't have an account? "}
       <a href="#" onclick="renderAuth('${isReg ? '' : 'register'}');return false" style="font-weight:700">${isReg ? 'Sign in' : 'Create one'}</a></p>`;
   }
@@ -474,12 +470,14 @@ function renderAuth(mode) {
   };
   // Shown only where the device can actually do it, so the button is never a
   // promise the phone cannot keep.
-  if (!isReg) hasPlatformAuthenticator().then((yes) => {
-    if (!yes) return;
-    // A phone that has been set up gets the button first and the password box
-    // second; one that has not keeps the password first, with the option below.
-    const el = document.getElementById(pkSetUpHere() ? 'pkTop' : 'pkWrap');
-    if (el) el.classList.remove('hidden');
+  // The button appears only on a phone that has actually been set up. Offered
+  // on one that has not, tapping it sends iOS hunting for a key on some other
+  // device and puts a QR code on the screen — which is not a thing to show
+  // somebody who only wanted to sign in. Setting up is offered after a password
+  // sign-in instead, where it belongs.
+  if (!isReg && pkSetUpHere()) hasPlatformAuthenticator().then((yes) => {
+    const el = document.getElementById('pkTop');
+    if (yes && el) el.classList.remove('hidden');
   });
 }
 window.renderAuth = renderAuth;
@@ -847,6 +845,12 @@ window.passkeyLogin = async () => {
     const typed = document.querySelector('#authForm input[name=email]');
     const email = typed ? (typed.value || '').trim() : '';
     const o = await POST('/api/passkey/login/start', email ? { email } : {});
+    // Nothing to offer and no note saying this phone was set up: say so rather
+    // than handing the request to the operating system, which answers an empty
+    // list by asking to scan a QR code with another device.
+    if (!(o.allowCredentials || []).length && !pkSetUpHere()) {
+      throw new Error('This phone is not set up yet. Sign in with your password once and it will offer to set it up.');
+    }
     const cred = await navigator.credentials.get({
       publicKey: {
         challenge: pkFromB64(o.challenge),
