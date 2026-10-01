@@ -695,6 +695,18 @@ const ready = (async () => {
     console.warn('Attendance times could not be corrected:', e.message);
   }
 
+  // Last, deliberately: months kept on paper go in after the old rows have been
+  // cleared and the clock put right, so nothing just loaded is swept up by
+  // either. Their times are already the studio's, and marked as such.
+  try {
+    const { applyImports } = require('./apply-imports');
+    for (const d of await applyImports(db)) {
+      console.log(`Imported ${d.file}: ${d.written} row(s) added${d.skipped ? `, ${d.skipped} already there` : ''}.`);
+    }
+  } catch (e) {
+    console.warn('Recorded months could not be imported:', e.message);
+  }
+
 })();
 
 // Nobody awaits this at load time, and an unhandled rejection takes the process
