@@ -494,10 +494,14 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
     if (!['trainee', 'customer'].includes(cur.role)) return send(res, 403, { error: 'forbidden' });
     if (b.role && !['trainee', 'customer'].includes(b.role)) return send(res, 403, { error: 'cannot change role' });
   }
-  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,off_days=? WHERE id=?`).run(
+  // An empty shift box means "use the studio's hours", so '' is stored as null
+  // rather than as a time of midnight.
+  const shift = (v, fallback) => (v === undefined ? fallback : (String(v).trim() || null));
+  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,off_days=?,shift_start=?,shift_end=? WHERE id=?`).run(
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
-    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.off_days ?? cur.off_days, params.id);
+    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.off_days ?? cur.off_days,
+    shift(b.shift_start, cur.shift_start), shift(b.shift_end, cur.shift_end), params.id);
   if (b.password) await db.prepare('UPDATE users SET password_hash=?,invited=0 WHERE id=?').run(hashPassword(b.password), params.id);
   // giving a login email to someone who had none makes the account claimable on sign-up.
   // An account that already had an email keeps its password — editing it must not lock anyone out.
@@ -1687,14 +1691,19 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   if (!requireAuth(user, res)) return;
   if (user.role !== 'admin' && user.id !== Number(params.id)) return send(res, 403, { error: 'forbidden' });
   const month = url.searchParams.get('month') || studioNow().date.slice(0, 7);
-  const u = await db.prepare('SELECT id,name,base_salary,off_days FROM users WHERE id=?').get(params.id);
+  const u = await db.prepare('SELECT id,name,base_salary,off_days,shift_start,shift_end FROM users WHERE id=?').get(params.id);
   if (!u) return send(res, 404, { error: 'not found' });
   const cfg = {}; (await db.prepare('SELECT key,value FROM settings').all()).forEach((r) => { cfg[r.key] = r.value; });
   const wd = Number(cfg.work_days_per_month) || 30;
   const base = Number(u.base_salary) || 0;
   const daily = wd ? base / wd : 0;
-  const inMin = hm2min(cfg.check_in_time || '09:00');
-  const outMin = hm2min(cfg.check_out_time || '17:00');
+  // This person's hours if they have their own, the studio's otherwise. Both
+  // lateness and overtime are measured from these, so somebody whose day starts
+  // at eleven is neither late every morning nor paid overtime from eight.
+  const shiftIn = u.shift_start || cfg.check_in_time || '09:00';
+  const shiftOut = u.shift_end || cfg.check_out_time || '17:00';
+  const inMin = hm2min(shiftIn);
+  const outMin = hm2min(shiftOut);
   const grace = Number(cfg.late_grace_min) || 0;
   const otMult = Number(cfg.overtime_mult) || 1.5;
   const workHours = Math.max(1, (outMin - inMin) / 60);
@@ -1767,6 +1776,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
 
   send(res, 200, {
     user: u.name, month, base, work_days: wd, daily: r2(daily), hourly: r2(hourly), work_hours: workHours,
+    shift_start: shiftIn, shift_end: shiftOut, shift_is_own: !!(u.shift_start || u.shift_end),
     absent_days: absDays, absence_deduction: absenceDeduction,
     present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
     late_minutes: lateMin, late_deduction: lateDeduction, overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,

@@ -666,6 +666,11 @@ const ready = (async () => {
   // the machine's. Rows written before that distinction existed arrive at 0 and
   // are put right below — including rows restored later from an old backup.
   await tryExec('ALTER TABLE attendance ADD COLUMN tz_ok INTEGER DEFAULT 0');
+  // Each person's own working hours. Lateness and overtime are measured from
+  // these, so a supervisor who starts at eleven is not late every morning
+  // against a studio-wide nine. Empty means the studio-wide hours still apply.
+  await tryExec('ALTER TABLE users ADD COLUMN shift_start TEXT');
+  await tryExec('ALTER TABLE users ADD COLUMN shift_end TEXT');
 
   const { fixAttendanceTz, pruneAttendanceBefore } = require('./fix-attendance-tz');
   // Shifts from before the studio began keeping this properly, cleared at the
