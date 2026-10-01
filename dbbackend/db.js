@@ -662,6 +662,26 @@ const ready = (async () => {
   await tryExec('ALTER TABLE vendors ADD COLUMN specialty TEXT');
   await tryExec('ALTER TABLE vendors ADD COLUMN address TEXT');
   await tryExec('ALTER TABLE vendors ADD COLUMN email TEXT');
+  // Set once a row's times are known to be on the studio's clock rather than
+  // the machine's. Rows written before that distinction existed arrive at 0 and
+  // are put right below — including rows restored later from an old backup.
+  await tryExec('ALTER TABLE attendance ADD COLUMN tz_ok INTEGER DEFAULT 0');
+
+  const { fixAttendanceTz } = require('./fix-attendance-tz');
+  try {
+    const r = await fixAttendanceTz(db, process.env.STUDIO_TZ || 'Africa/Cairo');
+    if (r.corrected) console.log(`Attendance: ${r.corrected} shift(s) moved onto the studio's clock.`);
+    for (const s of r.skipped) {
+      console.warn(`Attendance row ${s.id} (${s.date}) would cross midnight once corrected — left as it is: in ${s.check_in}, out ${s.check_out}.`);
+    }
+    for (const s of (r.odd || [])) {
+      console.warn(`Attendance row ${s.id} (${s.date}) still ends before it starts — in ${s.check_in}, out ${s.check_out}. Worth checking by hand.`);
+    }
+  } catch (e) {
+    // A timesheet that cannot be corrected is still a timesheet; do not take the
+    // whole app down over it.
+    console.warn('Attendance times could not be corrected:', e.message);
+  }
 
 })();
 
