@@ -700,6 +700,28 @@ const ready = (async () => {
     console.warn('Attendance times could not be corrected:', e.message);
   }
 
+  // The studio's day ends at seven, not eight. It was set to eight when nobody
+  // was relying on it, and the figure decides when overtime starts — so an hour
+  // of every evening was going unpaid. Corrected once, and only if it still says
+  // what it was set to then: a value chosen since is somebody's decision.
+  try {
+    const flag = await db.prepare("SELECT value FROM settings WHERE key = 'shift_end_fixed'").get();
+    if (!flag) {
+      const cur = await db.prepare("SELECT value FROM settings WHERE key = 'check_out_time'").get();
+      if (cur && cur.value === '20:00') {
+        await db.prepare("UPDATE settings SET value = '19:00' WHERE key = 'check_out_time'").run();
+        console.log("Studio hours: the working day now ends at 19:00, not 20:00.");
+      }
+      await db.prepare("INSERT INTO settings (key,value) VALUES ('shift_end_fixed','19:00') ON CONFLICT(key) DO UPDATE SET value = excluded.value").run();
+      // The hours written into a job title said eight as well, and are what the
+      // staff screen shows under a name.
+      const r = await db.prepare("UPDATE users SET job_title = replace(job_title,'8 PM','7 PM') WHERE job_title LIKE '%8 PM%'").run();
+      if (r.changes) console.log(`Job titles: ${r.changes} updated to read 7 PM.`);
+    }
+  } catch (e) {
+    console.warn('Studio hours could not be corrected:', e.message);
+  }
+
   // Last, deliberately: months kept on paper go in after the old rows have been
   // cleared and the clock put right, so nothing just loaded is swept up by
   // either. Their times are already the studio's, and marked as such.
