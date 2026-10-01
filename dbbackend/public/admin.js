@@ -2095,7 +2095,7 @@ PAGES.expenses = async (c) => {
   // vendors are still read for the New expense form's dropdown
   window._expRef = { vendors, types };
   const tab = window._expTab || 'entries';
-  const tabs = [['entries', 'All expenses'], ['analysis', 'Analysis'], ['types', 'Types']];
+  const tabs = [['entries', 'All costs'], ['analysis', 'Analysis'], ['types', 'Types']];
   let inner = '';
   if (tab === 'entries') {
     const ef = window._expMonth || '';
@@ -2104,14 +2104,14 @@ PAGES.expenses = async (c) => {
     const etotal = elist.reduce((a, e) => a + (e.amount || 0), 0);
     inner = `<div class="grid g2" style="margin-bottom:10px">
         <div class="stat"><div class="n serif" style="color:var(--bad)">${money(etotal)}</div><div class="l">${ef ? monthLabel(ef) : 'All-time'} spent</div></div>
-        <div class="stat"><div class="n serif">${elist.length}</div><div class="l">expense${elist.length === 1 ? '' : 's'}</div></div>
+        <div class="stat"><div class="n serif">${elist.length}</div><div class="l">cost${elist.length === 1 ? '' : 's'} recorded</div></div>
       </div>
-      <button class="btn" onclick="addExpense()">＋ New expense</button>
+      <button class="btn" onclick="addExpense()">＋ New studio cost</button>
       ${monthChips(expenses.map((e) => e.date || e.created_at), ef, 'setExpMonth')}
       <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : '<div class="av">💸</div>'}
         <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div>
-        <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty(ef ? 'Nothing spent in ' + monthLabel(ef) : 'No expenses yet', '💸')}</div>`;
+        <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty(ef ? 'Nothing spent in ' + monthLabel(ef) : 'Nothing here yet', '🏠')}</div>`;
   } else if (tab === 'analysis') {
     const byMonth = {};
     const addTo = (m, t, amt) => { byMonth[m] = byMonth[m] || { total: 0, types: {} }; byMonth[m].total += amt; byMonth[m].types[t] = (byMonth[m].types[t] || 0) + amt; };
@@ -2123,13 +2123,16 @@ PAGES.expenses = async (c) => {
         ${ts.map(([t, a]) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(t)}</div></div><div class="sub">${money(a)}</div></div>`).join('')}</div>`;
     }).join('') : empty('No spending data yet', '📊');
   } else {
-    inner = `<button class="btn" onclick="addExpType()">＋ Add expense type</button>
-      <div class="card" style="margin-top:12px">${types.length ? types.map((t) => `<div class="item"><div class="av">🏷️</div><div class="main"><div class="nm">${esc(t.name)}</div></div><button class="btn-icon" onclick="delExpType(${t.id})">🗑</button></div>`).join('') : empty('No types yet')}</div>`;
+    inner = `<button class="btn" onclick="addExpType()">＋ Add a type of cost</button>
+      <div class="hint" style="margin:10px 2px 6px">Rent, electricity, marketing, repairs — the headings a studio cost can be filed under.</div>
+      <div class="card">${types.length ? types.map((t) => `<div class="item"><div class="av">🏷️</div><div class="main"><div class="nm">${esc(t.name)}</div></div><button class="btn-icon" onclick="delExpType(${t.id})">🗑</button></div>`).join('') : empty('No types yet')}</div>`;
   }
-  c.innerHTML = pageHead('Expenses', '💸') + `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+  c.innerHTML = pageHead('Studio costs', '🏠') +
+    `<p class="hint" style="margin:2px 2px 10px">What the studio itself costs — rent, bills, marketing, anything that is not materials for a dress. Materials go on an invoice under Purchases.</p>
+     <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
-window.addExpense = () => { const { vendors, types } = window._expRef; formModal('New expense', [
+window.addExpense = () => { const { vendors, types } = window._expRef; formModal('New studio cost', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'type', label: 'Type', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
   { name: 'vendor_id', label: 'Vendor', type: 'select', options: [{ value: '', label: '—' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
@@ -2137,7 +2140,7 @@ window.addExpense = () => { const { vendors, types } = window._expRef; formModal
   { name: 'note', label: 'Note' },
   { name: 'image', label: 'Invoice photo (optional)', type: 'image' },
 ], async (d) => { await POST('/api/expenses', d); toast('Saved'); go('expenses'); }); };
-window.delExpense = (id) => confirmDel('Delete expense?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
+window.delExpense = (id) => confirmDel('Delete this cost?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
 /* ============ VENDORS ============
    Everyone the studio buys from, in one place: the directory that used to sit
    under Configuration and the spending report that used to sit under Expenses
@@ -2159,7 +2162,7 @@ PAGES.vendors = async (c) => {
        <div class="stat"><div class="n serif">${vendors.length}</div><div class="l">vendor${vendors.length === 1 ? '' : 's'}</div></div>
      </div>
     <button class="btn" onclick="addVendor()">＋ Add a vendor</button>
-    <div class="hint" style="margin:10px 2px 6px">Tap one to see its full report — purchases and expenses together — or ✏️ to edit its details.</div>
+    <div class="hint" style="margin:10px 2px 6px">Tap one to see its full report — invoices and studio costs together — or ✏️ to edit its details.</div>
     ${vendors.length ? keys.map((k) => `<div class="sec-title">${esc(k)} <span class="hint" style="font-weight:400">· ${groups[k].length}</span></div>
       <div class="card" style="margin:0 0 10px">${groups[k].map((v) => `<div class="item" style="cursor:pointer" onclick="openVendorReport(${v.id})">
         <div class="av">🏬</div>
@@ -2222,13 +2225,13 @@ window.openVendorReport = async (id) => {
     </div>
     <div class="card" style="box-shadow:none;margin:10px 0">
       ${kv('🧾 Material purchases', money(totals.purchases), 'bad')}
-      ${kv('💸 General expenses', money(totals.expenses), 'bad')}
+      ${kv('🏠 Studio costs', money(totals.expenses), 'bad')}
     </div>
     ${purchases.length ? `<div class="sec-title">Purchase invoices</div>${purchases.map((inv) => `<div class="card" style="box-shadow:none;margin:0 0 8px">
       <div class="item"><div class="av">🧾</div><div class="main"><div class="nm">${money(inv.total)}</div><div class="sub">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}${inv.note ? ' · ' + esc(inv.note) : ''}</div></div></div>
       ${inv.lines.map((li) => `<div class="item" style="padding-inline-start:12px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(li.dress_name || '—')}</div><div class="sub">${li.item ? esc(li.item) + ' · ' : ''}${money(li.amount)}</div></div></div>`).join('')}
     </div>`).join('')}` : ''}
-    ${expenses.length ? `<div class="sec-title">Expenses</div><div class="card" style="box-shadow:none;margin:0">${expenses.map((e) => `<div class="item"><div class="av">💸</div><div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div></div>`).join('')}</div>` : ''}
+    ${expenses.length ? `<div class="sec-title">Studio costs</div><div class="card" style="box-shadow:none;margin:0">${expenses.map((e) => `<div class="item"><div class="av">💸</div><div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div></div>`).join('')}</div>` : ''}
     ${(!purchases.length && !expenses.length) ? '<div class="hint">No activity for this vendor yet</div>' : ''}
     <div class="divider"></div>
     <button class="btn" onclick="printVendorReport(${id})">🖨 Print PDF report</button>`);
@@ -2281,7 +2284,7 @@ window.printVendorReport = async (id) => {
   if (!w) return toast('Allow pop-ups to print');
   w.document.write(html); w.document.close();
 };
-window.addExpType = () => formModal('Add expense type', [{ name: 'name', label: 'Type name', required: true }], async (d) => { await POST('/api/expense-types', d); toast('Added'); go('expenses'); });
+window.addExpType = () => formModal('Add a type of cost', [{ name: 'name', label: 'Type name', placeholder: 'Rent · Electricity · Marketing', required: true }], async (d) => { await POST('/api/expense-types', d); toast('Added'); go('expenses'); });
 window.delExpType = (id) => confirmDel('Delete type?', async () => { await DEL('/api/expense-types/' + id); go('expenses'); });
 window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); closeModal(); go('purchases'); });
 let _puLineN = 0;
