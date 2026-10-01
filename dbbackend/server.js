@@ -1775,6 +1775,13 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
       row.status = 'paid_leave'; row.leave_type = leave[date]; paidLeaveDays++;
     } else if (leave[date] === 'unpaid') {
       row.status = 'unpaid_leave'; absDays++;
+    } else if (date === today) {
+      // Today is not over. Somebody who has not checked in yet has not missed
+      // anything — the day decides itself this evening, and until then it is
+      // neither absent nor paid. A day off or a day of leave is known whatever
+      // the hour, so those are settled above and this only catches a working day
+      // still in progress.
+      row.status = 'today';
     } else {
       // Marked by hand or simply never turned up — the same thing on the sheet.
       row.status = 'absent'; row.recorded = marked.has(date); absDays++;
