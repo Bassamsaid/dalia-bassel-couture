@@ -1,0 +1,25 @@
+{
+  "exported_at": "2026-10-01T21:00:00Z",
+  "tables": {
+    "leaves": [
+      {
+        "id": 9301,
+        "user_id": 72,
+        "from_date": "2026-09-05",
+        "to_date": "2026-09-05",
+        "type": "annual",
+        "status": "approved",
+        "reason": "paid leave"
+      },
+      {
+        "id": 9302,
+        "user_id": 72,
+        "from_date": "2026-09-26",
+        "to_date": "2026-09-26",
+        "type": "annual",
+        "status": "approved",
+        "reason": "paid leave"
+      }
+    ]
+  }
+}
