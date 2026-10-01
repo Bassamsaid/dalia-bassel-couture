@@ -2400,7 +2400,9 @@ PAGES.staffmember = async (c) => {
       <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>
       <div class="sec-title">Paid weekly off-days</div>
       <div class="hint" style="margin:0 2px 6px">Tap the day(s) off — not counted as absence or lateness, and paid.</div>
-      <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${offSet.has(k) ? 'active' : ''}" onclick="toggleOffDay(${id},'${k}')">${l}</span>`).join('')}</div>`;
+      <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${offSet.has(k) ? 'active' : ''}" onclick="toggleOffDay(${id},'${k}')">${l}</span>`).join('')}</div>
+      <div class="sec-title">This month so far</div>
+      <div id="mtdCard" class="card"><div class="hint" style="margin:0">Working it out…</div></div>`;
   } else if (tab === 'salary') {
     const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
     const [pays, adjustments] = await Promise.all([GET(`/api/salary-payments?user_id=${id}`), GET(`/api/adjustments?user_id=${id}`)]);
@@ -2443,14 +2445,65 @@ PAGES.staffmember = async (c) => {
         <div class="main"><div class="nm">${money(a.amount)} <span class="badge ${st === 'approved' ? 'ok' : st === 'rejected' ? 'bad' : 'warn'}">${st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'Pending'}</span></div><div class="sub">${a.month ? 'Deduct ' + a.month : 'No month set'}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
         ${st === 'pending' ? `<button class="btn sm ghost" onclick="approveAdvance(${a.id},1)">Approve</button><button class="btn sm danger" onclick="approveAdvance(${a.id},0)">Reject</button>` : `<button class="btn-icon" onclick="delAdvance(${a.id})">🗑</button>`}</div>`; }).join('') : empty('No advances')}</div>`;
   } else {
-    inner = `<div class="hint" style="margin-bottom:8px">Staff check themselves in/out from their account.</div>
-      <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Day</th><th>In</th><th>Out</th></tr></thead>
-      <tbody>${attendance.length ? attendance.map((a) => `<tr><td>${dt(a.date)}</td><td>${a.check_in || '—'}</td><td>${a.check_out || '—'}</td></tr>`).join('') : '<tr><td colspan="3" class="muted">No records</td></tr>'}</tbody></table></div></div>`;
+    // The whole month, not only the days somebody turned up. A sheet that lists
+    // nine days out of thirty does not say whether the other twenty-one were
+    // days off, leave, or absence — which is the thing being looked for.
+    const sheet = await GET(`/api/staff/${id}/salary?month=${month}`);
+    const shown = sheet.days.filter((d) => d.status !== 'future').reverse();
+    inner = `<div class="filters"><input type="month" value="${month}" onchange="setSalMonth(this.value)" style="width:auto;padding:8px" /></div>
+      <div class="hint" style="margin-bottom:8px">Staff check themselves in/out from their account. Every other working day counts as an absence.</div>
+      <div class="card"><div class="tbl-wrap"><table class="att-tbl"><thead><tr><th>Day</th><th>Status</th><th>In</th><th>Out</th></tr></thead>
+      <tbody>${shown.length ? shown.map((d) => `<tr class="${d.status}">
+        <td>${dt(d.date)}</td>
+        <td>${attBadge(d)}</td>
+        <td>${d.check_in || '—'}${d.late_min ? ` <span class="att-note bad">+${d.late_min}m</span>` : ''}</td>
+        <td>${d.check_out || '—'}${d.ot_min ? ` <span class="att-note ok">+${d.ot_min}m</span>` : ''}</td>
+      </tr>`).join('') : '<tr><td colspan="4" class="muted">Nothing for this month</td></tr>'}</tbody></table></div></div>
+      <div class="hint" style="margin-top:8px">${sheet.present_days} present · ${sheet.absent_days} absent · ${sheet.paid_leave_days} paid leave · ${sheet.off_days} day(s) off</div>`;
   }
   c.innerHTML = title(s.name || 'Staff', '') +
     `<div class="sub muted" style="margin:-8px 2px 10px">${roleLabel(s.role)}${s.job_title ? ' · ' + esc(s.job_title) : ''}</div>
     <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="staffTab2('${k}')">${l}</span>`).join('')}</div>` + inner;
+  // Only once the card is actually in the page: called any earlier it looks for
+  // an element that is still a string.
+  if (tab === 'overview') runningMonth(id);
 };
+// What a day on the sheet is, in one word.
+window.attBadge = (d) => ({
+  present:      '<span class="badge ok">Present</span>',
+  absent:       '<span class="badge bad">Absent</span>',
+  paid_leave:   '<span class="badge ok">Paid absence</span>',
+  unpaid_leave: '<span class="badge bad">Unpaid leave</span>',
+  off:          '<span class="badge">Day off</span>',
+}[d.status] || '');
+
+/* What the month has come to so far, filled in after the page draws so the rest
+   of the screen is not held up waiting for it. It moves with every check-in and
+   check-out, because the days are counted up to today rather than taken off a
+   full month at the end of it. */
+window.runningMonth = async (id) => {
+  const el = document.getElementById('mtdCard');
+  if (!el) return;
+  let m;
+  try { m = await GET(`/api/staff/${id}/salary`); }
+  catch (e) { el.innerHTML = '<div class="hint" style="margin:0">Could not work it out just now.</div>'; return; }
+  if (!document.getElementById('mtdCard')) return; // the page moved on
+  el.innerHTML = `
+    <div class="item"><div class="main">
+      <div class="sub">Earned up to ${esc(dt(m.as_of))}</div>
+      <div class="serif" style="font-size:26px;font-weight:700;color:var(--ok)">${money(m.earned_to_date)}</div>
+    </div></div>
+    <div class="divider"></div>
+    ${kv('Days paid so far', `${m.paid_days} × ${moneyText(m.daily)}`)}
+    ${kv('Present', `${m.present_days} day(s)`)}
+    ${kv('Absent so far', `${m.absent_days} day(s)`, m.absent_days ? 'bad' : '')}
+    ${m.paid_leave_days ? kv('Paid leave', `${m.paid_leave_days} day(s)`, 'ok') : ''}
+    ${m.late_minutes ? kv('− Late', `${m.late_minutes} min · ${moneyText(m.late_deduction)}`, 'bad') : ''}
+    ${m.overtime_minutes ? kv('+ Overtime', `${m.overtime_minutes} min · ${moneyText(m.overtime_pay)}`, 'ok') : ''}
+    ${m.advances ? kv('− Advances', money(m.advances), 'bad') : ''}
+    <div class="hint" style="margin:8px 2px 0">Updates itself as the day is checked in and out. The full month's figure is on the Salary tab.</div>`;
+};
+
 window.addStaff = () => formModal('New staff member', [
   { name: 'name', label: 'Name', required: true },
   { name: 'role', label: 'Role', type: 'select', value: 'staff', options: [{ value: 'staff', label: 'Staff (dresses + attendance)' }, { value: 'manager', label: 'Manager (students, payments, rounds, courses)' }] },
