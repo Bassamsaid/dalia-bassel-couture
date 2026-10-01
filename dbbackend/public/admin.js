@@ -2419,6 +2419,7 @@ PAGES.staffmember = async (c) => {
         ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
         ${kv('Overtime', (sal.overtime_minutes || 0) + ' min ×' + (sal.overtime_mult || 1.5))}
         ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
+        ${sal.extra_hours ? kv('Extra task hours', sal.extra_hours + ' h at the plain rate') + kv('+ Extra task pay', money(sal.extra_task_pay || 0), 'ok') : ''}
         ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
         ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
         ${kv('− Advances this month', money(sal.advances), 'bad')}
@@ -2460,9 +2461,9 @@ PAGES.staffmember = async (c) => {
         <td>${dt(d.date)}</td>
         <td>${attBadge(d)}</td>
         <td>${d.check_in || '—'}${d.late_min ? ` <span class="att-note bad">+${d.late_min}m</span>` : ''}</td>
-        <td>${d.check_out || '—'}${d.ot_min ? ` <span class="att-note ok">+${d.ot_min}m</span>` : ''}</td>
+        <td>${d.check_out || '—'}${d.ot_min ? ` <span class="att-note ok">+${d.ot_min}m</span>` : ''}${d.extra_hours ? `<div class="att-note ok" title="${esc(d.extra_note || '')}">+${d.extra_hours}h home</div>` : ''}</td>
       </tr>`).join('') : '<tr><td colspan="4" class="muted">Nothing for this month</td></tr>'}</tbody></table></div></div>
-      <div class="hint" style="margin-top:8px">${sheet.present_days} present · ${sheet.absent_days} absent · ${sheet.paid_leave_days} paid leave · ${sheet.off_days} day(s) off</div>`;
+      <div class="hint" style="margin-top:8px">${sheet.present_days} present · ${sheet.absent_days} absent · ${sheet.paid_leave_days} paid leave · ${sheet.off_days} day(s) off${sheet.extra_hours ? ` · ${sheet.extra_hours}h worked from home` : ''}</div>`;
   }
   c.innerHTML = title(s.name || 'Staff', '') +
     `<div class="sub muted" style="margin:-8px 2px 10px">${roleLabel(s.role)}${s.job_title ? ' · ' + esc(s.job_title) : ''}</div>

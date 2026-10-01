@@ -671,6 +671,11 @@ const ready = (async () => {
   // against a studio-wide nine. Empty means the studio-wide hours still apply.
   await tryExec('ALTER TABLE users ADD COLUMN shift_start TEXT');
   await tryExec('ALTER TABLE users ADD COLUMN shift_end TEXT');
+  // Work done away from the studio and paid by the hour — a dress finished at
+  // home, beading, pressing. It belongs to a day but is not part of it, so it is
+  // neither lateness nor overtime: hours, at the plain rate.
+  await tryExec('ALTER TABLE attendance ADD COLUMN extra_hours REAL');
+  await tryExec('ALTER TABLE attendance ADD COLUMN extra_note TEXT');
 
   const { fixAttendanceTz, pruneAttendanceBefore } = require('./fix-attendance-tz');
   // Shifts from before the studio began keeping this properly, cleared at the
