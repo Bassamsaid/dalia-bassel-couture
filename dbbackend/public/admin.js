@@ -208,7 +208,7 @@ PAGES.home_admin = async (c) => {
         ['courses', '🎬', 'Courses', `${big(videos.length)} video${videos.length === 1 ? '' : 's'}`],
         ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`],
         ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`],
-        ['finance', '💳', 'Course money', sheet.totals.remaining ? `${big(money(sheet.totals.remaining))} still due` : `${big(money(sheet.totals.paid))} collected`],
+        ['finance', '💳', 'Course money', sheet.totals.remaining ? `${big(moneyText(sheet.totals.remaining))} still due` : `${big(moneyText(sheet.totals.paid))} collected`],
       ],
       figuresGo: "go('finance')",
       figures: [
@@ -224,7 +224,7 @@ PAGES.home_admin = async (c) => {
       rows: [
         ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
         ['clients', '💛', 'Clients', `${big(clients)} client${clients === 1 ? '' : 's'}`, "openMembers('customer')"],
-        ['dressmoney', '💰', 'Dress money', dRem ? `${big(money(dRem))} still due` : `${big(money(dPaid))} collected`, "go('dresses')"],
+        ['dressmoney', '💰', 'Dress money', dRem ? `${big(moneyText(dRem))} still due` : `${big(moneyText(dPaid))} collected`, "go('dresses')"],
       ],
       figuresGo: "go('dresses')",
       figures: [

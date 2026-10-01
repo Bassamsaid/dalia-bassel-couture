@@ -65,7 +65,7 @@ PAGES.home_trainee = async (c) => {
       ['homework', '✎', 'Tasks', pendingHw ? `${big(pendingHw)} still to hand in` : 'All handed in'],
       ['quizzes', '📝', 'Quizzes', newQuiz ? `${big(newQuiz)} new` : 'Nothing new'],
       ['notes', '📌', 'Notes', `${big(notes.length)} notes`],
-      ['mypay', '💳', 'Account', `${big(money(paid))} paid`],
+      ['mypay', '💳', 'Account', `${big(moneyText(paid))} paid`],
       ['help', '💬', 'Customer service', 'Ask the studio'],
       ['about', 'ℹ', 'About', 'The academy'],
     ].filter(([p]) => !isHidden(p)))}
