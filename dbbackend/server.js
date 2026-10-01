@@ -1217,6 +1217,88 @@ api['PUT /api/settings'] = async (req, res, user) => {
 // and the difference is invisible until a redeploy has already taken the data.
 // The app says which of the two it is, rather than the studio having to read it
 // off a hosting dashboard.
+// ================= THE STUDIO PIN FROM A SHORT LINK =================
+// Sharing a place from the Google Maps app gives a maps.app.goo.gl link, which
+// carries an identifier and no coordinates — those only appear in the address it
+// redirects to. The browser cannot look: Google answers it without the header
+// that would let another site read the reply. The server has no such limit, so
+// the expanding happens here.
+//
+// Only Google's own shorteners are followed, and only to Google, so this cannot
+// be pointed at anything else.
+const SHORTENERS = new Set(['maps.app.goo.gl', 'goo.gl', 'g.co', 'maps.google.com']);
+const GOOGLE_HOST = /(^|\.)google\.[a-z.]+$|(^|\.)goo\.gl$|(^|\.)g\.co$/i;
+
+// Follow redirects and hand back the address they end at, plus the first slice
+// of the page — a place link sometimes carries its coordinates only in the body.
+function followLink(start, hops = 6) {
+  const https = require('node:https');
+  return new Promise((resolve, reject) => {
+    let url;
+    try { url = new URL(start); } catch (e) { return reject(new Error('That is not a link.')); }
+    if (url.protocol !== 'https:' || !GOOGLE_HOST.test(url.hostname)) {
+      return reject(new Error('Only Google Maps links can be opened here.'));
+    }
+    const req2 = https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0', 'Accept-Language': 'en' } }, (r) => {
+      const next = r.headers.location;
+      if (next && r.statusCode >= 300 && r.statusCode < 400) {
+        r.resume(); // drop the body, we only wanted the header
+        if (!hops) return reject(new Error('This link redirects too many times.'));
+        return resolve(followLink(new URL(next, url).toString(), hops - 1));
+      }
+      // Enough of the page to find a coordinate, and not a byte more. A place
+      // page runs to several hundred kilobytes and states its position well in,
+      // so the ceiling has to clear that while still being a ceiling.
+      const CAP = 1024 * 1024;
+      let body = '';
+      r.on('data', (c) => { body += c; if (body.length > CAP) { body = body.slice(0, CAP); r.destroy(); } });
+      r.on('close', () => resolve({ url: url.toString(), body }));
+      r.on('error', () => resolve({ url: url.toString(), body }));
+    });
+    req2.setTimeout(10000, () => { req2.destroy(); reject(new Error('Google did not answer in time.')); });
+    req2.on('error', () => reject(new Error('Could not reach Google Maps.')));
+  });
+}
+
+// The same patterns the Configuration screen reads a long link with.
+function latLngIn(text) {
+  const N = '(-?\\d{1,3}(?:\\.\\d+)?)';
+  const pats = [
+    new RegExp('!3d' + N + '.*?!4d' + N),
+    new RegExp('@' + N + ',' + N),
+    new RegExp('[?&](?:q|ll|sll|daddr|center|destination)=' + N + '(?:,|%2C)\\s*' + N, 'i'),
+    new RegExp('\\[null,null,' + N + ',' + N + '\\]'), // how a place page states it in its own data
+  ];
+  for (const p of pats) {
+    const m = String(text || '').match(p);
+    if (!m) continue;
+    const la = parseFloat(m[1]), ln = parseFloat(m[2]);
+    if (isFinite(la) && isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180) {
+      return { lat: la.toFixed(6), lng: ln.toFixed(6) };
+    }
+  }
+  return null;
+}
+
+api['POST /api/geo/resolve'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const link = String((b && b.link) || '').trim();
+  let host = '';
+  try { host = new URL(link).hostname; } catch (e) { return send(res, 400, { error: 'That is not a link.' }); }
+  if (!SHORTENERS.has(host) && !GOOGLE_HOST.test(host)) {
+    return send(res, 400, { error: 'That is not a Google Maps link.' });
+  }
+  let page;
+  try { page = await followLink(link); }
+  catch (e) { return send(res, 502, { error: e.message }); }
+  const hit = latLngIn(page.url) || latLngIn(page.body);
+  if (!hit) {
+    return send(res, 404, { error: 'That link opened, but it carries no pin. Long-press the exact spot on the map, then Share → Copy link.' });
+  }
+  send(res, 200, hit);
+};
+
 api['GET /api/storage'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const appDir = path.resolve(__dirname);

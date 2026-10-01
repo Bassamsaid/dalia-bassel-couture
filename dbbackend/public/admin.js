@@ -2549,7 +2549,7 @@ PAGES.config = async (c) => {
         <label style="margin-top:18px">2 · Paste a Google Maps link</label>
         <input id="geoPaste" placeholder="https://www.google.com/maps/@30.0444,31.2357,17z" />
         <button class="btn sec" style="margin-top:8px" onclick="geoFromLink()">Read the pin from this link</button>
-        <div class="hint" id="geoPasteHint" style="margin-top:6px">On Google Maps, long-press the exact spot, then Share → Copy link — or copy the address bar from the desktop site.</div>
+        <div class="hint" id="geoPasteHint" style="margin-top:6px">On Google Maps, long-press the exact spot, then Share → Copy link. A short <span dir="ltr">maps.app.goo.gl</span> link works — it gets opened for you.</div>
 
         <label style="margin-top:18px">3 · Type the coordinates</label>
         <div class="row" style="gap:8px">
@@ -2718,21 +2718,34 @@ window.parseLatLng = (text) => {
   if (m) return ok(m[1], m[2]);
   return null;
 };
-window.geoFromLink = () => {
+window.geoFromLink = async () => {
   const el = document.getElementById('geoPaste'), hint = document.getElementById('geoPasteHint');
   const raw = (el.value || '').trim();
-  const hit = parseLatLng(raw);
-  if (hit) {
-    setGeo(hit.lat, hit.lng);
+  const done = (h) => {
+    setGeo(h.lat, h.lng);
     hint.className = 'hint';
     hint.textContent = 'Pin read from the link ✓ — now press Save below.';
     toast('Pin set ✓ — now Save');
-    return;
+  };
+  const hit = parseLatLng(raw);
+  if (hit) return done(hit);
+
+  // A link shared from the Maps app carries an identifier, not coordinates. The
+  // app cannot open it — Google answers the browser without the header that
+  // would let this page read the reply — so the server opens it instead.
+  if (/goo\.gl|maps\.app|g\.co|google\./i.test(raw)) {
+    hint.className = 'hint';
+    hint.textContent = 'Opening the link…';
+    try { return done(await POST('/api/geo/resolve', { link: raw })); }
+    catch (e) {
+      hint.className = 'hint err';
+      hint.textContent = e.message || 'Could not read a pin from that link.';
+      buzz();
+      return;
+    }
   }
   hint.className = 'hint err';
-  hint.textContent = /goo\.gl|maps\.app|g\.co/i.test(raw)
-    ? 'This is a short link and hides the coordinates. Open it in the browser first, then copy the long link that appears — or read the pin off the map and type it in below.'
-    : 'No coordinates in this text. It should carry something like @30.0444,31.2357 — or just type the two numbers below.';
+  hint.textContent = 'No coordinates in this text. It should carry something like @30.0444,31.2357 — or just type the two numbers below.';
   buzz();
 };
 window.captureGeo = async () => {
