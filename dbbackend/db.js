@@ -374,6 +374,32 @@ const ready = (async () => {
     expires_at TEXT NOT NULL
   );
 
+  -- Face ID / fingerprint sign-in. What is kept is a public key: it verifies a
+  -- signature and can produce none, so it is of no use to anyone who takes it.
+  -- The face and the private key never leave the phone.
+  CREATE TABLE IF NOT EXISTS credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    cred_id TEXT NOT NULL UNIQUE,        -- what the device calls this key
+    public_key TEXT NOT NULL,            -- JWK, as JSON
+    sign_count INTEGER NOT NULL DEFAULT 0,
+    label TEXT,                          -- "iPhone", so a lost device can be told apart
+    rp_id TEXT,                          -- the domain it was made for; it works on no other
+    created_at TEXT DEFAULT (datetime('now')),
+    last_used TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_credentials_user ON credentials(user_id);
+
+  -- A challenge is good for one attempt. Kept here rather than in memory
+  -- because on serverless hosting the request that ends a sign-in is not
+  -- handled by whatever started it.
+  CREATE TABLE IF NOT EXISTS webauthn_challenges (
+    challenge TEXT PRIMARY KEY,
+    user_id INTEGER,
+    kind TEXT NOT NULL,                  -- create | get
+    expires_at TEXT NOT NULL
+  );
+
   -- Manual salary adjustments per staff per month: bonus (adds) / deduction (subtracts)
   CREATE TABLE IF NOT EXISTS salary_adjustments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

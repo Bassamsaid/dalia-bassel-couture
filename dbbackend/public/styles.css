@@ -1054,3 +1054,7 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .inv-item{flex:1;min-width:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .inv-for{color:var(--muted)}
 .inv-amt{flex:0 0 auto;color:var(--muted);font-weight:700}
+
+/* ===== Face ID / fingerprint sign-in ===== */
+.pk-or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px;letter-spacing:1px;text-transform:uppercase}
+.pk-or::before,.pk-or::after{content:"";flex:1;height:1px;background:var(--line,rgba(0,0,0,.12))}
