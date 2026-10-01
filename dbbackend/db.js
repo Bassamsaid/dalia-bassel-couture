@@ -677,6 +677,26 @@ const ready = (async () => {
   await tryExec('ALTER TABLE attendance ADD COLUMN extra_hours REAL');
   await tryExec('ALTER TABLE attendance ADD COLUMN extra_note TEXT');
 
+  // A float — عهدة — is cash handed to somebody to keep at the studio and spend
+  // from. Two things are recorded against it: the cash itself moving (handed
+  // over, or given back), and the spending that came out of it, which is just
+  // an ordinary cost or invoice marked as paid from that person's float rather
+  // than from the studio's own money.
+  //   what she still holds = handed − given back − what she has spent
+  await tryExec(`CREATE TABLE IF NOT EXISTS float_moves (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'in',   -- 'in' handed to her · 'out' given back
+    amount REAL NOT NULL DEFAULT 0,
+    date TEXT,
+    note TEXT,
+    created_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`);
+  await tryExec('CREATE INDEX IF NOT EXISTS idx_float_moves_user ON float_moves(user_id)');
+  await tryExec('ALTER TABLE expenses ADD COLUMN paid_by INTEGER');
+  await tryExec('ALTER TABLE purchase_invoices ADD COLUMN paid_by INTEGER');
+
   const { fixAttendanceTz, pruneAttendanceBefore } = require('./fix-attendance-tz');
   // Shifts from before the studio began keeping this properly, cleared at the
   // owner's instruction. Once, for this date — the key below says it is done.

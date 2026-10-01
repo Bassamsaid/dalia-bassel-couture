@@ -1995,7 +1995,7 @@ PAGES.purchases = async (c) => {
         ${inv.image ? `<img class="inv-scan" src="${esc(mediaUrl(inv.image))}" alt=""/>` : '<div class="inv-scan pu-noscan">🧾</div>'}
         <div class="inv-who">
           <div class="inv-name"><bdi>${esc(inv.vendor_name || inv.shop || 'Shop')}</bdi></div>
-          <div class="inv-meta"><bdi>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</bdi> · ${n} item${n === 1 ? '' : 's'}${inv.note ? ` · <bdi>${esc(inv.note)}</bdi>` : ''}</div>
+          <div class="inv-meta"><bdi>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</bdi> · ${n} item${n === 1 ? '' : 's'}${inv.note ? ` · <bdi>${esc(inv.note)}</bdi>` : ''}${inv.paid_by_name ? ` · 🧰 <bdi>${esc(inv.paid_by_name)}</bdi>` : ''}</div>
         </div>
         <div class="inv-total">${money(inv.total)}</div>
       </div>
@@ -2091,7 +2091,7 @@ window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purch
 /* ============ EXPENSES (entries · analysis · vendors · types) ============ */
 PAGES.expenses = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💸'); return; }
-  const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases')]);
+  const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases'), loadFloatHolders()]);
   // vendors are still read for the New expense form's dropdown
   window._expRef = { vendors, types };
   const tab = window._expTab || 'entries';
@@ -2110,7 +2110,7 @@ PAGES.expenses = async (c) => {
       ${monthChips(expenses.map((e) => e.date || e.created_at), ef, 'setExpMonth')}
       <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : '<div class="av">💸</div>'}
-        <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div>
+        <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}${e.paid_by_name ? ` · 🧰 <bdi>${esc(e.paid_by_name)}</bdi>'s float` : ''}</div></div>
         <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty(ef ? 'Nothing spent in ' + monthLabel(ef) : 'Nothing here yet', '🏠')}</div>`;
   } else if (tab === 'analysis') {
     const byMonth = {};
@@ -2136,11 +2136,120 @@ window.addExpense = () => { const { vendors, types } = window._expRef; formModal
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'type', label: 'Type', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
   { name: 'vendor_id', label: 'Vendor', type: 'select', options: [{ value: '', label: '—' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
+  // whose money it came out of: the studio's, or a float somebody is holding
+  { name: 'paid_by', label: 'Paid from', type: 'select', options: paidFromOptions() },
   { name: 'date', label: 'Date', type: 'date', value: today() },
   { name: 'note', label: 'Note' },
   { name: 'image', label: 'Invoice photo (optional)', type: 'image' },
 ], async (d) => { await POST('/api/expenses', d); toast('Saved'); go('expenses'); }); };
+
+/* Where the money came from — the studio's own account, or cash somebody is
+   holding. Only people who actually have a float are offered, so this does not
+   quietly open one for somebody who was never given any. */
+function paidFromOptions() {
+  const holders = window._floatHolders || [];
+  return [{ value: '', label: 'The studio' }, ...holders.map((h) => ({ value: h.id, label: `${h.name}'s float · ${moneyText(h.balance)} in hand` }))];
+}
+/* kept fresh wherever spending is recorded, so the list is never a guess */
+async function loadFloatHolders() {
+  try { const r = await GET('/api/floats'); window._floatHolders = r.rows || []; window._floatStaff = r.staff || []; }
+  catch (e) { window._floatHolders = window._floatHolders || []; }
+}
 window.delExpense = (id) => confirmDel('Delete this cost?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
+/* ============ FLOATS (عهدة) ============
+   Cash handed to somebody to keep at the studio and spend from. What she still
+   holds is never typed in: it is what was handed to her, less what she has
+   given back, less what has been spent on her float — so the figure cannot
+   drift away from the invoices and the costs behind it. */
+PAGES.floats = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🧰'); return; }
+  const { rows, staff } = await GET('/api/floats');
+  window._floatStaff = staff; window._floatHolders = rows;
+  const out = rows.reduce((a, r) => a + r.balance, 0);
+  c.innerHTML = pageHead('Floats', '🧰') +
+    `<p class="hint" style="margin:2px 2px 10px">Cash handed to somebody to keep at the studio and spend from. What she holds is what you gave her, less what she gave back, less what she has spent.</p>
+    <div class="grid g2" style="margin-bottom:10px">
+      <div class="stat"><div class="n serif" style="color:${out ? 'var(--warn)' : 'var(--ok)'}">${money(out)}</div><div class="l">out of the drawer</div></div>
+      <div class="stat"><div class="n serif">${rows.length}</div><div class="l">holding a float</div></div>
+    </div>
+    <button class="btn" onclick="handFloat()">＋ Hand over cash</button>
+    ${rows.length ? `<div class="card" style="margin-top:12px">${rows.map((r) => `<div class="item" style="cursor:pointer" onclick="openFloat(${r.id})">
+      <div class="av">🧰</div>
+      <div class="main"><div class="nm">${esc(r.name)}</div>
+        <div class="sub">${money(r.handed)} handed${r.spent ? ' · ' + money(r.spent) + ' spent' : ''}${r.back ? ' · ' + money(r.back) + ' back' : ''}</div></div>
+      <div style="text-align:end">
+        <div class="serif" style="font-weight:700;font-size:17px;color:var(--${r.balance > 0 ? 'ink' : r.balance < 0 ? 'bad' : 'ok'})">${money(r.balance)}</div>
+        <div class="sub muted" style="font-size:11px">${r.balance < 0 ? 'overspent' : r.balance ? 'in hand' : 'settled'}</div></div>
+    </div>`).join('')}</div>`
+      : empty('Nobody is holding a float yet', '🧰')}`;
+};
+
+window.handFloat = (userId) => {
+  const staff = window._floatStaff || [];
+  formModal('Hand over cash', [
+    { name: 'user_id', label: 'To whom', type: 'select', value: userId || '',
+      options: [{ value: '', label: '—' }, ...staff.map((s) => ({ value: s.id, label: s.name }))] },
+    { name: 'amount', label: 'How much', type: 'number', required: true },
+    { name: 'date', label: 'Date', type: 'date', value: today() },
+    { name: 'note', label: 'What for', placeholder: 'Petty cash for the studio' },
+  ], async (d) => {
+    if (!d.user_id) return toast('Pick who is holding it');
+    await POST('/api/floats', { ...d, kind: 'in' });
+    toast('Handed over ✓'); go('floats');
+  });
+};
+window.returnFloat = (userId) => {
+  formModal('Take cash back', [
+    { name: 'amount', label: 'How much', type: 'number', required: true },
+    { name: 'date', label: 'Date', type: 'date', value: today() },
+    { name: 'note', label: 'Note' },
+  ], async (d) => {
+    await POST('/api/floats', { ...d, user_id: userId, kind: 'out' });
+    toast('Taken back ✓'); window._floatId = userId; go('float');
+  });
+};
+window.openFloat = (id) => { window._floatId = id; go('float'); };
+window.delFloatMove = (id, userId) => confirmDel('Delete this cash movement?', async () => {
+  await DEL('/api/floats/' + id); window._floatId = userId; go('float');
+});
+
+const FLOAT_ENTRY = {
+  handed: { ic: '＋', label: 'Handed over', cls: 'ok', sign: '+' },
+  back: { ic: '↩', label: 'Given back', cls: 'muted', sign: '−' },
+  cost: { ic: '🏠', label: 'Studio cost', cls: 'bad', sign: '−' },
+  invoice: { ic: '🧾', label: 'Invoice', cls: 'bad', sign: '−' },
+};
+
+PAGES.float = async (c) => {
+  const id = window._floatId;
+  if (!id) return go('floats');
+  const f = await GET('/api/floats/' + id);
+  c.innerHTML = title(f.user.name, '🧰') +
+    `<div class="card" style="text-align:center;padding:18px 15px">
+      <div class="sub muted" style="letter-spacing:2px;text-transform:uppercase;font-size:11px;font-weight:700">Still in hand</div>
+      <div class="serif" style="font-size:34px;font-weight:700;margin-top:4px;color:var(--${f.balance < 0 ? 'bad' : 'ink'})">${money(f.balance)}</div>
+      <div class="sub muted" style="margin-top:6px">${money(f.handed)} handed · ${money(f.spent)} spent${f.back ? ' · ' + money(f.back) + ' given back' : ''}</div>
+      ${f.balance < 0 ? '<div class="hint" style="color:var(--bad);margin-top:8px">She has spent more than she was given — she is owed the difference.</div>' : ''}
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn sm" onclick="handFloat(${f.user.id})">＋ Hand over more</button>
+      <button class="btn sec sm" onclick="returnFloat(${f.user.id})">↩ Take cash back</button>
+    </div>
+    <div class="sec-title">Everything on this float</div>
+    ${f.entries.length ? `<div class="card">${f.entries.map((e) => {
+      const m = FLOAT_ENTRY[e.kind] || FLOAT_ENTRY.cost;
+      return `<div class="item">
+        <div class="av">${m.ic}</div>
+        <div class="main"><div class="nm">${m.label}${e.note ? ' · ' + esc(e.note) : ''}</div>
+          <div class="sub">${e.date ? dt(e.date) : ''}</div></div>
+        <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          <div class="serif" style="font-weight:700;color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
+          ${(e.kind === 'handed' || e.kind === 'back') ? `<button class="btn-icon" onclick="delFloatMove(${e.id},${f.user.id})">🗑</button>` : ''}</div>
+      </div>`;
+    }).join('')}</div>` : empty('Nothing on this float yet', '🧰')}
+    <p class="hint" style="margin-top:10px">A studio cost or an invoice comes onto this float by choosing her under <b>Paid from</b> when it is recorded.</p>`;
+};
+
 /* ============ VENDORS ============
    Everyone the studio buys from, in one place: the directory that used to sit
    under Configuration and the spending report that used to sit under Expenses
@@ -2289,6 +2398,7 @@ window.delExpType = (id) => confirmDel('Delete type?', async () => { await DEL('
 window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); closeModal(); go('purchases'); });
 let _puLineN = 0;
 window.newPurchase = async (presetDressId) => {
+  if (state.user.role === 'admin') await loadFloatHolders();
   const [dresses, vendors] = await Promise.all([
     window._allDressesForPurchase ? Promise.resolve(window._allDressesForPurchase) : GET('/api/dresses'),
     (state.user.role === 'admin' ? GET('/api/vendors') : Promise.resolve(window._purVendors || [])),
@@ -2300,6 +2410,8 @@ window.newPurchase = async (presetDressId) => {
     ${vendors.length ? `<label>Vendor</label>
     <select id="pu_vendor" style="width:100%"><option value="">— none / one-off shop —</option>${vendors.map((v) => `<option value="${v.id}">${esc(v.name)}</option>`).join('')}</select>` : '<input id="pu_vendor" type="hidden" value="" />'}
     <label>Shop name <span class="hint">(if not a regular vendor)</span></label><input id="pu_shop" placeholder="Shop name" />
+    ${(window._floatHolders || []).length ? `<label>Paid from</label>
+    <select id="pu_paidby" style="width:100%">${paidFromOptions().map((o) => `<option value="${o.value}">${esc(o.label)}</option>`).join('')}</select>` : '<input id="pu_paidby" type="hidden" value="" />'}
     <label>Invoice date</label><input id="pu_date" type="date" value="${today()}" />
     <label>Note</label><input id="pu_note" />
     <div class="row" style="margin-top:6px"><button class="btn ghost sm" onclick="pickPuImg()">📷 Invoice photo</button><span class="hint" id="puImgLbl">None</span></div>
@@ -2356,7 +2468,8 @@ window.savePurchase = async () => {
   const vendorId = Number(vSel.value) || null;
   const vendorName = vendorId ? vSel.selectedOptions[0].textContent : '';
   const shop = document.getElementById('pu_shop').value.trim() || vendorName;
-  await POST('/api/purchases', { vendor_id: vendorId, shop, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines });
+  const paidBy = Number((document.getElementById('pu_paidby') || {}).value) || null;
+  await POST('/api/purchases', { vendor_id: vendorId, shop, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines, paid_by: paidBy });
   closeModal(); toast('Purchase saved');
   // added from a dress? go back to it so the cost is there in front of you
   if (window._puPreset) { window._dressTab = 'materials'; refreshDress(Number(window._puPreset)); }

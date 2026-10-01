@@ -369,7 +369,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v128';
+const APP_VERSION = 'v129';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -550,6 +550,7 @@ const GROUPS = {
     tabs: [
       ['purchases', 'Purchases', '🧾', ['admin', 'manager']],
       ['expenses', 'Studio costs', '🏠', ['admin']],
+      ['floats', 'Floats', '🧰', ['admin']],
       ['vendors', 'Vendors', '🏬', ['admin']],
     ],
   },
@@ -1237,7 +1238,7 @@ function timeago(s) {
   const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`;
   return String(s).slice(0, 10);
 }
-const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬', chat: '💬', task: '✎', submission: '📥', attendance: '🕒' };
+const NOTIF_ICON = { dress: '👗', assign: '🧵', feed: '✦', payment: '💳', salary: '💵', leave: '🌴', advance: '💰', absence: '🚫', user: '👤', course: '🎬', chat: '💬', task: '✎', submission: '📥', attendance: '🕒', float: '🧰' };
 async function refreshNotifBadge() {
   try {
     const { unread } = await GET('/api/notifications/count');

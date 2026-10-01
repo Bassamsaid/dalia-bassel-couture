@@ -1822,7 +1822,8 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
 // ================= DRESS MATERIAL PURCHASES (invoices + dress-linked lines) =================
 api['GET /api/purchases'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
-  const invs = await db.prepare('SELECT pi.*, (SELECT name FROM vendors WHERE id=pi.vendor_id) vendor_name FROM purchase_invoices pi ORDER BY pi.id DESC').all();
+  const invs = await db.prepare(`SELECT pi.*, (SELECT name FROM vendors WHERE id=pi.vendor_id) vendor_name,
+    (SELECT name FROM users WHERE id=pi.paid_by) paid_by_name FROM purchase_invoices pi ORDER BY pi.id DESC`).all();
   for (const inv of invs) {
     inv.lines = await db.prepare('SELECT l.*, (SELECT customer_name FROM dresses WHERE id=l.dress_id) dress_name FROM purchase_lines l WHERE l.invoice_id=?').all(inv.id);
     inv.total = inv.lines.reduce((a, x) => a + (x.amount || 0), 0);
@@ -1834,7 +1835,7 @@ api['POST /api/purchases'] = async (req, res, user) => {
   const b = await readBody(req);
   const img = await maybeImage(b.image);
   const vid = b.vendor_id || await vendorIdForShop(b.shop); // a typed shop that is already a supplier
-  const r = await db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by) VALUES (?,?,?,?,?,?)').run(b.shop || null, vid, img, b.note || null, b.invoice_date || null, user.id);
+  const r = await db.prepare('INSERT INTO purchase_invoices (shop,vendor_id,image,note,invoice_date,created_by,paid_by) VALUES (?,?,?,?,?,?,?)').run(b.shop || null, vid, img, b.note || null, b.invoice_date || null, user.id, b.paid_by || null);
   const invId = r.lastInsertRowid;
   for (const li of (Array.isArray(b.lines) ? b.lines : [])) {
     if (li && (li.dress_id || li.amount)) await db.prepare('INSERT INTO purchase_lines (invoice_id,dress_id,item,amount) VALUES (?,?,?,?)').run(invId, li.dress_id || null, li.item || null, li.amount || 0);
@@ -1848,7 +1849,7 @@ api['PUT /api/purchases/:id'] = async (req, res, user, url, params) => {
   const img = (b.image && b.image.startsWith('data:')) ? await maybeImage(b.image) : (b.image ?? c.image);
   const shop = b.shop ?? c.shop;
   const vendorId = b.vendor_id !== undefined ? b.vendor_id : (c.vendor_id || await vendorIdForShop(shop));
-  await db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=? WHERE id=?').run(shop, vendorId, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, params.id);
+  await db.prepare('UPDATE purchase_invoices SET shop=?,vendor_id=?,note=?,invoice_date=?,image=?,paid_by=? WHERE id=?').run(shop, vendorId, b.note ?? c.note, b.invoice_date ?? c.invoice_date, img, b.paid_by !== undefined ? b.paid_by : c.paid_by, params.id);
   send(res, 200, { ok: true });
 };
 // Move a mis-filed item to the dress it really belongs to (or off a dress entirely)
@@ -1998,16 +1999,95 @@ api['POST /api/expense-types'] = async (req, res, user) => {
 };
 api['DELETE /api/expense-types/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM expense_types WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
+// ================= FLOATS (عهدة) =================
+// Cash handed to somebody to keep at the studio and spend from. What she still
+// holds is what was handed to her, less what she has given back, less what she
+// has spent — so the figure is worked out from the movements and the spending
+// marked against her, never stored and kept in step by hand.
+async function floatFor(userId) {
+  const row = async (sql, ...a) => Number(((await db.prepare(sql).get(...a)) || {}).t || 0);
+  const handed = await row("SELECT SUM(amount) t FROM float_moves WHERE user_id=? AND kind='in'", userId);
+  const back = await row("SELECT SUM(amount) t FROM float_moves WHERE user_id=? AND kind='out'", userId);
+  const costs = await row('SELECT SUM(amount) t FROM expenses WHERE paid_by=?', userId);
+  const invoices = await row(`SELECT SUM(l.amount) t FROM purchase_lines l
+    JOIN purchase_invoices i ON i.id = l.invoice_id WHERE i.paid_by=?`, userId);
+  const spent = costs + invoices;
+  return { handed, back, costs, invoices, spent, balance: handed - back - spent };
+}
+
+/* Everyone currently holding a float, and everyone who could be given one */
+api['GET /api/floats'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const staff = await db.prepare("SELECT id,name,role,job_title FROM users WHERE role IN ('staff','manager','admin') ORDER BY name").all();
+  const held = await db.prepare('SELECT DISTINCT user_id FROM float_moves').all();
+  const ids = new Set(held.map((r) => r.user_id));
+  const rows = [];
+  for (const s of staff) {
+    if (!ids.has(s.id)) continue;
+    rows.push({ ...s, ...(await floatFor(s.id)) });
+  }
+  rows.sort((a, b) => b.balance - a.balance);
+  send(res, 200, { rows, staff });
+};
+
+/* One person's float: the cash movements and everything spent out of it, as one
+   list in date order — which is how somebody checks a float against the money
+   actually in the drawer. */
+api['GET /api/floats/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const id = Number(params.id);
+  const who = await db.prepare('SELECT id,name,role,job_title FROM users WHERE id=?').get(id);
+  if (!who) return send(res, 404, {});
+  const moves = await db.prepare('SELECT * FROM float_moves WHERE user_id=? ORDER BY date DESC, id DESC').all(id);
+  const costs = await db.prepare(`SELECT e.*, (SELECT name FROM vendors WHERE id=e.vendor_id) vendor_name
+    FROM expenses e WHERE e.paid_by=? ORDER BY e.date DESC, e.id DESC`).all(id);
+  const invoices = await db.prepare(`SELECT i.*, (SELECT SUM(amount) FROM purchase_lines WHERE invoice_id=i.id) total,
+    (SELECT name FROM vendors WHERE id=i.vendor_id) vendor_name
+    FROM purchase_invoices i WHERE i.paid_by=? ORDER BY i.invoice_date DESC, i.id DESC`).all(id);
+  const when = (d) => String(d || '').slice(0, 10);
+  const entries = [
+    ...moves.map((m) => ({ kind: m.kind === 'out' ? 'back' : 'handed', id: m.id, amount: m.amount, date: when(m.date || m.created_at), note: m.note })),
+    ...costs.map((e) => ({ kind: 'cost', id: e.id, amount: e.amount, date: when(e.date || e.created_at), note: [e.type, e.vendor_name, e.note].filter(Boolean).join(' · ') })),
+    ...invoices.map((i) => ({ kind: 'invoice', id: i.id, amount: i.total || 0, date: when(i.invoice_date || i.created_at), note: [i.vendor_name || i.shop, i.note].filter(Boolean).join(' · ') })),
+  ].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
+  send(res, 200, { user: who, ...(await floatFor(id)), entries });
+};
+
+api['POST /api/floats'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const uid = Number(b.user_id);
+  const amount = Number(b.amount);
+  if (!uid || !(amount > 0)) return send(res, 400, { error: 'who and how much are both needed' });
+  const kind = b.kind === 'out' ? 'out' : 'in';
+  const who = await db.prepare("SELECT id,name,role FROM users WHERE id=?").get(uid);
+  if (!who || !['staff', 'manager', 'admin'].includes(who.role)) return send(res, 400, { error: 'a float is held by somebody who works here' });
+  const r = await db.prepare('INSERT INTO float_moves (user_id,kind,amount,date,note,created_by) VALUES (?,?,?,?,?,?)')
+    .run(uid, kind, amount, b.date || null, b.note || null, user.id);
+  // She should know what she is holding without having to be told
+  await notify(uid, kind === 'in'
+    ? { type: 'float', title: `You were given ${money0(amount)} to hold`, body: b.note || 'Cash float for studio spending', actor_name: user.name }
+    : { type: 'float', title: `${money0(amount)} of your float was taken back`, body: b.note || '', actor_name: user.name });
+  send(res, 200, { id: r.lastInsertRowid });
+};
+
+api['DELETE /api/floats/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  await db.prepare('DELETE FROM float_moves WHERE id=?').run(params.id);
+  send(res, 200, { ok: true });
+};
+
 api['GET /api/expenses'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
-  send(res, 200, await db.prepare('SELECT e.*, (SELECT name FROM vendors WHERE id=e.vendor_id) vendor_name FROM expenses e ORDER BY date DESC, e.id DESC').all());
+  send(res, 200, await db.prepare(`SELECT e.*, (SELECT name FROM vendors WHERE id=e.vendor_id) vendor_name,
+    (SELECT name FROM users WHERE id=e.paid_by) paid_by_name FROM expenses e ORDER BY date DESC, e.id DESC`).all());
 };
 api['POST /api/expenses'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   if (!b.amount) return send(res, 400, { error: 'amount required' });
   const img = await maybeImage(b.image);
-  const r = await db.prepare('INSERT INTO expenses (vendor_id,type,amount,date,note,image) VALUES (?,?,?,?,?,?)').run(b.vendor_id || null, b.type || null, b.amount, b.date || null, b.note || null, img);
+  const r = await db.prepare('INSERT INTO expenses (vendor_id,type,amount,date,note,image,paid_by) VALUES (?,?,?,?,?,?,?)').run(b.vendor_id || null, b.type || null, b.amount, b.date || null, b.note || null, img, b.paid_by || null);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM expenses WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
