@@ -467,8 +467,10 @@ PAGES.mysalary = async (c) => {
   let sal = null;
   try { sal = await GET(`/api/staff/${state.user.id}/salary?month=${month}`); } catch (e) {}
   const pays = await GET('/api/salary-payments'); // own
+  window._mySal = sal;
   c.innerHTML = title('My Salary', '') +
     `<div class="filters"><input type="month" value="${month}" onchange="setMySalMonth(this.value)" style="width:auto;padding:8px" /></div>` +
+    (sal ? '<button class="btn sec sm" style="margin-bottom:10px" onclick="openPayslip(window._mySal)">🖨 Print my payslip</button>' : '') +
     (sal ? `<div class="card">
       ${kv('Base salary', money(sal.base))}
       ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
@@ -493,19 +495,69 @@ window.confirmSalary = async (id) => { await PUT('/api/salary-payments/' + id + 
 
 /* ============ STAFF SELF-SERVICE: report absence / request advance ============ */
 PAGES.myrequests = async (c) => {
-  const [absences, advances] = await Promise.all([GET('/api/absences'), GET('/api/advances')]);
-  const stBadge = (s) => `<span class="badge ${s === 'approved' ? 'ok' : s === 'rejected' ? 'bad' : 'warn'}">${s === 'approved' ? 'Approved' : s === 'rejected' ? 'Rejected' : 'Pending'}</span>`;
+  // The month she is in, unless she asks for another. Absences are a month's
+  // business — last September's days are not what she opens this screen for.
+  const month = window._myReqMonth || today().slice(0, 7);
+  const [absences, advances, sal] = await Promise.all([
+    GET('/api/absences'),
+    GET('/api/advances'),
+    GET(`/api/staff/${state.user.id}/salary?month=${month}`).catch(() => null),
+  ]);
+  const inMonth = (d) => String(d || '').slice(0, 7) === month;
+
+  // The days the month itself counted against her — worked out from the
+  // attendance exactly as the salary works them out, so what she reads here and
+  // what came off her pay are the same days. Reporting an absence writes a row;
+  // simply not coming in does not, which is why this screen used to be empty.
+  const missed = sal ? sal.days.filter((d) => d.status === 'absent') : [];
+  const paidLeave = sal ? sal.days.filter((d) => d.status === 'paid_leave') : [];
+  const unpaid = sal ? sal.days.filter((d) => d.status === 'unpaid_leave') : [];
+  const reported = absences.filter((a) => inMonth(a.date));
+
+  const stBadge = (st) => `<span class="badge ${st === 'approved' ? 'ok' : st === 'rejected' ? 'bad' : 'warn'}">${st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'Pending'}</span>`;
+  const dayRow = (d, icon, badge, note) => `<div class="item"><div class="av">${icon}</div>
+    <div class="main"><div class="nm">${dt(d.date)} ${badge}</div>
+      <div class="sub">${esc(note || weekdayName(d.date))}</div></div></div>`;
+
   c.innerHTML = title('Absences & Advances', '') + `
     <div class="row"><button class="btn" onclick="reportAbsence()">＋ Report absence</button>
       <button class="btn sec" onclick="requestAdvance()">＋ Request advance</button></div>
-    <div class="sec-title">My absences</div>
-    <div class="card">${absences.length ? absences.map((a) => { const st = a.status || 'confirmed'; return `<div class="item"><div class="av">✕</div>
-      <div class="main"><div class="nm">${dt(a.date)} <span class="badge ${st === 'confirmed' ? 'ok' : 'warn'}">${st === 'confirmed' ? 'Confirmed' : 'Pending'}</span></div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div></div>`; }).join('') : empty('No absences')}</div>
+    <div class="filters" style="margin-top:12px">
+      <input type="month" value="${month}" onchange="setMyReqMonth(this.value)" style="width:auto;padding:8px" /></div>
+
+    ${sal ? `<div class="grid g3" style="margin:0 0 12px">
+      <div class="stat"><div class="n serif" style="color:var(--${missed.length ? 'bad' : 'ok'})">${missed.length}</div><div class="l">absent</div></div>
+      <div class="stat"><div class="n serif">${sal.present_days}</div><div class="l">present</div></div>
+      <div class="stat"><div class="n serif" style="color:var(--ok)">${paidLeave.length}</div><div class="l">paid leave</div></div>
+    </div>` : ''}
+
+    <div class="sec-title">Days missed</div>
+    <div class="card">${missed.length
+      ? missed.map((d) => dayRow(d, '✕', '<span class="badge bad">Absent</span>',
+          sal.daily ? `${moneyText(sal.daily)} off the month` : '')).join('')
+      : empty(sal ? 'Not a day missed this month' : 'No absences', '✓')}</div>
+
+    ${paidLeave.length || unpaid.length ? `<div class="sec-title">Leave</div>
+      <div class="card">${paidLeave.map((d) => dayRow(d, '🌴', '<span class="badge ok">Paid absence</span>', 'Paid in full')).join('')}
+        ${unpaid.map((d) => dayRow(d, '🌴', '<span class="badge bad">Unpaid leave</span>', '')).join('')}</div>` : ''}
+
+    ${reported.length ? `<div class="sec-title">What I reported</div>
+      <div class="card">${reported.map((a) => { const st = a.status || 'confirmed'; return `<div class="item"><div class="av">✍</div>
+        <div class="main"><div class="nm">${dt(a.date)} <span class="badge ${st === 'confirmed' ? 'ok' : 'warn'}">${st === 'confirmed' ? 'Confirmed' : 'Pending'}</span></div>
+          <div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div></div>`; }).join('')}</div>` : ''}
+
     <div class="sec-title">My advances</div>
     <div class="card">${advances.length ? advances.map((a) => `<div class="item"><div class="av">💵</div>
       <div class="main"><div class="nm">${money(a.amount)}</div><div class="sub">${a.month ? 'Deduct ' + a.month : ''}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
       ${stBadge(a.status || 'approved')}</div>`).join('') : empty('No advances')}</div>`;
 };
+window.setMyReqMonth = (m) => { window._myReqMonth = m; go('myrequests'); };
+const WEEKDAY_NAME = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function weekdayName(date) {
+  const d = new Date(String(date) + 'T12:00:00Z');
+  return isNaN(d) ? '' : WEEKDAY_NAME[d.getUTCDay()];
+}
+
 window.reportAbsence = () => formModal('Report absence', [
   { name: 'date', label: 'Date', type: 'date', required: true, value: today() },
   { name: 'reason', label: 'Reason (optional)' },
