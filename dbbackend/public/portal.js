@@ -19,34 +19,36 @@ PAGES.profile = async (c) => {
       <button class="btn" style="margin-top:14px" onclick="saveProfile()">Save changes</button>
     </div>
     <div class="card hidden" id="pkCard">
-      <label style="margin-top:0">Sign in with ${faceLabel().replace(/^🙂 /, '')}</label>
-      <div class="hint" style="margin-top:6px">Your face or fingerprint stays on this device — it is never sent to the studio. The device just proves it is you, so there is no password to type.</div>
+      <label style="margin-top:0">Devices that can sign you in</label>
+      <div class="hint" style="margin-top:6px">If one of these is lost or no longer yours, forget it here and it stops signing you in. Your password is unaffected.</div>
       <div id="pkList"></div>
-      <button class="btn sec" style="margin-top:12px" onclick="passkeyRegister()">＋ Set up this device</button>
+      <button class="btn ghost sm" style="margin-top:12px" onclick="passkeyRegister()">＋ Add this one too</button>
     </div>`;
   renderPasskeys();
 };
 // Only offered where the device can do it, and the list is what makes a lost
 // phone something the owner can revoke on their own.
 window.renderPasskeys = async () => {
-  if (!(await hasPlatformAuthenticator())) return;
   const card = document.getElementById('pkCard');
   if (!card) return;
-  card.classList.remove('hidden');
   let keys = [];
-  try { keys = await GET('/api/passkeys'); } catch (e) { return; }
+  try { keys = await GET('/api/passkeys'); } catch (e) { keys = []; }
+  // Nothing set up means nothing to manage. Turning Face ID on is offered by
+  // itself, in one tap, at the moment the password is typed — a settings panel
+  // sitting here saying "no device set up yet" only makes it look like a chore
+  // somebody has to go and do.
+  if (!keys.length) return;
+  card.classList.remove('hidden');
   const list = document.getElementById('pkList');
   if (!list) return;
-  list.innerHTML = keys.length
-    ? keys.map((k) => `<div class="item">
-        <div class="av">${k.usable_here ? '🔑' : '⚠️'}</div>
-        <div class="main"><div class="nm">${esc(k.label || 'A device')}</div>
-          <div class="sub">${k.usable_here
-            ? (k.last_used ? 'Last used ' + esc(String(k.last_used).slice(0, 10)) : 'Not used yet')
-            : 'Set up on the old address — it will not work here'}</div></div>
-        <button class="btn ghost sm" onclick="forgetPasskey(${k.id})">Forget</button>
-      </div>`).join('')
-    : '<div class="hint" style="margin-top:8px">No device set up yet.</div>';
+  list.innerHTML = keys.map((k) => `<div class="item">
+      <div class="av">${k.usable_here ? '🔑' : '⚠️'}</div>
+      <div class="main"><div class="nm">${esc(k.label || 'A device')}</div>
+        <div class="sub">${k.usable_here
+          ? (k.last_used ? 'Last used ' + esc(String(k.last_used).slice(0, 10)) : 'Not used yet')
+          : 'Set up on the old address — it will not work here'}</div></div>
+      <button class="btn ghost sm" onclick="forgetPasskey(${k.id})">Forget</button>
+    </div>`).join('');
 };
 window.forgetPasskey = async (id) => {
   if (!confirm('Forget this device?\n\nIt will no longer sign you in. Your password still works.')) return;
