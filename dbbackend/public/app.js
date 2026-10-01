@@ -444,6 +444,10 @@ function renderAuth(mode) {
       <div class="err hidden" id="authErr"></div>
       <button class="btn" style="margin-top:18px" type="submit">${isReg ? 'Create account' : 'Sign in'}</button>
     </form>
+    ${isReg ? '' : `<div id="pkWrap" class="hidden" style="margin-top:14px">
+      <div class="pk-or"><span>or</span></div>
+      <button class="btn sec" style="margin-top:12px" onclick="passkeyLogin()">${faceLabel()} Sign in</button>
+    </div>`}
     <p class="hint" style="margin-top:16px">${isReg ? 'Already have an account? ' : "Don't have an account? "}
       <a href="#" onclick="renderAuth('${isReg ? '' : 'register'}');return false" style="font-weight:700">${isReg ? 'Sign in' : 'Create one'}</a></p>`;
   }
@@ -463,6 +467,12 @@ function renderAuth(mode) {
       renderApp();
     } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.classList.remove('hidden'); }
   };
+  // Shown only where the device can actually do it, so the button is never a
+  // promise the phone cannot keep.
+  if (!isReg) hasPlatformAuthenticator().then((yes) => {
+    const w = document.getElementById('pkWrap');
+    if (yes && w) w.classList.remove('hidden');
+  });
 }
 window.renderAuth = renderAuth;
 window.pickSignupPhoto = () => pickImage((b64) => {
@@ -758,6 +768,104 @@ function dressWatermark() {
     </svg>
   </div>`;
 }
+
+/* ---------- Face ID / fingerprint sign-in ----------
+   The browser speaks ArrayBuffers and the server speaks base64url, so the two
+   helpers below are most of the work. Everything secret stays on the device:
+   what crosses the wire is a signature over a challenge the server just made. */
+const pkToB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const pkFromB64 = (s) => {
+  const t = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(t + '='.repeat((4 - (t.length % 4)) % 4));
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+};
+// Apple calls it Face ID, everyone else calls it something else; say what the
+// person in front of the screen will recognise.
+function faceLabel() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad/i.test(ua)) return '🙂 Face ID /&nbsp;Touch ID';
+  if (/Macintosh/i.test(ua)) return '🙂 Touch ID';
+  if (/Android/i.test(ua)) return '🙂 Fingerprint /&nbsp;Face';
+  return '🙂 Device unlock';
+}
+async function hasPlatformAuthenticator() {
+  try {
+    if (!window.PublicKeyCredential || !window.isSecureContext) return false;
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch (e) { return false; }
+}
+// A cancelled prompt is the person changing their mind, not a fault to shout at.
+const pkCancelled = (e) => e && (e.name === 'NotAllowedError' || e.name === 'AbortError');
+
+window.passkeyRegister = async () => {
+  if (!(await hasPlatformAuthenticator())) return toast('This device cannot do that', 'error');
+  try {
+    const o = await POST('/api/passkey/register/start', {});
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: pkFromB64(o.challenge),
+        rp: o.rp,
+        user: { id: pkFromB64(o.user.id), name: o.user.name, displayName: o.user.displayName },
+        pubKeyCredParams: o.pubKeyCredParams,
+        authenticatorSelection: o.authenticatorSelection,
+        excludeCredentials: (o.excludeCredentials || []).map((c) => ({ type: c.type, id: pkFromB64(c.id) })),
+        timeout: o.timeout,
+        attestation: o.attestation,
+      },
+    });
+    if (!cred) throw new Error('Nothing came back from the device');
+    await POST('/api/passkey/register/finish', {
+      challenge: o.challenge,
+      response: {
+        id: cred.id,
+        clientDataJSON: pkToB64(cred.response.clientDataJSON),
+        attestationObject: pkToB64(cred.response.attestationObject),
+      },
+    });
+    toast('This device can sign you in now ✓');
+    if (typeof go === 'function') go('profile');
+  } catch (e) {
+    if (pkCancelled(e)) return;
+    toast(e.message || 'Could not set this up', 'error');
+  }
+};
+
+window.passkeyLogin = async () => {
+  try {
+    const typed = document.querySelector('#authForm input[name=email]');
+    const email = typed ? (typed.value || '').trim() : '';
+    const o = await POST('/api/passkey/login/start', email ? { email } : {});
+    const cred = await navigator.credentials.get({
+      publicKey: {
+        challenge: pkFromB64(o.challenge),
+        rpId: o.rpId,
+        allowCredentials: (o.allowCredentials || []).map((c) => ({ type: c.type, id: pkFromB64(c.id) })),
+        userVerification: o.userVerification,
+        timeout: o.timeout,
+      },
+    });
+    if (!cred) throw new Error('Nothing came back from the device');
+    await POST('/api/passkey/login/finish', {
+      challenge: o.challenge,
+      response: {
+        id: cred.id,
+        clientDataJSON: pkToB64(cred.response.clientDataJSON),
+        authenticatorData: pkToB64(cred.response.authenticatorData),
+        signature: pkToB64(cred.response.signature),
+      },
+    });
+    state.user = (await GET('/api/me')).user;
+    await loadPerms(); await loadConfig();
+    renderApp();
+  } catch (e) {
+    if (pkCancelled(e)) return;
+    const el = document.getElementById('authErr');
+    if (el) { el.textContent = e.message || 'Could not sign in with this device'; el.classList.remove('hidden'); }
+    else toast(e.message || 'Could not sign in', 'error');
+  }
+};
+window.faceLabel = faceLabel;
+window.hasPlatformAuthenticator = hasPlatformAuthenticator;
 
 /* ---------- count-up for stat numbers: <div class="n" data-count="70000" data-fmt="money"> ---------- */
 function runCounters(root) {

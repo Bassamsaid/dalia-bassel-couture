@@ -10,6 +10,7 @@ const { db, ready, hashPassword, verifyPassword, DB_PATH } = require('./db');
 const { restore } = require('./restore');
 const store = require('./storage');
 const { writeZip } = require('./zip');
+const webauthn = require('./webauthn');
 
 // Sending mail. A serverless function usually cannot open a raw socket on port
 // 465, so where RESEND_API_KEY is set the mail goes over plain HTTPS instead;
@@ -208,6 +209,141 @@ api['POST /api/login'] = async (req, res) => {
     'Set-Cookie': `sid=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`,
   });
 };
+// ================= FACE ID / FINGERPRINT SIGN-IN =================
+// The device checks the face or the finger and signs a challenge with a key it
+// keeps in hardware. Nothing about the face reaches this server, and what is
+// stored here — a public key — cannot sign anything.
+//
+// A passkey belongs to one domain, so the name is read off the request rather
+// than fixed: a key made on the Railway address will not work on the Vercel one,
+// and each has to be set up where it is used.
+function rpFor(req) {
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0];
+  const proto = String(req.headers['x-forwarded-proto'] || (req.socket.encrypted ? 'https' : 'http')).split(',')[0];
+  const port = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[1];
+  // Only the exact page the browser is on counts as the origin it signed for.
+  const origins = [`${proto}://${host}${port ? ':' + port : ''}`];
+  return { rpId: host, origins };
+}
+
+async function issueChallenge(kind, userId) {
+  const challenge = webauthn.newChallenge();
+  await db.prepare('INSERT INTO webauthn_challenges (challenge,user_id,kind,expires_at) VALUES (?,?,?,?)')
+    .run(challenge, userId || null, kind, new Date(Date.now() + 5 * 60000).toISOString());
+  // Opportunistic sweep; there is no scheduler here and these are tiny.
+  await db.prepare("DELETE FROM webauthn_challenges WHERE expires_at < datetime('now')").run();
+  return challenge;
+}
+
+// Take a challenge once. Returning it to the pool is never right: that is what
+// would let the same signature be presented twice.
+async function spendChallenge(challenge, kind) {
+  const row = await db.prepare('SELECT * FROM webauthn_challenges WHERE challenge=? AND kind=?').get(String(challenge || ''), kind);
+  if (row) await db.prepare('DELETE FROM webauthn_challenges WHERE challenge=?').run(row.challenge);
+  if (!row || new Date(row.expires_at).getTime() < Date.now()) return null;
+  return row;
+}
+
+api['POST /api/passkey/register/start'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const { rpId } = rpFor(req);
+  const challenge = await issueChallenge('create', user.id);
+  const existing = await db.prepare('SELECT cred_id FROM credentials WHERE user_id=?').all(user.id);
+  send(res, 200, {
+    challenge,
+    rp: { id: rpId, name: 'Dalia Bassel Couture' },
+    // The handle identifies the account to the device and is shown in its own
+    // passkey list; the row id does that without putting an email in there.
+    user: { id: Buffer.from(String(user.id)).toString('base64url'), name: user.email || String(user.id), displayName: user.name },
+    pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+    excludeCredentials: existing.map((c) => ({ type: 'public-key', id: c.cred_id })),
+    timeout: 120000,
+    attestation: 'none',
+  });
+};
+
+api['POST /api/passkey/register/finish'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const b = await readBody(req);
+  const { rpId, origins } = rpFor(req);
+  const row = await spendChallenge(b.challenge, 'create');
+  if (!row || row.user_id !== user.id) return send(res, 400, { error: 'That sign-in attempt has expired. Try again.' });
+  let reg;
+  try { reg = webauthn.verifyRegistration({ response: b.response || {}, challenge: row.challenge, rpId, origins }); }
+  catch (e) { return send(res, 400, { error: e.message }); }
+  const taken = await db.prepare('SELECT user_id FROM credentials WHERE cred_id=?').get(reg.credentialId);
+  if (taken) return send(res, 409, { error: 'This device is already set up.' });
+  await db.prepare('INSERT INTO credentials (user_id,cred_id,public_key,sign_count,label,rp_id) VALUES (?,?,?,?,?,?)')
+    .run(user.id, reg.credentialId, JSON.stringify(reg.jwk), reg.signCount, deviceLabel(req), rpId);
+  send(res, 200, { ok: true });
+};
+
+// A name for the row, so "forget that phone" is a thing the owner can actually do.
+function deviceLabel(req) {
+  const ua = String(req.headers['user-agent'] || '');
+  if (/iPhone/i.test(ua)) return 'iPhone';
+  if (/iPad/i.test(ua)) return 'iPad';
+  if (/Macintosh/i.test(ua)) return 'Mac';
+  if (/Android/i.test(ua)) return 'Android phone';
+  if (/Windows/i.test(ua)) return 'Windows PC';
+  return 'This device';
+}
+
+api['POST /api/passkey/login/start'] = async (req, res) => {
+  const { rpId } = rpFor(req);
+  const b = await readBody(req);
+  // With an email, the device is told which keys fit. Without one it offers
+  // whatever it holds for this site, which is the tap-and-go case.
+  let allow = [];
+  if (b && b.email) {
+    const u = await db.prepare('SELECT id FROM users WHERE lower(email)=lower(?)').get(String(b.email).trim());
+    if (u) allow = (await db.prepare('SELECT cred_id FROM credentials WHERE user_id=?').all(u.id)).map((c) => ({ type: 'public-key', id: c.cred_id }));
+  }
+  const challenge = await issueChallenge('get', null);
+  send(res, 200, { challenge, rpId, allowCredentials: allow, userVerification: 'required', timeout: 120000 });
+};
+
+api['POST /api/passkey/login/finish'] = async (req, res) => {
+  const b = await readBody(req);
+  const { rpId, origins } = rpFor(req);
+  const row = await spendChallenge(b.challenge, 'get');
+  if (!row) return send(res, 401, { error: 'That sign-in attempt has expired. Try again.' });
+  const cred = await db.prepare('SELECT * FROM credentials WHERE cred_id=?').get(String((b.response || {}).id || b.id || ''));
+  if (!cred) return send(res, 401, { error: 'This device is not set up for sign-in yet.' });
+  const u = await db.prepare('SELECT * FROM users WHERE id=?').get(cred.user_id);
+  if (!u || !u.active) return send(res, 401, { error: 'No account' });
+  try {
+    const out = webauthn.verifyAssertion({
+      response: b.response || {}, challenge: row.challenge, rpId, origins,
+      jwk: JSON.parse(cred.public_key), storedCount: cred.sign_count,
+    });
+    await db.prepare("UPDATE credentials SET sign_count=?, last_used=datetime('now') WHERE id=?").run(out.signCount, cred.id);
+  } catch (e) { return send(res, 401, { error: e.message }); }
+  const token = crypto.randomBytes(24).toString('hex');
+  await db.prepare('INSERT INTO sessions (token,user_id) VALUES (?,?)').run(token, u.id);
+  await markLogin(u.id);
+  send(res, 200, { ok: true, user: { id: u.id, name: u.name, role: u.role } }, {
+    'Set-Cookie': `sid=${token}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`,
+  });
+};
+
+// What this account has set up, and taking one away.
+api['GET /api/passkeys'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const { rpId } = rpFor(req);
+  const rows = await db.prepare('SELECT id,label,rp_id,created_at,last_used FROM credentials WHERE user_id=? ORDER BY id DESC').all(user.id);
+  // One made on the old address cannot be used on this one; say so rather than
+  // leaving a key that silently never works.
+  send(res, 200, rows.map((r) => ({ ...r, usable_here: !r.rp_id || r.rp_id === rpId })));
+};
+
+api['DELETE /api/passkeys/:id'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  const r = await db.prepare('DELETE FROM credentials WHERE id=? AND user_id=?').run(params.id, user.id);
+  send(res, 200, { ok: true, removed: r.changes });
+};
+
 api['POST /api/logout'] = async (req, res) => {
   const token = parseCookies(req).sid;
   if (token) await db.prepare('DELETE FROM sessions WHERE token=?').run(token);
