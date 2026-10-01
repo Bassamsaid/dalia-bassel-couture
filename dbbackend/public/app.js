@@ -369,7 +369,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v122';
+const APP_VERSION = 'v123';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -585,7 +585,6 @@ const NAV = {
     ['staff', 'Staff', '💼'],
     ['attreqs', 'Attendance requests', '🕒'],
     ['expenses', 'Expenses', '💸'],
-    ['permissions', 'Permissions', '🔒'],
     ['config', 'Configuration', '⚙'],
     ['about', 'About', 'ℹ'],
   ],
@@ -748,6 +747,17 @@ window.openDrawer = openDrawer; window.closeDrawer = closeDrawer;
 async function logout() { try { await POST('/api/logout'); } catch (e) {} try { localStorage.removeItem('dalia_route'); } catch (e) {} state.user = null; renderAuth(); }
 window.logout = logout;
 
+/* A row of tabs or chips wider than the phone should never open with the one you
+   are on hidden off the edge. Only the row is moved, never the page under it. */
+function showActiveChip(root) {
+  (root || document).querySelectorAll('.filters, .dtabs').forEach((row) => {
+    const on = row.querySelector('.chip.active, .dtab.on');
+    if (!on || row.scrollWidth <= row.clientWidth + 4) return;
+    row.scrollLeft = Math.max(0, on.offsetLeft - (row.clientWidth - on.offsetWidth) / 2);
+  });
+}
+window.showActiveChip = showActiveChip;
+
 function persistRoute() {
   try { localStorage.setItem('dalia_route', JSON.stringify({ page: state.page, roundId: window._roundId, roundTab: window._roundTab, staffId: window._staffId, staffTab2: window._staffTab2 })); } catch (e) {}
 }
@@ -768,7 +778,7 @@ function go(page, opts = {}) {
   document.querySelectorAll('#nav button').forEach((b) => b.classList.toggle('active', b.dataset.p === page));
   const c = $('#content'); if (!c) return; c.innerHTML = '<div class="spinner"></div>'; window.scrollTo(0, 0);
   const fn = PAGES[page];
-  if (fn) fn(c).then(() => { lazyImgs('#content'); watchVideos(c); }).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
+  if (fn) fn(c).then(() => { lazyImgs('#content'); watchVideos(c); showActiveChip(c); }).catch((e) => { c.innerHTML = `<div class="empty"><div class="em">⚠</div>${esc(e.message)}</div>`; });
   else c.innerHTML = '<div class="empty">Coming soon</div>';
 }
 window.go = go;
