@@ -380,7 +380,7 @@ function attScreen(c, att, titleTxt) {
   const overTotal = mine.reduce((x, r) => x + r.m.over, 0);
   const lateDays = mine.filter((r) => r.m.late).length;
 
-  c.innerHTML = title(titleTxt, '') +
+  c.innerHTML = pageHead(titleTxt, '🕒') +
     `<div class="card checkin">
        <div class="ck-clock" id="ckClock">${_hhmm(now)}</div><div class="ck-date">${dateStr}</div>
        ${shiftLine}
@@ -462,13 +462,48 @@ PAGES.home_staff = async (c) => {
 };
 
 /* ============ STAFF SALARY (own, auto-computed) ============ */
+/* Her own record, the same five faces of it the studio sees — to read. Nothing
+   here can be changed: the pay, the hours and the days off are the studio's to
+   set, and she is only ever shown what they were set to. */
+PAGES.myoverview = async (c) => {
+  const u = state.user;
+  const month = today().slice(0, 7);
+  let sal = null;
+  try { sal = await GET(`/api/staff/${u.id}/salary?month=${month}`); } catch (e) {}
+  const offSet = new Set((u.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
+  const hours = sal
+    ? `${esc(sal.shift_start)} – ${esc(sal.shift_end)}${sal.shift_is_own ? '' : ' <span class="hint">· the studio\'s</span>'}`
+    : '—';
+  c.innerHTML = pageHead('My record', '🧾') +
+    `<div class="card">
+      ${kv('Role', roleLabel(u.role))}
+      ${kv('Job title', u.job_title ? esc(u.job_title) : '—')}
+      ${kv('Base salary', money(u.base_salary))}
+      ${kv('Working hours', hours)}
+      ${kv('Phone', u.phone ? esc(u.phone) : '—')}
+      ${kv('Email', u.email ? esc(u.email) : '—')}
+      ${kv('Hired', u.hire_date ? dt(u.hire_date) : '—')}
+    </div>
+    <div class="sec-title">Paid weekly off-days</div>
+    <div class="hint" style="margin:0 2px 6px">Not counted as absence or lateness, and paid.</div>
+    <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${offSet.has(k) ? 'active' : ''}" style="cursor:default">${l}</span>`).join('')}</div>
+    ${sal ? `<div class="sec-title">This month so far</div>
+      <div class="card">
+        ${kv('Days worked', `${sal.present_days} of ${sal.paid_days} paid so far`)}
+        ${kv('Absent', `${sal.absent_days} day(s)`, sal.absent_days ? 'bad' : 'ok')}
+        ${kv('Earned to date', money(sal.earned_to_date), 'ok')}
+      </div>
+      <p class="hint">Up to ${esc(dt(sal.as_of))}. The whole month is on the Salary tab.</p>` : ''}
+    <p class="hint" style="margin-top:12px">Anything that needs changing here — your hours, your days off, your pay — is set by the studio.</p>`;
+};
+
 PAGES.mysalary = async (c) => {
   const month = window._mySalMonth || today().slice(0, 7);
   let sal = null;
   try { sal = await GET(`/api/staff/${state.user.id}/salary?month=${month}`); } catch (e) {}
   const pays = await GET('/api/salary-payments'); // own
   window._mySal = sal;
-  c.innerHTML = title('My Salary', '') +
+  c.innerHTML = pageHead('My Salary', '💵') +
     `<div class="filters"><input type="month" value="${month}" onchange="setMySalMonth(this.value)" style="width:auto;padding:8px" /></div>` +
     (sal ? '<button class="btn sec sm" style="margin-bottom:10px" onclick="openPayslip(window._mySal)">🖨 Print my payslip</button>' : '') +
     (sal ? `<div class="card">
@@ -519,7 +554,7 @@ PAGES.myrequests = async (c) => {
     <div class="main"><div class="nm">${dt(d.date)} ${badge}</div>
       <div class="sub">${esc(note || weekdayName(d.date))}</div></div></div>`;
 
-  c.innerHTML = title('Absences & Advances', '') + `
+  c.innerHTML = pageHead('Absences & Advances', '🗂') + `
     <div class="row"><button class="btn" onclick="reportAbsence()">＋ Report absence</button>
       <button class="btn sec" onclick="requestAdvance()">＋ Request advance</button></div>
     <div class="filters" style="margin-top:12px">
