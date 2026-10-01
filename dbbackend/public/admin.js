@@ -2092,9 +2092,10 @@ window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purch
 PAGES.expenses = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💸'); return; }
   const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases')]);
+  // vendors are still read for the New expense form's dropdown
   window._expRef = { vendors, types };
   const tab = window._expTab || 'entries';
-  const tabs = [['entries', 'All expenses'], ['analysis', 'Analysis'], ['vendors', 'Suppliers'], ['types', 'Types']];
+  const tabs = [['entries', 'All expenses'], ['analysis', 'Analysis'], ['types', 'Types']];
   let inner = '';
   if (tab === 'entries') {
     const ef = window._expMonth || '';
@@ -2121,17 +2122,6 @@ PAGES.expenses = async (c) => {
       return `<div class="card"><div class="item"><div class="main"><div class="nm serif" style="font-size:18px">${monthLabel(m)}</div><div class="sub">Total spent</div></div><div class="serif" style="font-size:20px;font-weight:700;color:var(--bad)">${money(d.total)}</div></div>
         ${ts.map(([t, a]) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(t)}</div></div><div class="sub">${money(a)}</div></div>`).join('')}</div>`;
     }).join('') : empty('No spending data yet', '📊');
-  } else if (tab === 'vendors') {
-    const vs = vendors.slice().sort((a, b) => (b.total || 0) - (a.total || 0));
-    inner = `<button class="btn" onclick="addVendor()">＋ Add supplier</button>
-      <div class="hint" style="margin:10px 2px 6px">Tap any supplier to see its full report (purchases + expenses) and print a PDF</div>
-      <div class="card">${vs.length ? vs.map((v) => `<div class="item" style="cursor:pointer" onclick="openVendorReport(${v.id})">
-        <div class="av">🏬</div>
-        <div class="main"><div class="nm">${esc(v.name)}</div><div class="sub">${v.phone ? esc(v.phone) + ' · ' : ''}${v.total ? '🧾 ' + money(v.purchases_total) + ' · 💸 ' + money(v.expenses_total) : 'No activity yet'}</div></div>
-        <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total || 0)}</div>
-          <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
-      </div>`).join('') : empty('No suppliers yet — add names here')}</div>`;
   } else {
     inner = `<button class="btn" onclick="addExpType()">＋ Add expense type</button>
       <div class="card" style="margin-top:12px">${types.length ? types.map((t) => `<div class="item"><div class="av">🏷️</div><div class="main"><div class="nm">${esc(t.name)}</div></div><button class="btn-icon" onclick="delExpType(${t.id})">🗑</button></div>`).join('') : empty('No types yet')}</div>`;
@@ -2148,33 +2138,77 @@ window.addExpense = () => { const { vendors, types } = window._expRef; formModal
   { name: 'image', label: 'Invoice photo (optional)', type: 'image' },
 ], async (d) => { await POST('/api/expenses', d); toast('Saved'); go('expenses'); }); };
 window.delExpense = (id) => confirmDel('Delete expense?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
+/* ============ VENDORS ============
+   Everyone the studio buys from, in one place: the directory that used to sit
+   under Configuration and the spending report that used to sit under Expenses
+   were two halves of the same list. Grouped by what they supply, because that
+   is how a vendor is looked for — not "who was that shop" but "who do we get
+   beading from". */
+PAGES.vendors = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🏬'); return; }
+  const [vendors, orphans] = await Promise.all([GET('/api/vendors'), GET('/api/vendors/unlinked-shops')]);
+  window._cfgVendors = vendors;
+  const groups = {};
+  vendors.forEach((v) => { const k = (v.specialty || '').trim() || 'Not set'; (groups[k] = groups[k] || []).push(v); });
+  const keys = Object.keys(groups).sort((a, b) => (a === 'Not set') - (b === 'Not set') || a.localeCompare(b));
+  keys.forEach((k) => groups[k].sort((a, b) => (b.total || 0) - (a.total || 0)));
+  const spent = vendors.reduce((a, v) => a + (v.total || 0), 0);
+  c.innerHTML = pageHead('Vendors', '🏬') +
+    `<div class="grid g2" style="margin-bottom:10px">
+       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(spent)}</div><div class="l">spent with them</div></div>
+       <div class="stat"><div class="n serif">${vendors.length}</div><div class="l">vendor${vendors.length === 1 ? '' : 's'}</div></div>
+     </div>
+    <button class="btn" onclick="addVendor()">＋ Add a vendor</button>
+    <div class="hint" style="margin:10px 2px 6px">Tap one to see its full report — purchases and expenses together — or ✏️ to edit its details.</div>
+    ${vendors.length ? keys.map((k) => `<div class="sec-title">${esc(k)} <span class="hint" style="font-weight:400">· ${groups[k].length}</span></div>
+      <div class="card" style="margin:0 0 10px">${groups[k].map((v) => `<div class="item" style="cursor:pointer" onclick="openVendorReport(${v.id})">
+        <div class="av">🏬</div>
+        <div class="main"><div class="nm">${esc(v.name)}</div>
+          <div class="sub">${v.total ? '🧾 ' + money(v.purchases_total) + ' · 💸 ' + money(v.expenses_total) : 'No activity yet'}${v.phone ? ' · ' + esc(v.phone) : ''}</div></div>
+        <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          ${v.total ? `<div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total)}</div>` : ''}
+          <div class="row" style="gap:2px">
+            <button class="btn-icon" onclick="event.stopPropagation();editVendor(${v.id})">✏️</button>
+            <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div></div>
+      </div>`).join('')}</div>`).join('') : empty('No vendors yet — add the first one', '🏬')}
+    ${orphans.length ? `<div class="sec-title">Shops not on the list yet</div>
+      <p class="hint" style="margin-top:-4px">These were typed onto invoices, so their spending shows against no vendor. Add one and its invoices join it.</p>
+      <div class="card">${orphans.map((o) => `<div class="item">
+        <div class="av">❓</div>
+        <div class="main"><div class="nm">${esc(o.shop)}</div><div class="sub">${o.invoices} invoice${o.invoices === 1 ? '' : 's'}</div></div>
+        <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div class="serif" style="font-weight:700;color:var(--bad)">${money(o.total)}</div>
+          <button class="btn sec sm" onclick="adoptShop('${esc(o.shop).replace(/'/g, "\\'")}')">＋ Add</button></div>
+      </div>`).join('')}</div>` : ''}`;
+};
+
 const VENDOR_FIELDS = (v = {}) => [
-  { name: 'name', label: 'Supplier name', required: true, value: v.name || '' },
+  { name: 'name', label: 'Vendor name', required: true, value: v.name || '' },
   { name: 'specialty', label: 'What they supply', value: v.specialty || '', placeholder: 'Lace · Tulle · Beading · Silk' },
   { name: 'phone', label: 'Phone', value: v.phone || '' },
   { name: 'email', label: 'Email', type: 'email', value: v.email || '' },
   { name: 'address', label: 'Address / area', value: v.address || '' },
   { name: 'note', label: 'Note', value: v.note || '' },
 ];
-window.addVendor = (from) => formModal('Add a supplier', VENDOR_FIELDS(), async (d) => {
-  await POST('/api/vendors', d); toast('Supplier added ✓'); go(from === 'config' ? 'config' : 'expenses');
+window.addVendor = () => formModal('Add a vendor', VENDOR_FIELDS(), async (d) => {
+  await POST('/api/vendors', d); toast('Vendor added ✓'); go('vendors');
 }, { perStep: 6 });
 /* A shop that was only ever typed onto invoices. Adding it under exactly that
    name is what joins the spending to it — so the name is fixed, not a suggestion. */
 window.adoptShop = (shop) => formModal('Add ' + shop, VENDOR_FIELDS({ name: shop }).map((f) => (
-  f.name === 'name' ? { ...f, label: 'Supplier name (keep it as written on the invoices)' } : f
+  f.name === 'name' ? { ...f, label: 'Vendor name (keep it as written on the invoices)' } : f
 )), async (d) => {
   await POST('/api/vendors', { ...d, name: shop });
-  toast('Supplier added — its invoices are on it now ✓'); go('config');
+  toast('Vendor added — its invoices are on it now ✓'); go('vendors');
 }, { perStep: 6 });
 window.editVendor = (id) => {
   const v = (window._cfgVendors || window._expRef?.vendors || []).find((x) => x.id === id);
   if (!v) return;
   formModal('Edit ' + v.name, VENDOR_FIELDS(v), async (d) => {
-    await PUT('/api/vendors/' + id, d); toast('Supplier saved ✓'); go('config');
+    await PUT('/api/vendors/' + id, d); toast('Vendor saved ✓'); go('vendors');
   }, { perStep: 6 });
 };
-window.delVendor = (id) => confirmDel('Delete this supplier?', async () => { await DEL('/api/vendors/' + id); go(window._cfgTab === 'vendors' ? 'config' : 'expenses'); });
+window.delVendor = (id) => confirmDel('Delete this vendor?', async () => { await DEL('/api/vendors/' + id); go('vendors'); });
 /* ---- Vendor report: unified spend (material purchases + general expenses) + printable PDF ---- */
 window.openVendorReport = async (id) => {
   const rep = await GET('/api/vendors/' + id + '/report');
@@ -2692,7 +2726,7 @@ PAGES.config = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '⚙'); return; }
   const s = await GET('/api/settings');
   const tab = window._cfgTab || 'academy';
-  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['vendors', 'Suppliers'], ['perms', 'Who sees what'], ['backup', 'Backup']];
+  const tabs = [['academy', 'Academy'], ['salary', 'Salary & Work'], ['location', 'Location'], ['payment', 'Payment'], ['perms', 'Who sees what'], ['backup', 'Backup']];
   let inner = '';
   if (tab === 'academy') {
     inner = `<div class="card"><label>Academy name</label><input id="cfg_academy_name" value="${esc(s.academy_name || '')}" />
@@ -2736,34 +2770,6 @@ PAGES.config = async (c) => {
         <div class="hint" style="margin-top:6px">Staff & students can only check in or out inside a circle this wide around the pin. Set the switch to “No” to allow from anywhere.</div>
         <button class="btn" style="margin-top:12px" onclick="saveCfg(['geo_enabled','geo_lat','geo_lng','geo_radius'])">Save the pin & the rule</button>
       </div>`;
-  } else if (tab === 'vendors') {
-    const [vendors, orphans] = await Promise.all([GET('/api/vendors'), GET('/api/vendors/unlinked-shops')]);
-    window._cfgVendors = vendors;
-    // Grouped by what they supply, because that is how a supplier is looked up:
-    // not "who was that shop" but "who do we get beading from".
-    const groups = {};
-    vendors.forEach((v) => { const k = (v.specialty || '').trim() || 'Not set'; (groups[k] = groups[k] || []).push(v); });
-    const keys = Object.keys(groups).sort((a, b) => (a === 'Not set') - (b === 'Not set') || a.localeCompare(b));
-    inner = `<button class="btn" onclick="addVendor('config')">＋ Add a supplier</button>
-      <div class="hint" style="margin:10px 2px 6px">Everyone the studio buys from. Tap one to edit its details.</div>
-      ${vendors.length ? keys.map((k) => `<div class="sec-title">${esc(k)} <span class="hint" style="font-weight:400">· ${groups[k].length}</span></div>
-        <div class="card" style="margin:0 0 10px">${groups[k].map((v) => `<div class="item" style="cursor:pointer" onclick="editVendor(${v.id})">
-          <div class="av">🏬</div>
-          <div class="main"><div class="nm">${esc(v.name)}</div>
-            <div class="sub">${[v.phone, v.address, v.note].filter(Boolean).map(esc).join(' · ') || 'No details yet'}</div></div>
-          <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-            ${v.total ? `<div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total)}</div>` : ''}
-            <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
-        </div>`).join('')}</div>`).join('') : empty('No suppliers yet', '🏬')}
-      ${orphans.length ? `<div class="sec-title">Shops not on the list yet</div>
-        <p class="hint" style="margin-top:-4px">These were typed onto invoices, so their spending shows against no supplier. Add one and its invoices join it.</p>
-        <div class="card">${orphans.map((o) => `<div class="item">
-          <div class="av">❓</div>
-          <div class="main"><div class="nm">${esc(o.shop)}</div><div class="sub">${o.invoices} invoice${o.invoices === 1 ? '' : 's'}</div></div>
-          <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-            <div class="serif" style="font-weight:700;color:var(--bad)">${money(o.total)}</div>
-            <button class="btn sec sm" onclick="adoptShop('${esc(o.shop).replace(/'/g, "\\'")}')">＋ Add</button></div>
-        </div>`).join('')}</div>` : ''}`;
   } else if (tab === 'backup') {
     const st = await GET('/api/storage').catch(() => null);
     inner = `${st ? `<div class="card" style="border-inline-start:4px solid ${st.persistent ? 'var(--ok)' : 'var(--bad)'}">
