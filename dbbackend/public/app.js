@@ -428,7 +428,11 @@ function renderAuth(mode) {
     </div>
     <p class="hint" style="margin-top:16px"><a href="#" onclick="renderAuth('');return false" style="font-weight:700">← Sign in with password</a></p>`;
   } else {
-    inner = `<form id="authForm" style="text-align:start">
+    inner = `${isReg ? '' : `<div id="pkTop" class="hidden">
+      <button class="btn" onclick="passkeyLogin()">${faceLabel()}</button>
+      <div class="pk-or" style="margin-top:16px"><span>or use your password</span></div>
+    </div>`}
+    <form id="authForm" style="text-align:start">
       ${isReg ? `<div class="sign-photo">
         <div class="sp-ring" id="spRing" onclick="pickSignupPhoto()">
           <span class="sp-plus">＋</span><span class="sp-hint">Your photo</span>
@@ -446,7 +450,7 @@ function renderAuth(mode) {
     </form>
     ${isReg ? '' : `<div id="pkWrap" class="hidden" style="margin-top:14px">
       <div class="pk-or"><span>or</span></div>
-      <button class="btn sec" style="margin-top:12px" onclick="passkeyLogin()">${faceLabel()} Sign in</button>
+      <button class="btn sec" style="margin-top:12px" onclick="passkeyLogin()">${faceLabel()}</button>
     </div>`}
     <p class="hint" style="margin-top:16px">${isReg ? 'Already have an account? ' : "Don't have an account? "}
       <a href="#" onclick="renderAuth('${isReg ? '' : 'register'}');return false" style="font-weight:700">${isReg ? 'Sign in' : 'Create one'}</a></p>`;
@@ -465,13 +469,17 @@ function renderAuth(mode) {
       state.user = (await GET('/api/me')).user;
       await loadPerms(); await loadConfig();
       renderApp();
+      offerPasskey();
     } catch (err) { const el = $('#authErr'); el.textContent = err.message; el.classList.remove('hidden'); }
   };
   // Shown only where the device can actually do it, so the button is never a
   // promise the phone cannot keep.
   if (!isReg) hasPlatformAuthenticator().then((yes) => {
-    const w = document.getElementById('pkWrap');
-    if (yes && w) w.classList.remove('hidden');
+    if (!yes) return;
+    // A phone that has been set up gets the button first and the password box
+    // second; one that has not keeps the password first, with the option below.
+    const el = document.getElementById(pkSetUpHere() ? 'pkTop' : 'pkWrap');
+    if (el) el.classList.remove('hidden');
   });
 }
 window.renderAuth = renderAuth;
@@ -502,6 +510,7 @@ window.otpVerify = async () => {
     state.user = (await GET('/api/me')).user;
     await loadPerms(); await loadConfig();
     renderApp();
+    offerPasskey();
   } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
 };
 
@@ -822,8 +831,11 @@ window.passkeyRegister = async () => {
         attestationObject: pkToB64(cred.response.attestationObject),
       },
     });
-    toast('This device can sign you in now ✓');
-    if (typeof go === 'function') go('profile');
+    pkRemember(true);
+    toast('Done — just look at your phone next time ✓');
+    // Refresh the list if the profile screen happens to be open; never navigate,
+    // since this is usually answered from a prompt somewhere else entirely.
+    if (typeof renderPasskeys === 'function') renderPasskeys();
   } catch (e) {
     if (pkCancelled(e)) return;
     toast(e.message || 'Could not set this up', 'error');
@@ -859,6 +871,9 @@ window.passkeyLogin = async () => {
     renderApp();
   } catch (e) {
     if (pkCancelled(e)) return;
+    // Only "this device is not known here" means the note is stale. An expired
+    // challenge or a dropped connection is a retry, not a reason to forget.
+    if (/not set up/i.test(e.message || '')) pkRemember(false);
     const el = document.getElementById('authErr');
     if (el) { el.textContent = e.message || 'Could not sign in with this device'; el.classList.remove('hidden'); }
     else toast(e.message || 'Could not sign in', 'error');
@@ -866,6 +881,38 @@ window.passkeyLogin = async () => {
 };
 window.faceLabel = faceLabel;
 window.hasPlatformAuthenticator = hasPlatformAuthenticator;
+
+/* Offering it at the one moment it makes sense: just after someone has typed
+   the password they would rather not type again. Buried three taps deep in a
+   settings screen, nobody ever finds it. */
+// Whether this phone has been set up. Nobody is signed in on the sign-in
+// screen, so the server cannot be asked — a note left on the device is the only
+// way to know which button to lead with. It decides layout and nothing else, so
+// a wrong answer costs a tap, never access.
+const PK_HERE = 'pk-here';
+const pkSetUpHere = () => { try { return localStorage.getItem(PK_HERE) === '1'; } catch (e) { return false; } };
+const pkRemember = (on) => { try { on ? localStorage.setItem(PK_HERE, '1') : localStorage.removeItem(PK_HERE); } catch (e) {} };
+
+const PK_ASKED = 'pk-asked';
+window.offerPasskey = async () => {
+  try {
+    if (!(await hasPlatformAuthenticator())) return;
+    // Asked twice and waved away twice is an answer; stop asking.
+    let asked = 0;
+    try { asked = Number(localStorage.getItem(PK_ASKED) || 0); } catch (e) { asked = 0; }
+    if (asked >= 2) return;
+    const keys = await GET('/api/passkeys').catch(() => []);
+    if (keys.some((k) => k.usable_here)) return; // already set up on this phone
+    modal(`<h3 style="margin:0 0 6px">Skip the password next time?</h3>
+      <p class="hint" style="margin:0 0 4px">Unlock with ${faceLabel().replace(/^🙂 /, '')} instead. Your face stays on this phone — the studio never sees it.</p>
+      <button class="btn" style="margin-top:16px" onclick="closeModal();passkeyRegister()">${faceLabel()}</button>
+      <button class="btn ghost" style="margin-top:8px" onclick="dismissPasskeyOffer()">Not now</button>`);
+  } catch (e) { /* never let this get in the way of signing in */ }
+};
+window.dismissPasskeyOffer = () => {
+  try { localStorage.setItem(PK_ASKED, String(Number(localStorage.getItem(PK_ASKED) || 0) + 1)); } catch (e) {}
+  closeModal();
+};
 
 /* ---------- count-up for stat numbers: <div class="n" data-count="70000" data-fmt="money"> ---------- */
 function runCounters(root) {

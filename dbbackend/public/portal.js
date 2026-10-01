@@ -50,8 +50,15 @@ window.renderPasskeys = async () => {
 };
 window.forgetPasskey = async (id) => {
   if (!confirm('Forget this device?\n\nIt will no longer sign you in. Your password still works.')) return;
-  try { await DEL(`/api/passkeys/${id}`); toast('Device forgotten'); renderPasskeys(); }
-  catch (e) { toast(e.message, 'error'); }
+  try {
+    await DEL(`/api/passkeys/${id}`);
+    toast('Device forgotten');
+    // If nothing is left for this address, stop leading the sign-in screen with
+    // a button that would have nothing to offer.
+    const left = await GET('/api/passkeys').catch(() => []);
+    if (!left.some((k) => k.usable_here)) pkRemember(false);
+    renderPasskeys();
+  } catch (e) { toast(e.message, 'error'); }
 };
 window.changeAvatar = () => pickImage((b64) => cropImage(b64, 1, (cropped) => {
   window._pfAvatar = cropped;
