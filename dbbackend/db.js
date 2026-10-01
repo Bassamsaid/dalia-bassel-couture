@@ -667,7 +667,19 @@ const ready = (async () => {
   // are put right below — including rows restored later from an old backup.
   await tryExec('ALTER TABLE attendance ADD COLUMN tz_ok INTEGER DEFAULT 0');
 
-  const { fixAttendanceTz } = require('./fix-attendance-tz');
+  const { fixAttendanceTz, pruneAttendanceBefore } = require('./fix-attendance-tz');
+  // Shifts from before the studio began keeping this properly, cleared at the
+  // owner's instruction. Once, for this date — the key below says it is done.
+  try {
+    const cut = process.env.PRUNE_ATTENDANCE_BEFORE || '2026-10-01';
+    const p = await pruneAttendanceBefore(db, cut);
+    if (p.deleted) {
+      console.log(`Attendance: removed ${p.deleted} row(s) dated before ${p.before}.`);
+      for (const w of p.perPerson) console.log(`  ${w.name || 'unknown'}: ${w.n} day(s), ${w.first} to ${w.last}`);
+    }
+  } catch (e) {
+    console.warn('Old attendance could not be cleared:', e.message);
+  }
   try {
     const r = await fixAttendanceTz(db, process.env.STUDIO_TZ || 'Africa/Cairo');
     if (r.corrected) console.log(`Attendance: ${r.corrected} shift(s) moved onto the studio's clock.`);
