@@ -36,6 +36,10 @@ async function applyImports(db) {
     catch (e) { console.warn(`Import ${file} is not readable JSON — skipped.`); continue; }
     const tables = (payload && payload.tables) || {};
 
+    // A file may say it is replacing what an earlier one wrote — a month going
+    // back in with a column that did not exist the first time. Rows still carry
+    // their own ids, so this overwrites those exact rows and nothing else.
+    const replace = payload && payload.replace === true;
     let written = 0, skipped = 0;
     for (const t of ALLOWED) {
       const rows = tables[t];
@@ -46,7 +50,7 @@ async function applyImports(db) {
       for (const row of rows) {
         const use = cols.filter((c) => row[c] !== undefined);
         if (!use.length) continue;
-        const sql = `INSERT OR IGNORE INTO ${t} (${use.join(',')}) VALUES (${use.map(() => '?').join(',')})`;
+        const sql = `INSERT OR ${replace ? 'REPLACE' : 'IGNORE'} INTO ${t} (${use.join(',')}) VALUES (${use.map(() => '?').join(',')})`;
         const r = await db.prepare(sql).run(...use.map((c) => row[c]));
         if (r.changes) written++; else skipped++;
       }

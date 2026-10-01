@@ -1737,7 +1737,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     ? `${month}-${String(lastDay).padStart(2, '0')}` : today;
 
   const att = {};
-  for (const a of await db.prepare('SELECT date,check_in,check_out FROM attendance WHERE user_id=? AND substr(date,1,7)=?').all(params.id, month)) att[a.date] = a;
+  for (const a of await db.prepare('SELECT date,check_in,check_out,extra_hours,extra_note FROM attendance WHERE user_id=? AND substr(date,1,7)=?').all(params.id, month)) att[a.date] = a;
   const marked = new Set((await db.prepare("SELECT date FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").all(params.id, month)).map((a) => a.date));
   // Approved leave. Annual and sick are paid and cost nothing; unpaid is a day
   // off that is still a day unpaid, so it is deducted like an absence.
@@ -1750,12 +1750,19 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   }
 
   const days = [];
-  let absDays = 0, presentDays = 0, offDays = 0, paidLeaveDays = 0, lateMin = 0, otMin = 0;
+  let absDays = 0, presentDays = 0, offDays = 0, paidLeaveDays = 0, lateMin = 0, otMin = 0, extraHours = 0;
   for (let d = 1; d <= lastDay; d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`;
     const a = att[date];
     const row = { date, weekday: weekdayOf(date), check_in: (a && a.check_in) || null, check_out: (a && a.check_out) || null, late_min: 0, ot_min: 0 };
     if (date > stop) { row.status = 'future'; days.push(row); continue; }
+    // Work done away from the studio counts whatever the day itself turned out
+    // to be — it is paid for the hours, not for being here.
+    if (a && Number(a.extra_hours) > 0) {
+      row.extra_hours = Number(a.extra_hours);
+      row.extra_note = a.extra_note || null;
+      extraHours += row.extra_hours;
+    }
 
     if (a && a.check_in) {
       row.status = 'present'; presentDays++;
@@ -1782,12 +1789,15 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const absenceDeduction = r2(daily * absDays);
   const lateDeduction = r2((lateMin / 60) * hourly);
   const overtimePay = r2((otMin / 60) * otMult * hourly);
-  const net = r2(base + bonus + overtimePay - absenceDeduction - lateDeduction - advTotal - deductions);
+  // At the plain rate: the studio's sheet keeps this on a line of its own, apart
+  // from the overtime it pays at one and a half.
+  const extraTaskPay = r2(extraHours * hourly);
+  const net = r2(base + bonus + overtimePay + extraTaskPay - absenceDeduction - lateDeduction - advTotal - deductions);
   // What the month is worth so far: the days already paid for, rather than the
   // whole salary with the missing days taken back off it. Same arithmetic at the
   // end of the month, but it reads correctly in the middle of one.
   const paidDays = presentDays + offDays + paidLeaveDays;
-  const earnedToDate = r2(daily * paidDays + bonus + overtimePay - lateDeduction - advTotal - deductions);
+  const earnedToDate = r2(daily * paidDays + bonus + overtimePay + extraTaskPay - lateDeduction - advTotal - deductions);
 
   send(res, 200, {
     user: u.name, month, base, work_days: wd, days_in_month: lastDay, owed_days: owedDays,
@@ -1796,6 +1806,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     absent_days: absDays, absence_deduction: absenceDeduction,
     present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
     late_minutes: lateMin, late_deduction: lateDeduction, overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
+    extra_hours: r2(extraHours), extra_task_pay: extraTaskPay,
     bonus, deductions, advances: advTotal, net,
     as_of: stop, earned_to_date: earnedToDate, paid_days: paidDays, days,
   });

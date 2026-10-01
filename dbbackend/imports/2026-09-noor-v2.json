@@ -1,0 +1,203 @@
+{
+  "exported_at": "2026-10-01T22:00:00Z",
+  "replace": true,
+  "tables": {
+    "attendance": [
+      {
+        "id": 9201,
+        "user_id": 72,
+        "date": "2026-09-01",
+        "check_in": "10:20",
+        "check_out": "20:20",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9202,
+        "user_id": 72,
+        "date": "2026-09-02",
+        "check_in": "10:20",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9203,
+        "user_id": 72,
+        "date": "2026-09-04",
+        "check_in": "15:00",
+        "check_out": "19:30",
+        "note": "Layla’s wedding",
+        "tz_ok": 1
+      },
+      {
+        "id": 9204,
+        "user_id": 72,
+        "date": "2026-09-07",
+        "check_in": "09:00",
+        "check_out": "19:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9205,
+        "user_id": 72,
+        "date": "2026-09-08",
+        "check_in": "11:00",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9206,
+        "user_id": 72,
+        "date": "2026-09-09",
+        "check_in": "11:15",
+        "check_out": "19:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9207,
+        "user_id": 72,
+        "date": "2026-09-11",
+        "check_in": "10:10",
+        "check_out": "20:10",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9208,
+        "user_id": 72,
+        "date": "2026-09-12",
+        "check_in": "11:00",
+        "check_out": "15:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9209,
+        "user_id": 72,
+        "date": "2026-09-14",
+        "check_in": "10:30",
+        "check_out": "19:20",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9210,
+        "user_id": 72,
+        "date": "2026-09-15",
+        "check_in": "00:11",
+        "check_out": "12:11",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9211,
+        "user_id": 72,
+        "date": "2026-09-16",
+        "check_in": "11:00",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9212,
+        "user_id": 72,
+        "date": "2026-09-17",
+        "check_in": "11:30",
+        "check_out": "21:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9213,
+        "user_id": 72,
+        "date": "2026-09-18",
+        "check_in": "08:00",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9214,
+        "user_id": 72,
+        "date": "2026-09-19",
+        "check_in": "11:00",
+        "check_out": "20:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9215,
+        "user_id": 72,
+        "date": "2026-09-21",
+        "check_in": "09:00",
+        "check_out": "20:00",
+        "note": "Salma’s dress (Work from home)",
+        "tz_ok": 1,
+        "extra_hours": 2.0,
+        "extra_note": "Salma’s dress (Work from home)"
+      },
+      {
+        "id": 9216,
+        "user_id": 72,
+        "date": "2026-09-22",
+        "check_in": "11:00",
+        "check_out": "20:30",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9217,
+        "user_id": 72,
+        "date": "2026-09-23",
+        "check_in": "10:30",
+        "check_out": "20:30",
+        "note": "Salma’s dress (Home)",
+        "tz_ok": 1,
+        "extra_hours": 2.0,
+        "extra_note": "Salma’s dress (Home)"
+      },
+      {
+        "id": 9218,
+        "user_id": 72,
+        "date": "2026-09-24",
+        "check_in": "15:10",
+        "check_out": "20:00",
+        "note": "Salma’s dress (Work from home)",
+        "tz_ok": 1,
+        "extra_hours": 5.0,
+        "extra_note": "Salma’s dress (Work from home)"
+      },
+      {
+        "id": 9219,
+        "user_id": 72,
+        "date": "2026-09-25",
+        "check_in": "09:00",
+        "check_out": "21:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9220,
+        "user_id": 72,
+        "date": "2026-09-28",
+        "check_in": "11:00",
+        "check_out": "20:00",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9221,
+        "user_id": 72,
+        "date": "2026-09-29",
+        "check_in": "11:00",
+        "check_out": "19:15",
+        "note": "entered by the studio",
+        "tz_ok": 1
+      }
+    ]
+  }
+}
