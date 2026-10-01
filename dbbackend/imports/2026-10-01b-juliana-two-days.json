@@ -1,0 +1,26 @@
+{
+  "exported_at": "2026-10-01T23:00:00Z",
+  "replace": true,
+  "tables": {
+    "attendance": [
+      {
+        "id": 9001,
+        "user_id": 73,
+        "date": "2026-09-01",
+        "check_in": "10:00",
+        "check_out": "19:00",
+        "note": "hours confirmed by the studio",
+        "tz_ok": 1
+      },
+      {
+        "id": 9004,
+        "user_id": 73,
+        "date": "2026-09-04",
+        "check_in": "09:00",
+        "check_out": "15:30",
+        "note": "hours confirmed by the studio",
+        "tz_ok": 1
+      }
+    ]
+  }
+}
