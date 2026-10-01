@@ -1494,11 +1494,25 @@ PAGES.dresses = async (c) => {
         <div class="nm" style="font-weight:600;margin-top:8px">${isStaff ? 'Dress #' + d.id : esc(d.customer_name)}</div>
         <div class="sub muted" style="font-size:12px">Delivery ${dt(d.delivery_date)} · <span class="badge ${stCls[d.status] || ''}">${stEn[d.status] || d.status}</span></div>
         <div class="sub muted" style="font-size:12px">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : '<span style="color:var(--warn)">Unassigned</span>'}${isStaff ? '' : ' · ' + d.fittings.length + ' fittings'}</div>
+        ${dressMoney(d)}
         <button class="btn sec sm" style="margin-top:8px" onclick="openDress(${d.id})">Details</button>
       </div>`).join('') : empty('No dresses match this filter', '👗')}</div>`;
   if (window._dressSearch) liveSearch(window._dressSearch, '#dressList');
   if (window._openDressAfter) { const oid = window._openDressAfter; window._openDressAfter = null; if (dresses.some((x) => x.id === oid)) setTimeout(() => openDress(oid), 30); }
 };
+/* What the dress is worth, what has come in, and what is still owed. Only the
+   admin sees it: the price is hidden from everybody else, here as everywhere. */
+function dressMoney(d) {
+  if (state.user.role !== 'admin') return '';
+  if (!d.price) return '<div class="dr-money none">Price not set yet</div>';
+  const left = d.remaining || 0;
+  return `<div class="dr-money">
+    <div class="dr-row"><span class="k">Price</span><span class="v">${money(d.price)}</span></div>
+    <div class="dr-row"><span class="k">Paid</span><span class="v ok">${money(d.paid || 0)}</span></div>
+    <div class="dr-row"><span class="k">${left ? 'Remaining' : 'Settled'}</span><span class="v ${left ? 'bad' : 'ok'}">${money(left)}</span></div>
+  </div>`;
+}
+
 window.dressFilter = (k, v) => {
   const f = window._dressF || { status: 'all', month: '', assigned: false };
   if (k === 'assigned') f.assigned = !f.assigned;
