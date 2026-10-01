@@ -2093,7 +2093,7 @@ PAGES.expenses = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💸'); return; }
   const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases'), loadFloatHolders()]);
   // vendors are still read for the New expense form's dropdown
-  window._expRef = { vendors, types };
+  window._expRef = { vendors, types }; window._expenses = expenses;
   const tab = window._expTab || 'entries';
   const tabs = [['entries', 'All costs'], ['analysis', 'Analysis'], ['types', 'Types']];
   let inner = '';
@@ -2111,7 +2111,9 @@ PAGES.expenses = async (c) => {
       <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : '<div class="av">💸</div>'}
         <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}${e.paid_by_name ? ` · 🧰 <bdi>${esc(e.paid_by_name)}</bdi>'s float` : ''}</div></div>
-        <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty(ef ? 'Nothing spent in ' + monthLabel(ef) : 'Nothing here yet', '🏠')}</div>`;
+        <div class="row" style="gap:2px">
+          <button class="btn-icon" title="Move to Purchases" onclick="moveCostToPurchase(${e.id})">↗</button>
+          <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div></div>`).join('') : empty(ef ? 'Nothing spent in ' + monthLabel(ef) : 'Nothing here yet', '🏠')}</div>`;
   } else if (tab === 'analysis') {
     const byMonth = {};
     const addTo = (m, t, amt) => { byMonth[m] = byMonth[m] || { total: 0, types: {} }; byMonth[m].total += amt; byMonth[m].types[t] = (byMonth[m].types[t] || 0) + amt; };
@@ -2157,6 +2159,28 @@ async function loadFloatHolders() {
   try { const r = await GET('/api/floats'); window._floatHolders = r.rows || []; window._floatStaff = r.staff || []; }
   catch (e) { window._floatHolders = window._floatHolders || []; }
 }
+/* A cost filed in the wrong place. Materials bought for a dress belong on an
+   invoice, so this opens the invoice form already filled in from the cost and
+   takes the cost away once the invoice is saved — the one thing it cannot
+   carry over is which dress the materials were for, which is the question the
+   form is now asking. */
+window.moveCostToPurchase = async (id) => {
+  const e = (window._expenses || []).find((x) => x.id === id);
+  if (!e) return;
+  await newPurchase();
+  const set = (sel, v) => { const el = document.querySelector(sel); if (el && v != null && v !== '') el.value = v; };
+  set('#pu_vendor', e.vendor_id || '');
+  set('#pu_shop', e.vendor_name || '');
+  set('#pu_date', e.date || (e.created_at || '').slice(0, 10));
+  set('#pu_note', e.note || '');
+  set('#pu_paidby', e.paid_by || '');
+  set('.pu-item', e.type || '');
+  set('.pu-amt', e.amount);
+  window._puFromExpense = id;
+  const h = document.querySelector('#modal-root h3');
+  if (h) h.textContent = 'Move this cost to Purchases';
+  toast('Choose which dress it was for');
+};
 window.delExpense = (id) => confirmDel('Delete this cost?', async () => { await DEL('/api/expenses/' + id); go('expenses'); });
 /* ============ FLOATS (عهدة) ============
    Cash handed to somebody to keep at the studio and spend from. What she still
@@ -2487,6 +2511,7 @@ window.delExpType = (id) => confirmDel('Delete type?', async () => { await DEL('
 window.delPurchase = (id) => confirmDel('Delete this purchase?', async () => { await DEL('/api/purchases/' + id); closeModal(); go('purchases'); });
 let _puLineN = 0;
 window.newPurchase = async (presetDressId) => {
+  window._puFromExpense = null; // a plain new invoice, not one being moved across
   if (state.user.role === 'admin') await loadFloatHolders();
   const [dresses, vendors] = await Promise.all([
     window._allDressesForPurchase ? Promise.resolve(window._allDressesForPurchase) : GET('/api/dresses'),
@@ -2566,6 +2591,11 @@ window.savePurchase = async () => {
   }
   const paidBy = Number((document.getElementById('pu_paidby') || {}).value) || null;
   await POST('/api/purchases', { vendor_id: vendorId, shop, invoice_date: document.getElementById('pu_date').value, note: document.getElementById('pu_note').value, image: window._puImg, lines, paid_by: paidBy });
+  if (window._puFromExpense) {
+    await DEL('/api/expenses/' + window._puFromExpense);
+    window._puFromExpense = null;
+    closeModal(); toast('Moved to Purchases ✓'); return go('purchases');
+  }
   closeModal(); toast('Purchase saved');
   // added from a dress? go back to it so the cost is there in front of you
   if (window._puPreset) { window._dressTab = 'materials'; refreshDress(Number(window._puPreset)); }
