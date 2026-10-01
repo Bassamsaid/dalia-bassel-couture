@@ -8,6 +8,7 @@ const tls = require('node:tls');
 const { URL } = require('node:url');
 const { db, ready, hashPassword, verifyPassword, DB_PATH } = require('./db');
 const { restore } = require('./restore');
+const { fixAttendanceTz } = require('./fix-attendance-tz');
 const store = require('./storage');
 const { writeZip } = require('./zip');
 const webauthn = require('./webauthn');
@@ -1256,8 +1257,10 @@ api['POST /api/attendance/check'] = async (req, res, user) => {
   }
   const { date: today, time: now } = studioNow();
   let rec = await db.prepare('SELECT * FROM attendance WHERE user_id=? AND date=?').get(user.id, today);
-  if (!rec) { await db.prepare('INSERT INTO attendance (user_id,date,check_in) VALUES (?,?,?)').run(user.id, today, now); return send(res, 200, { action: 'in', time: now }); }
-  if (!rec.check_out) { await db.prepare('UPDATE attendance SET check_out=? WHERE id=?').run(now, rec.id); return send(res, 200, { action: 'out', time: now }); }
+  // tz_ok says these times are already the studio's, so the correction that
+  // puts old rows right leaves them alone.
+  if (!rec) { await db.prepare('INSERT INTO attendance (user_id,date,check_in,tz_ok) VALUES (?,?,?,1)').run(user.id, today, now); return send(res, 200, { action: 'in', time: now }); }
+  if (!rec.check_out) { await db.prepare('UPDATE attendance SET check_out=?, tz_ok=1 WHERE id=?').run(now, rec.id); return send(res, 200, { action: 'out', time: now }); }
   send(res, 200, { action: 'done' });
 };
 // ---- manual attendance log requests (forgot to check in/out) ----
@@ -1286,11 +1289,11 @@ api['PUT /api/attendance-requests/:id/decide'] = async (req, res, user, url, par
     const time = rq.time || studioNow().time;
     const rec = await db.prepare('SELECT * FROM attendance WHERE user_id=? AND date=?').get(rq.user_id, rq.date);
     if (rq.kind === 'in') {
-      if (rec) await db.prepare('UPDATE attendance SET check_in=? WHERE id=?').run(time, rec.id);
-      else await db.prepare('INSERT INTO attendance (user_id,date,check_in,note) VALUES (?,?,?,?)').run(rq.user_id, rq.date, time, 'manual (admin approved)');
+      if (rec) await db.prepare('UPDATE attendance SET check_in=?, tz_ok=1 WHERE id=?').run(time, rec.id);
+      else await db.prepare('INSERT INTO attendance (user_id,date,check_in,note,tz_ok) VALUES (?,?,?,?,1)').run(rq.user_id, rq.date, time, 'manual (admin approved)');
     } else {
-      if (rec) await db.prepare('UPDATE attendance SET check_out=? WHERE id=?').run(time, rec.id);
-      else await db.prepare('INSERT INTO attendance (user_id,date,check_out,note) VALUES (?,?,?,?)').run(rq.user_id, rq.date, time, 'manual (admin approved)');
+      if (rec) await db.prepare('UPDATE attendance SET check_out=?, tz_ok=1 WHERE id=?').run(time, rec.id);
+      else await db.prepare('INSERT INTO attendance (user_id,date,check_out,note,tz_ok) VALUES (?,?,?,?,1)').run(rq.user_id, rq.date, time, 'manual (admin approved)');
     }
   }
   const label = rq.kind === 'in' ? 'Check-in' : 'Check-out';
@@ -1301,7 +1304,7 @@ api['DELETE /api/attendance-requests/:id'] = async (req, res, user, url, params)
 api['POST /api/attendance'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
-  const r = await db.prepare('INSERT INTO attendance (user_id,date,check_in,check_out,note) VALUES (?,?,?,?,?)').run(b.user_id, b.date, b.check_in || null, b.check_out || null, b.note || null);
+  const r = await db.prepare('INSERT INTO attendance (user_id,date,check_in,check_out,note,tz_ok) VALUES (?,?,?,?,?,1)').run(b.user_id, b.date, b.check_in || null, b.check_out || null, b.note || null);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['GET /api/salaries'] = async (req, res, user) => {
@@ -1592,7 +1595,12 @@ api['POST /api/restore'] = async (req, res, user) => {
   try {
     const r = await restore(payload, { replace: !!b.replace });
     if (!r.written && !r.skipped) return send(res, 400, { error: 'Nothing in that file matches this app.' });
-    send(res, 200, r);
+    // A backup taken before the clock was put right carries shifts recorded in
+    // UTC. They come back unmarked, so correct them now rather than at the next
+    // restart — the person is standing here looking at the result.
+    let tz = null;
+    try { tz = await fixAttendanceTz(db, STUDIO_TZ); } catch (e) { /* the timesheet is still there */ }
+    send(res, 200, { ...r, attendanceCorrected: tz ? tz.corrected : 0 });
   } catch (e) {
     send(res, 500, { error: 'Restore failed, nothing was written: ' + e.message });
   }
