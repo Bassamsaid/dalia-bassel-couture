@@ -1731,7 +1731,11 @@ PAGES.dress = async (c) => {
   // Staff get the garment and nothing about the woman wearing it: the photos to
   // work from and the measurements to cut to. The other panes are not rendered
   // at all, so there is nothing to reach by switching tabs.
+  // Staff are shown the gown and nothing else: the occasion it is for, its
+  // photos and its measurements — to read, never to change. No client, no
+  // money, no status, and every pane below drops its controls for them.
   const tabs = isStaff ? [
+    ['occasion', '✨', 'Occasion'],
     ['photos', '📷', mediaTab],
     ['measure', '📐', 'Measurements'],
   ] : [
@@ -1906,6 +1910,7 @@ window.openMeasurements = (id) => {
   const ro = canEdit ? '' : ' readonly';
   const who = state.user.role === 'staff' ? 'Dress #' + id : esc(d.customer_name || '');
   modal(`<h3>Measurements — ${who}</h3>
+    ${canEdit ? '' : '<p class="hint" style="margin-top:-6px">Read and print. Only the studio changes a measurement.</p>'}
     <div class="grid g2">${MEASURE_FIELDS.map(([k, l]) => `<div><label>${l}</label><input id="ms_${k}" type="number" inputmode="decimal" step="0.5" value="${m[k] != null ? m[k] : ''}"${ro} /></div>`).join('')}
       <div><label>Fit</label><select id="ms_fit" ${canEdit ? '' : 'disabled'}><option value="">—</option>${['Slim', 'Front', 'Back'].map((o) => `<option ${m.fit === o ? 'selected' : ''}>${o}</option>`).join('')}</select></div>
     </div>
