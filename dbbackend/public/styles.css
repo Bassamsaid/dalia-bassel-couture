@@ -266,7 +266,8 @@ tfoot td{font-weight:800;background:var(--tint);color:var(--ink);border-top:2px 
 .hero-name{font-family:var(--serif);font-size:26px;font-weight:700;letter-spacing:4px;text-transform:uppercase}
 .hero-sub{font-size:11px;letter-spacing:5px;text-transform:uppercase;margin-top:6px;opacity:.92;font-weight:700}
 .hero.hero-photo{aspect-ratio:16/10;background-size:cover;background-position:center;cursor:pointer}
-.hero-cta{position:absolute;bottom:10px;inset-inline-end:10px;background:rgba(255,255,255,.92);color:var(--purple-d);
+.hero-actions{position:absolute;bottom:10px;inset-inline-end:10px;display:flex;gap:6px}
+.hero-cta{background:rgba(255,255,255,.92);color:var(--purple-d);
   border:none;border-radius:20px;padding:7px 13px;font:inherit;font-size:11px;font-weight:700;cursor:pointer;
   letter-spacing:.5px;box-shadow:var(--shadow-sm)}
 

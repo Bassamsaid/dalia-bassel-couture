@@ -161,9 +161,23 @@ function heroBanner(about, admin) {
   const inner = about && about.home_image
     ? `<div class="hero hero-photo" style="background-image:url('${esc(mediaUrl(about.home_image))}')" onclick="lightbox('${esc(mediaUrl(about.home_image))}')"></div>`
     : `<div class="hero hero-brand"><div class="hero-mark">DB</div><div class="hero-name">Dalia Bassel</div><div class="hero-sub">Haute Couture</div></div>`;
-  return `<div style="position:relative">${inner}${admin ? `<button class="hero-cta" onclick="event.stopPropagation();uploadCover()">📷 ${about && about.home_image ? 'Change photo' : 'Add photo'}</button>` : ''}</div>`;
+  const has = !!(about && about.home_image);
+  // Replacing a photo was the only way to be rid of one, which is no help when
+  // what went up should not be there at all: taking it down is its own button.
+  const buttons = admin
+    ? `<div class="hero-actions">
+         ${has ? `<button class="hero-cta" onclick="event.stopPropagation();removeCover()">✕ Remove</button>` : ''}
+         <button class="hero-cta" onclick="event.stopPropagation();uploadCover()">📷 ${has ? 'Change photo' : 'Add photo'}</button>
+       </div>`
+    : '';
+  return `<div style="position:relative">${inner}${buttons}</div>`;
 }
 window.uploadCover = () => pickImage((b64) => cropImage(b64, 16 / 10, async (cropped) => { await PUT('/api/home-cover', { image: cropped }); toast('Cover updated'); go('home'); }));
+window.removeCover = async () => {
+  if (!confirm('Take this photo off the home screen?\n\nThe brand banner goes back in its place.')) return;
+  try { await PUT('/api/home-cover', { image: '' }); toast('Photo removed'); go('home'); }
+  catch (e) { toast(e.message || 'Could not remove the photo', 'error'); }
+};
 
 /* ============ HOME / DASHBOARD ============ */
 PAGES.home_admin = async (c) => {
