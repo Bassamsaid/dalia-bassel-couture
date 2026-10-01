@@ -11,6 +11,13 @@
 // their own ids as well, so even a file applied under a new name adds nothing
 // twice.
 //
+// They are applied in the order their names sort, which is why a file that
+// corrects an earlier one is named for the day it was written rather than the
+// month it is about: 2026-10-01-juliana-september-correction.json comes after
+// every 2026-09-* file and so has the last word. On a database that has already
+// taken the first file this does not matter; on an empty one it decides whether
+// the correction survives.
+//
 // Only the tables below can be written this way. An import is a record of days
 // worked and days off, not a way to reach the rest of the database from a file
 // on disk.
@@ -40,6 +47,21 @@ async function applyImports(db) {
     // back in with a column that did not exist the first time. Rows still carry
     // their own ids, so this overwrites those exact rows and nothing else.
     const replace = payload && payload.replace === true;
+
+    // A file may also take rows away. Days entered before the studio's own
+    // timesheet was to hand turned out to be a test, and a correction that can
+    // only add would leave them there for ever. By id, so it can only reach rows
+    // an import put in, and only in the tables an import may write.
+    let removed = 0;
+    for (const [t, ids] of Object.entries((payload && payload.remove) || {})) {
+      if (!ALLOWED.includes(t) || !Array.isArray(ids)) continue;
+      for (const id of ids) {
+        if (!Number.isInteger(id)) continue;
+        const r = await db.prepare(`DELETE FROM ${t} WHERE id = ?`).run(id);
+        removed += Number(r.changes || 0);
+      }
+    }
+
     let written = 0, skipped = 0;
     for (const t of ALLOWED) {
       const rows = tables[t];
@@ -57,7 +79,7 @@ async function applyImports(db) {
     }
     await db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
       .run(key, new Date().toISOString());
-    done.push({ file, written, skipped });
+    done.push({ file, written, skipped, removed });
   }
   return done;
 }
