@@ -1113,3 +1113,14 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .grp-body > .filters:first-child,
 .grp-body > .btn:first-child,
 .grp-body > .card:first-child{margin-top:0}
+
+/* ===== A float: received, spent, and what is still in hand ===== */
+.fl-figs{margin-bottom:10px}
+/* on a phone the two halves of the sum sit together and the answer gets its own
+   line, which is the figure somebody is actually looking for */
+@media(max-width:560px){
+  .fl-figs{grid-template-columns:repeat(2,1fr)}
+  .fl-figs .fl-left{grid-column:1 / -1}
+}
+.ps-table .ps-head-row td{padding-top:12px;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;
+  font-weight:700;color:var(--muted);border-bottom:none}

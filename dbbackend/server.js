@@ -2075,6 +2075,18 @@ api['POST /api/floats'] = async (req, res, user) => {
   send(res, 200, { id: r.lastInsertRowid });
 };
 
+api['PUT /api/floats/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const c = await db.prepare('SELECT * FROM float_moves WHERE id=?').get(params.id);
+  if (!c) return send(res, 404, {});
+  const amount = b.amount != null ? Number(b.amount) : c.amount;
+  if (!(amount > 0)) return send(res, 400, { error: 'how much?' });
+  await db.prepare('UPDATE float_moves SET amount=?, date=?, note=?, kind=? WHERE id=?')
+    .run(amount, b.date ?? c.date, b.note ?? c.note, b.kind === 'out' ? 'out' : (b.kind === 'in' ? 'in' : c.kind), params.id);
+  send(res, 200, { ok: true });
+};
+
 api['DELETE /api/floats/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   await db.prepare('DELETE FROM float_moves WHERE id=?').run(params.id);
