@@ -823,9 +823,11 @@ const hm = (s) => { const d = _asDate(s); return isNaN(d) ? '' :
   d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); };
 function dayLabel(s) {
   const d = _asDate(s); if (isNaN(d)) return '';
-  const day = d.toISOString().slice(0, 10);
-  const t = new Date(); const todayStr = t.toISOString().slice(0, 10);
-  const y = new Date(t.getTime() - 86400000).toISOString().slice(0, 10);
+  // the studio's day here too, or a message sent after nine in the evening
+  // comes back headed Yesterday while it is still being typed
+  const day = dayIn(d, STUDIO_TZ);
+  const todayStr = today();
+  const y = dayIn(new Date(Date.now() - 86400000), STUDIO_TZ);
   if (day === todayStr) return 'Today';
   if (day === y) return 'Yesterday';
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });

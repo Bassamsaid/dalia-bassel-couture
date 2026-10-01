@@ -25,7 +25,18 @@ const moneyText = (n) => `${(Number(n || 0)).toLocaleString('en-US')} ${(window.
 const money = (n) => `<bdi>${moneyText(n)}</bdi>`;
 const dt = (s) => s ? String(s).slice(0, 10) : '—';
 const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
-const today = () => new Date().toISOString().slice(0, 10);
+/* The studio's day, not UTC's. Egypt is three hours ahead, so from nine in the
+   evening until midnight UTC is still on yesterday's date — a form filled in at
+   one in the morning was dating the cash to the day before. The zone is the
+   server's own; Cairo until it says otherwise. */
+let STUDIO_TZ = 'Africa/Cairo';
+function dayIn(d, tz) {
+  // en-CA writes a date as YYYY-MM-DD, which is the form everything here stores
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d); }
+  catch (e) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+}
+const today = () => dayIn(new Date(), STUDIO_TZ);
+window.today = today;
 
 async function api(method, path, body) {
   if (window.__localApi) return window.__localApi(method, path, body); // demo mode (no server)
@@ -332,6 +343,9 @@ async function loadPerms() {
 }
 async function loadConfig() {
   try { window._cfg = await GET('/api/settings'); } catch (e) { window._cfg = window._cfg || {}; }
+  // the clock the server keeps the attendance by, so a date typed here and a
+  // date recorded there are the same day
+  try { const c = await GET('/api/clock'); if (c && c.zone) STUDIO_TZ = c.zone; } catch (e) {}
 }
 function isHidden(page) {
   if (!state.user || state.user.role === 'admin') return false;
@@ -369,7 +383,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v132';
+const APP_VERSION = 'v133';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
