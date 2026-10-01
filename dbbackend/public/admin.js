@@ -1606,17 +1606,6 @@ PAGES.dress = async (c) => {
     <label>Assigned staff</label>
     ${canEdit ? `<select id="assignSel_${id}" onchange="saveAssign(${id})"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`
       : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
-    ${canEdit ? `<div class="sec-title">Her own access 🔑</div>
-      ${(d.client_access && d.client_access.logins)
-        // she is already in — nothing left to send
-        ? accessCard(d.client_access)
-        : `<p class="hint" style="margin-top:-4px">Send her a link. She picks a password and follows her dress — the fittings, the photos and every update. She sees nothing else.</p>
-           ${accessCard(d.client_access)}
-           <label>Her email</label>
-           <input id="dInviteMail_${id}" type="email" inputmode="email" placeholder="client@email.com"
-             value="${esc((d.client_access && d.client_access.email) || (window._dressRef.customers.find((u) => u.id === d.customer_user_id) || {}).email || '')}" />
-           <button class="btn sec" style="margin-top:10px" onclick="inviteClient(${id})">📨 Send her the invitation</button>
-           <div id="dInvite_${id}"></div>`}` : ''}
     ${canEdit ? `<div class="divider"></div>
       <div class="row">
         <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
@@ -2934,38 +2923,6 @@ function studioChatRow(t) {
 }
 
 
-/* Give a client her own way in to follow her dress */
-window.inviteClient = async (id) => {
-  const email = document.getElementById('dInviteMail_' + id).value.trim();
-  if (!email || !email.includes('@')) return toast('Enter her email first');
-  const box = document.getElementById('dInvite_' + id);
-  box.innerHTML = '<div class="hint">Preparing her link…</div>';
-  try {
-    const r = await POST(`/api/dresses/${id}/invite-client`, { email });
-    const wa = `https://wa.me/?text=${encodeURIComponent(`Your dress with Dalia Bassel — open this link and choose a password: ${r.link}`)}`;
-    box.innerHTML = `<div class="invite-out">
-      <div class="iv-state">${r.emailed ? '✓ Emailed to ' + esc(email) : '📋 Link ready — send it to her'}</div>
-      ${r.emailed ? '' : `<div class="hint">${r.mail_error ? 'The email did not go out: ' + esc(r.mail_error) : 'Email sending is not set up, so send the link yourself.'}</div>`}
-      <div class="iv-link" id="ivLink_${id}">${esc(r.link)}</div>
-      <div class="row" style="margin-top:9px">
-        <button class="btn sec sm" onclick="copyInvite(${id})">Copy link</button>
-        <a class="btn ghost sm" href="${wa}" target="_blank" rel="noopener" style="text-decoration:none">Send on WhatsApp</a>
-      </div>
-      <div class="hint" style="margin-top:8px">The link works for 14 days.</div>
-    </div>`;
-    window._dresses = await GET('/api/dresses');
-  } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
-};
-window.copyInvite = async (id) => {
-  const text = document.getElementById('ivLink_' + id).textContent;
-  try { await navigator.clipboard.writeText(text); toast('Link copied ✓'); }
-  catch (e) {
-    const r = document.createRange(); r.selectNode(document.getElementById('ivLink_' + id));
-    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
-    toast('Press and hold to copy');
-  }
-};
-
 window.moveLine = async (lineId, dressId) => {
   await PUT('/api/purchase-lines/' + lineId, { dress_id: dressId ? Number(dressId) : null });
   toast(dressId ? 'Moved ✓' : 'Taken off the dress');
@@ -2979,23 +2936,3 @@ window.saveDressBrief = async (id) => {
   toast('Saved ✓'); window._dressTab = 'occasion'; refreshDress(id);
 };
 
-/* Has she used the link you sent her? */
-function accessCard(a) {
-  if (!a) return '';
-  const when = (s) => s ? `${dt(s)} · ${hm(s)}` : '—';
-  if (!a.logins) {
-    const expired = a.invite_expires && new Date(a.invite_expires) < new Date();
-    return `<div class="acc-card waiting">
-      <div class="acc-state">${expired ? '⌛ The link expired before she used it' : '◷ She has not signed in yet'}</div>
-      <div class="acc-line">${esc(a.email || '')}${a.invited && !expired ? ' · invitation waiting' : ''}</div>
-    </div>`;
-  }
-  return `<div class="acc-card in">
-    <div class="acc-state">✓ Signed in ${a.logins} time${a.logins === 1 ? '' : 's'}</div>
-    <div class="acc-rows">
-      <div class="acc-row"><span class="acc-k">Last seen</span><span class="acc-v">${esc(when(a.last_login))}</span></div>
-      <div class="acc-row"><span class="acc-k">First opened</span><span class="acc-v">${esc(when(a.first_login))}</span></div>
-      <div class="acc-row"><span class="acc-k">Email</span><span class="acc-v">${esc(a.email || '—')}</span></div>
-    </div>
-  </div>`;
-}
