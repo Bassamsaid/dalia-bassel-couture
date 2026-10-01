@@ -105,9 +105,9 @@ PAGES.home_trainee = async (c) => {
     ${navList([
       ['myattendance', '🕒', 'Attendance', 'Check in & out'],
       ['courses', '🎬', 'Courses', round ? esc(round.name) : 'No round yet'],
-      ['homework', '✎', 'Tasks', pendingHw ? `${big(pendingHw)} still to hand in` : 'All handed in'],
-      ['quizzes', '📝', 'Quizzes', newQuiz ? `${big(newQuiz)} new` : 'Nothing new'],
-      ['notes', '📌', 'Notes', `${big(notes.length)} notes`],
+      ['homework', '✎', 'Tasks', pendingHw ? `${big(pendingHw)} still to hand in` : 'All handed in', "openClassroom('homework')"],
+      ['quizzes', '📝', 'Quizzes', newQuiz ? `${big(newQuiz)} new` : 'Nothing new', "openClassroom('quizzes')"],
+      ['notes', '📌', 'Notes', `${big(notes.length)} notes`, "openClassroom('notes')"],
       ['mypay', '💳', 'Account', `${big(moneyText(paid))} paid`],
       ['help', '💬', 'Customer service', 'Ask the studio'],
       ['about', 'ℹ', 'About', 'The academy'],
@@ -138,7 +138,7 @@ PAGES.homework_trainee = async (c) => {
   const hw = await GET('/api/homeworks');
   window._hwList = hw;
   const overdue = (h) => h.due_date && !h.my_submission && new Date(h.due_date) < new Date(new Date().toDateString());
-  c.innerHTML = title('Tasks', '') +
+  c.innerHTML = clsHead('Tasks') +
     (hw.length ? hw.map((h) => {
       const sub = h.my_submission;
       const n = sub && sub.images ? sub.images.length : 0;
@@ -209,14 +209,14 @@ window.doSubmitHw = async () => {
   const btn = $('#hwSend'); if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
   try {
     await POST(`/api/homeworks/${window._hwId}/submit`, { images: window._hwNew, note: $('#hwNote').value });
-    closeModal(); toast('Sent to Dalia ✓'); go('homework');
+    closeModal(); toast('Sent to Dalia ✓'); go('classroom');
   } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'Send'; } toast(e.message); }
 };
 
 /* ============ STUDENT QUIZZES ============ */
 PAGES.quizzes_trainee = async (c) => {
   const quizzes = await GET('/api/quizzes');
-  c.innerHTML = title('Quizzes', '') +
+  c.innerHTML = clsHead('Quizzes') +
     (quizzes.length ? quizzes.map((q) => `<div class="card">
       <div class="item"><div class="av">📝</div>
         <div class="main"><div class="nm">${esc(q.title)} <span class="badge">${q.ref_code}</span></div>
@@ -262,13 +262,13 @@ window.finishQuiz = async () => {
   const r = await POST(`/api/quizzes/${quiz.id}/attempt`, { answers });
   modal(`<h3>Your score</h3><div class="stat" style="margin:10px 0"><div class="n">${r.score} / ${r.total}</div><div class="l">${esc(quiz.title)}</div></div>
     <button class="btn sec" onclick="quizResults(${quiz.id},'${esc(quiz.title)}')">See all results</button>
-    <button class="btn" style="margin-top:8px" onclick="closeModal();go('quizzes')">Done</button>`);
+    <button class="btn" style="margin-top:8px" onclick="closeModal();go('classroom')">Done</button>`);
 };
 
 /* ============ STUDENT NOTES ============ */
 PAGES.notes_trainee = async (c) => {
   const notes = await GET('/api/notes');
-  c.innerHTML = title('Notes & Instructions', '') +
+  c.innerHTML = clsHead('Notes & Instructions') +
     (notes.length ? notes.map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>
       <div class="sub muted">${dt(n.created_at)}</div>
       ${n.body ? `<div style="font-size:14px;margin-top:6px">${esc(n.body)}</div>` : ''}</div>`).join('') : empty('No notes yet', '📌'));

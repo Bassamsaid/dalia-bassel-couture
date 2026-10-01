@@ -337,6 +337,11 @@ function isHidden(page) {
   if (!state.user || state.user.role === 'admin') return false;
   const first = (NAV[state.user.role] || [])[0];
   if (page === 'profile' || (first && page === first[0])) return false; // landing + profile always available
+  // Tasks, quizzes and notes are one screen now. A role that had all three
+  // taken away keeps it that way; one of them left open keeps the screen.
+  if (page === 'classroom' && !state.hidden.has('classroom')) {
+    return CLASSROOM_TABS.every(([k]) => state.hidden.has(k));
+  }
   return state.hidden.has(page);
 }
 
@@ -363,7 +368,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v120';
+const APP_VERSION = 'v121';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -524,6 +529,16 @@ window.otpVerify = async () => {
 };
 
 /* ---------- app shell ---------- */
+
+/* The academy's three teaching screens — tasks, quizzes and notes — share one
+   entry in the menu and sit side by side as tabs. Listed here because both the
+   menu and the pages themselves read from it. */
+const CLASSROOM_TABS = [
+  ['homework', 'Tasks', '✎'],
+  ['quizzes', 'Quizzes', '📝'],
+  ['notes', 'Notes', '📌'],
+];
+
 const NAV = {
   admin: [
     ['home', 'Home', '⌂'],
@@ -532,10 +547,7 @@ const NAV = {
     ['finance', 'Payments', '💳'],
     ['rounds', 'Rounds', '🗓'],
     ['courses', 'Courses', '🎬'],
-    ['homework', 'Tasks', '✎'],
-    ['quizzes', 'Quizzes', '📝'],
-    ['notes', 'Notes', '📌'],
-    ['chats', 'Customer service', '💬'],
+    ['classroom', 'Classroom', '📚'],
     ['dalia', 'Dalia', '✦'],
     ['dresses', 'Dresses', '👗'],
     ['purchases', 'Purchases', '🧾'],
@@ -550,9 +562,7 @@ const NAV = {
     ['home', 'Home', '⌂'],
     ['myattendance', 'Attendance', '🕒'],
     ['courses', 'Courses', '🎬'],
-    ['homework', 'Tasks', '✎'],
-    ['quizzes', 'Quizzes', '📝'],
-    ['notes', 'Notes', '📌'],
+    ['classroom', 'Classroom', '📚'],
     ['mypay', 'Account', '💳'],
     ['help', 'Customer service', '💬'],
     ['dalia', 'Dalia Bassel', '✦'],
@@ -568,7 +578,6 @@ const NAV = {
     ['purchases', 'Purchases', '🧾'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
-    ['chats', 'Customer service', '💬'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
@@ -579,7 +588,6 @@ const NAV = {
     ['students', 'Students', '👩‍🎓'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
-    ['chats', 'Customer service', '💬'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
