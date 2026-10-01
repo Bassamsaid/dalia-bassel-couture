@@ -1973,6 +1973,22 @@ api['GET /api/vendors/unlinked-shops'] = async (req, res, user) => {
       AND TRIM(pi.shop) NOT IN (SELECT TRIM(name) FROM vendors)
     GROUP BY TRIM(pi.shop) ORDER BY total DESC`).all());
 };
+/* The same shop typed two ways is two shops as far as the invoices know. This
+   says they are one: every invoice still carrying the loose name joins the
+   vendor, and its spending is on that vendor's report from then on. The typed
+   name on the invoice is left as it was written — it is what the paper says. */
+api['POST /api/vendors/link-shop'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const shop = String(b.shop || '').trim();
+  const vendorId = Number(b.vendor_id);
+  if (!shop || !vendorId) return send(res, 400, { error: 'which shop, and which vendor?' });
+  const v = await db.prepare('SELECT id,name FROM vendors WHERE id=?').get(vendorId);
+  if (!v) return send(res, 404, { error: 'no such vendor' });
+  const r = await db.prepare('UPDATE purchase_invoices SET vendor_id=? WHERE vendor_id IS NULL AND TRIM(shop)=?').run(vendorId, shop);
+  send(res, 200, { ok: true, moved: Number(r.changes || 0), vendor: v.name });
+};
+
 api['POST /api/vendors'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
