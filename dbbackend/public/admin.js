@@ -863,6 +863,8 @@ function groupPage(key) {
     const g = GROUPS[key];
     const tabs = groupTabs(key);
     if (!tabs.length) { c.innerHTML = empty('Nothing here for you', g.icon); return; }
+    // one tab is not a choice — show that page as itself, under its own heading
+    if (tabs.length === 1) return PAGES[tabs[0][0]](c);
     let tab = state.groupTab[key];
     if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
     state.groupTab[key] = tab;
@@ -886,6 +888,23 @@ function pageHead(t, ic) { return window._inGroup ? '' : title(t, ic || ''); }
 
 PAGES.academy = groupPage('academy');
 PAGES.classroom = groupPage('classroom');
+PAGES.spending = groupPage('spending');
+
+/* A row of the months that actually have something in them, newest first.
+   An empty <input type="month"> reads as a broken field — "-------- ----" —
+   and these are the only months there is anything to look at anyway. */
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function monthLabel(m) {
+  const [y, mo] = String(m).split('-');
+  return `${MONTH_SHORT[Number(mo) - 1] || mo} ${y}`;
+}
+function monthChips(dates, current, fn) {
+  const months = [...new Set(dates.filter(Boolean).map((d) => String(d).slice(0, 7)))].sort().reverse();
+  if (months.length < 2) return '';
+  return `<div class="filters" style="margin-top:12px">
+    <span class="chip ${current ? '' : 'active'}" onclick="${fn}('')">All</span>
+    ${months.map((m) => `<span class="chip ${current === m ? 'active' : ''}" onclick="${fn}('${m}')">${monthLabel(m)}</span>`).join('')}</div>`;
+}
 
 /* ============ HOMEWORK / TASKS ============ */
 PAGES.homework = async (c) => {
@@ -1955,19 +1974,20 @@ PAGES.purchases = async (c) => {
   window._purchases = invoices;
   window._purVendors = vendors;
   const f = window._purMonth || '';
+  // newest invoice first — they arrive in the order they were typed in, which is
+  // no order at all once a month has been caught up on out of sequence
+  const byDate = (a, b) => String(b.invoice_date || b.created_at || '').localeCompare(String(a.invoice_date || a.created_at || ''));
+  invoices.sort(byDate);
   const list = f ? invoices.filter((inv) => ((inv.invoice_date || inv.created_at || '').slice(0, 7) === f)) : invoices;
   const total = list.reduce((a, inv) => a + (inv.total || 0), 0);
   const items = list.reduce((a, inv) => a + (inv.lines ? inv.lines.length : 0), 0);
-  c.innerHTML = title('Purchases', '🧾') +
+  c.innerHTML = pageHead('Purchases', '🧾') +
     `<div class="grid g2" style="margin-bottom:10px">
-       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(total)}</div><div class="l">${f || 'All-time'} spent</div></div>
+       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(total)}</div><div class="l">${f ? monthLabel(f) : 'All-time'} spent</div></div>
        <div class="stat"><div class="n serif">${list.length}</div><div class="l">${items} item${items === 1 ? '' : 's'} · invoices</div></div>
      </div>
-    <div class="row" style="align-items:center;gap:8px;margin-bottom:10px">
-       <input type="month" value="${f}" onchange="setPurMonth(this.value)" style="width:auto;padding:8px 10px;flex:1"/>
-       ${f ? `<button class="btn ghost sm" onclick="setPurMonth('')">Clear</button>` : ''}
-     </div>
     <button class="btn" onclick="newPurchase()">＋ New purchase (invoice)</button>
+    ${monthChips(invoices.map((inv) => inv.invoice_date || inv.created_at), f, 'setPurMonth')}
     <div style="margin-top:12px">${list.length ? list.map((inv) => {
       const n = inv.lines ? inv.lines.length : 0;
       return `<div class="card pu-card" onclick="openPurchase(${inv.id})">
@@ -1985,6 +2005,7 @@ PAGES.purchases = async (c) => {
     </div>`; }).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
 };
 window.setPurMonth = (m) => { window._purMonth = m; go('purchases'); };
+window.setExpMonth = (m) => { window._expMonth = m; go('expenses'); };
 window.openPurchase = async (id) => {
   const inv = (window._purchases || []).find((x) => x.id === id);
   if (!inv) return;
@@ -2073,14 +2094,23 @@ PAGES.expenses = async (c) => {
   const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases')]);
   window._expRef = { vendors, types };
   const tab = window._expTab || 'entries';
-  const tabs = [['entries', 'Expenses'], ['analysis', 'Analysis'], ['vendors', 'Vendors'], ['types', 'Types']];
+  const tabs = [['entries', 'All expenses'], ['analysis', 'Analysis'], ['vendors', 'Suppliers'], ['types', 'Types']];
   let inner = '';
   if (tab === 'entries') {
-    inner = `<button class="btn" onclick="addExpense()">＋ New expense</button>
-      <div class="card" style="margin-top:12px">${expenses.length ? expenses.map((e) => `<div class="item">
+    const ef = window._expMonth || '';
+    expenses.sort((a, b) => String(b.date || b.created_at || '').localeCompare(String(a.date || a.created_at || '')));
+    const elist = ef ? expenses.filter((e) => String(e.date || e.created_at || '').slice(0, 7) === ef) : expenses;
+    const etotal = elist.reduce((a, e) => a + (e.amount || 0), 0);
+    inner = `<div class="grid g2" style="margin-bottom:10px">
+        <div class="stat"><div class="n serif" style="color:var(--bad)">${money(etotal)}</div><div class="l">${ef ? monthLabel(ef) : 'All-time'} spent</div></div>
+        <div class="stat"><div class="n serif">${elist.length}</div><div class="l">expense${elist.length === 1 ? '' : 's'}</div></div>
+      </div>
+      <button class="btn" onclick="addExpense()">＋ New expense</button>
+      ${monthChips(expenses.map((e) => e.date || e.created_at), ef, 'setExpMonth')}
+      <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : '<div class="av">💸</div>'}
         <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}</div></div>
-        <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty('No expenses yet', '💸')}</div>`;
+        <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`).join('') : empty(ef ? 'Nothing spent in ' + monthLabel(ef) : 'No expenses yet', '💸')}</div>`;
   } else if (tab === 'analysis') {
     const byMonth = {};
     const addTo = (m, t, amt) => { byMonth[m] = byMonth[m] || { total: 0, types: {} }; byMonth[m].total += amt; byMonth[m].types[t] = (byMonth[m].types[t] || 0) + amt; };
@@ -2088,25 +2118,25 @@ PAGES.expenses = async (c) => {
     purchases.forEach((p) => { const m = (p.invoice_date || p.created_at || '').slice(0, 7); if (m) addTo(m, 'Dress materials', p.total || 0); });
     const months = Object.keys(byMonth).sort().reverse();
     inner = months.length ? months.map((m) => { const d = byMonth[m]; const ts = Object.entries(d.types).sort((a, b) => b[1] - a[1]);
-      return `<div class="card"><div class="item"><div class="main"><div class="nm serif" style="font-size:18px">${m}</div><div class="sub">Total spent</div></div><div class="serif" style="font-size:20px;font-weight:700;color:var(--bad)">${money(d.total)}</div></div>
+      return `<div class="card"><div class="item"><div class="main"><div class="nm serif" style="font-size:18px">${monthLabel(m)}</div><div class="sub">Total spent</div></div><div class="serif" style="font-size:20px;font-weight:700;color:var(--bad)">${money(d.total)}</div></div>
         ${ts.map(([t, a]) => `<div class="item" style="padding-inline-start:14px"><div class="av" style="background:#fff">◦</div><div class="main"><div class="nm">${esc(t)}</div></div><div class="sub">${money(a)}</div></div>`).join('')}</div>`;
     }).join('') : empty('No spending data yet', '📊');
   } else if (tab === 'vendors') {
     const vs = vendors.slice().sort((a, b) => (b.total || 0) - (a.total || 0));
-    inner = `<button class="btn" onclick="addVendor()">＋ Add vendor</button>
-      <div class="hint" style="margin:10px 2px 6px">Tap any vendor to see its full report (purchases + expenses) and print a PDF</div>
+    inner = `<button class="btn" onclick="addVendor()">＋ Add supplier</button>
+      <div class="hint" style="margin:10px 2px 6px">Tap any supplier to see its full report (purchases + expenses) and print a PDF</div>
       <div class="card">${vs.length ? vs.map((v) => `<div class="item" style="cursor:pointer" onclick="openVendorReport(${v.id})">
         <div class="av">🏬</div>
         <div class="main"><div class="nm">${esc(v.name)}</div><div class="sub">${v.phone ? esc(v.phone) + ' · ' : ''}${v.total ? '🧾 ' + money(v.purchases_total) + ' · 💸 ' + money(v.expenses_total) : 'No activity yet'}</div></div>
         <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <div class="serif" style="font-weight:700;color:var(--bad)">${money(v.total || 0)}</div>
           <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div>
-      </div>`).join('') : empty('No vendors yet — add names here')}</div>`;
+      </div>`).join('') : empty('No suppliers yet — add names here')}</div>`;
   } else {
     inner = `<button class="btn" onclick="addExpType()">＋ Add expense type</button>
       <div class="card" style="margin-top:12px">${types.length ? types.map((t) => `<div class="item"><div class="av">🏷️</div><div class="main"><div class="nm">${esc(t.name)}</div></div><button class="btn-icon" onclick="delExpType(${t.id})">🗑</button></div>`).join('') : empty('No types yet')}</div>`;
   }
-  c.innerHTML = title('Expenses', '💸') + `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
+  c.innerHTML = pageHead('Expenses', '💸') + `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
 window.addExpense = () => { const { vendors, types } = window._expRef; formModal('New expense', [
