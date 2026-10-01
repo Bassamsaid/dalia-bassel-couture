@@ -369,7 +369,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v124';
+const APP_VERSION = 'v125';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -545,6 +545,13 @@ const GROUPS = {
       ['courses', 'Courses', '🎬', ['admin', 'manager', 'staff']],
     ],
   },
+  spending: {
+    title: 'Spending', icon: '💸',
+    tabs: [
+      ['purchases', 'Purchases', '🧾', ['admin', 'manager']],
+      ['expenses', 'Expenses', '💸', ['admin']],
+    ],
+  },
   classroom: {
     title: 'Classroom', icon: '📚',
     tabs: [
@@ -581,10 +588,9 @@ const NAV = {
     ['classroom', 'Classroom', '📚'],
     ['dalia', 'Dalia', '✦'],
     ['dresses', 'Dresses', '👗'],
-    ['purchases', 'Purchases', '🧾'],
+    ['spending', 'Spending', '💸'],
     ['staff', 'Staff', '💼'],
     ['attreqs', 'Attendance requests', '🕒'],
-    ['expenses', 'Expenses', '💸'],
     ['config', 'Configuration', '⚙'],
     ['about', 'About', 'ℹ'],
   ],
@@ -602,7 +608,7 @@ const NAV = {
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
     ['academy', 'Academy', '🎓'],
-    ['purchases', 'Purchases', '🧾'],
+    ['spending', 'Spending', '💸'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
     ['dalia', 'Dalia Bassel', '✦'],
