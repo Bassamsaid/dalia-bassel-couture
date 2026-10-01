@@ -206,8 +206,8 @@ PAGES.home_admin = async (c) => {
         ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
         ['rounds', '🗓', 'Rounds & groups', `${big(rounds.length)} round${rounds.length === 1 ? '' : 's'}`],
         ['courses', '🎬', 'Courses', `${big(videos.length)} video${videos.length === 1 ? '' : 's'}`],
-        ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`, "openClassroom('homework')"],
-        ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`, "openClassroom('quizzes')"],
+        ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`],
+        ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`],
         ['finance', '💳', 'Course money', sheet.totals.remaining ? `${big(moneyText(sheet.totals.remaining))} still due` : `${big(moneyText(sheet.totals.paid))} collected`],
       ],
       figuresGo: "go('finance')",
@@ -283,7 +283,7 @@ PAGES.students = async (c) => {
   const filter = window._stF || 'all';
   const list = users.filter((u) => filter === 'all' || u.round_id == filter);
   const canEditStudents = ['admin', 'manager'].includes(state.user.role); // staff: view-only
-  c.innerHTML = title('Students', '') +
+  c.innerHTML = pageHead('Students') +
     `${canEditStudents ? '<button class="btn" onclick="editStudent()">＋ Add student</button>' : ''}
      <div class="filters" style="margin-top:12px">
        <span class="chip ${filter === 'all' ? 'active' : ''}" onclick="stFilter('all')">All (${users.length})</span>
@@ -449,7 +449,7 @@ PAGES.finance = async (c) => {
         ${r.done ? '<span class="badge ok">Done</span>' : `<button class="btn sm ghost" onclick="markReminder2(${r.id})">Done</button>`}
         <button class="btn-icon" onclick="delReminder(${r.id})">🗑</button></div>`).join('') : empty('No reminders')}</div>`;
   }
-  c.innerHTML = title('Payments', '') +
+  c.innerHTML = pageHead('Payments') +
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="finTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.finTab = (t) => { window._finTab = t; go('finance'); };
@@ -546,7 +546,7 @@ PAGES.rounds = async (c) => {
   const [rounds, groups, users] = await Promise.all([GET('/api/rounds'), GET('/api/groups'), GET('/api/users?role=trainee')]);
   const cnt = (rid) => users.filter((u) => u.round_id === rid).length;
   const gcnt = (gid) => users.filter((u) => u.group_id === gid).length;
-  c.innerHTML = title('Rounds & Groups', '') +
+  c.innerHTML = pageHead('Rounds & Groups') +
     `<div class="row"><button class="btn" onclick="addRound()">＋ Round</button><button class="btn sec" onclick="addGroup()">＋ Group</button></div>
     ${rounds.length ? rounds.map((r) => `<div class="card">
       <div class="item"><div class="av">${r.number || '#'}</div>
@@ -642,7 +642,7 @@ PAGES.courses = async (c) => {
   const list = of(tab);
   const enrolled = list.reduce((a, r) => a + cnt(r.id), 0);
 
-  c.innerHTML = luxBackdrop() + '<div class="home-lux">' + title('Courses', '') +
+  c.innerHTML = luxBackdrop() + '<div class="home-lux">' + pageHead('Courses') +
     `${rounds.length ? `<div class="card" style="margin-bottom:14px">
       <div class="nm serif" style="font-size:17px">${rounds.length} round${rounds.length === 1 ? '' : 's'} in the academy</div>
       <div class="sub muted" style="margin-top:4px">${students.length ? `${students.length} student${students.length === 1 ? '' : 's'} on the books` : 'No students enrolled yet'}</div>
@@ -686,7 +686,7 @@ PAGES.courses_staff = async (c) => {
   const rf = window._staffCourseRound || 'all';
   const list = rf === 'all' ? videos : videos.filter((v) => String(v.round_id) === String(rf));
   const chips = `<span class="chip ${rf === 'all' ? 'active' : ''}" onclick="staffCourseRound('all')">All</span>${rounds.map((r) => `<span class="chip ${String(rf) === String(r.id) ? 'active' : ''}" onclick="staffCourseRound(${r.id})">${esc(r.name)}</span>`).join('')}`;
-  c.innerHTML = title('Courses', '') +
+  c.innerHTML = pageHead('Courses') +
     `<button class="btn" onclick="addVideo('onsite','')">＋ Add video / photo</button>
      <div class="filters" style="margin-top:12px">${chips}</div>
      <div class="grid g2">${list.length ? list.map((v) => `<div class="card" style="margin:0">
@@ -858,25 +858,38 @@ window.delVideo = (id) => confirmDel('Delete video?', async () => { await DEL('/
    same work seen three ways, so they are now one screen with three tabs. The
    pages below are unchanged apart from their heading: when one is drawn inside
    this screen the screen carries the title, so the page leaves it out. */
-PAGES.classroom = async (c) => {
-  const tabs = CLASSROOM_TABS.filter(([k]) => !isHidden(k));
-  if (!tabs.length) { c.innerHTML = empty('Nothing here for you', '📚'); return; }
-  let tab = window._clsTab;
-  if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
-  window._clsTab = tab;
-  c.innerHTML = title('Classroom', '📚') +
-    `<div class="filters">${tabs.map(([k, l, ic]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="clsTab('${k}')">${ic} ${l}</span>`).join('')}</div>
-     <div id="clsBody"><div class="spinner"></div></div>`;
-  const body = document.getElementById('clsBody');
-  window._inClassroom = true;
-  try { await PAGES[tab](body); } finally { window._inClassroom = false; }
-  lazyImgs('#clsBody');
-};
-window.clsTab = (k) => { window._clsTab = k; go('classroom'); };
-/* Open the screen on a chosen tab — the home cards still point at one each */
-window.openClassroom = (k) => { window._clsTab = k; go('classroom'); };
-/* The heading belongs to whoever is showing the page */
-function clsHead(t, ic) { return window._inClassroom ? '' : title(t, ic || ''); }
+function groupPage(key) {
+  return async (c) => {
+    const g = GROUPS[key];
+    const tabs = groupTabs(key);
+    if (!tabs.length) { c.innerHTML = empty('Nothing here for you', g.icon); return; }
+    let tab = state.groupTab[key];
+    if (!tabs.some(([k]) => k === tab)) tab = tabs[0][0];
+    state.groupTab[key] = tab;
+    c.innerHTML = title(g.title, g.icon) +
+      `<div class="dtabs grp-tabs">${tabs.map(([k, l, ic]) => `<button class="dtab${k === tab ? ' on' : ''}" onclick="groupTab('${key}','${k}')">
+        <span class="dtab-ic">${ic}</span>${esc(l)}</button>`).join('')}</div>
+       <div id="grpBody" class="grp-body"><div class="spinner"></div></div>`;
+    // on a phone the row scrolls — bring the open tab into view so it is never
+    // the one hidden off the right edge
+    const on = c.querySelector('.grp-tabs .dtab.on');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+    const body = document.getElementById('grpBody');
+    window._inGroup = key;
+    try { await PAGES[tab](body); } finally { window._inGroup = null; }
+    lazyImgs('#grpBody'); watchVideos(body);
+  };
+}
+/* Picking a tab goes through go() like any other link — it is the same page it
+   always was, so the back button and the saved route keep working. */
+window.groupTab = (key, k) => { state.groupTab[key] = k; go(k); };
+
+/* The heading belongs to whoever is showing the page: on its own it carries it,
+   inside a merged screen the screen above it already has. */
+function pageHead(t, ic) { return window._inGroup ? '' : title(t, ic || ''); }
+
+PAGES.academy = groupPage('academy');
+PAGES.classroom = groupPage('classroom');
 
 /* ============ HOMEWORK / TASKS ============ */
 PAGES.homework = async (c) => {
@@ -886,7 +899,7 @@ PAGES.homework = async (c) => {
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   const gMap = Object.fromEntries(groups.map((g) => [g.id, g.name]));
   window._rounds = rounds; window._hwGroups = groups;
-  c.innerHTML = clsHead('Tasks (Patterns)') +
+  c.innerHTML = pageHead('Tasks (Patterns)') +
     `${canSend ? '<button class="btn" onclick="addHomework()">＋ Send task</button>' : ''}
     ${hw.length ? hw.map((h) => {
       const done = h.submitted_count || 0, all = h.expected_count || 0;
@@ -1035,7 +1048,7 @@ PAGES.quizzes = async (c) => {
   const [quizzes, rounds] = await Promise.all([GET('/api/quizzes'), GET('/api/rounds')]);
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   window._rounds = rounds;
-  c.innerHTML = clsHead('Quizzes') +
+  c.innerHTML = pageHead('Quizzes') +
     `<button class="btn" onclick="newQuiz()">＋ New quiz</button>
     ${quizzes.length ? quizzes.map((q) => `<div class="card">
       <div class="item"><div class="av">📝</div>
@@ -1093,7 +1106,7 @@ PAGES.notes = async (c) => {
   window._noteRef = { rounds, users };
   const rMap = Object.fromEntries(rounds.map((r) => [r.id, r.name]));
   const uMap = Object.fromEntries(users.map((u) => [u.id, u.name]));
-  c.innerHTML = clsHead('Notes & Instructions') +
+  c.innerHTML = pageHead('Notes & Instructions') +
     `<button class="btn" onclick="addNote()">＋ Send note</button>
     ${notes.length ? notes.map((n) => `<div class="card">
       <div class="item"><div class="av">📌</div>
@@ -2864,7 +2877,11 @@ PAGES.permissions = async (c) => {
   const hidden = data.hidden || {};
   const roles = [['trainee', 'Students'], ['manager', 'Managers'], ['staff', 'Staff'], ['customer', 'Clients']];
   const role = window._permRole || 'trainee';
-  const pages = (NAV[role] || []).slice(1); // skip the landing (home) — always visible
+  // skip the landing (home) — always visible. A merged screen opens out into the
+  // sections inside it, so each one can still be allowed or taken away on its own.
+  const pages = (NAV[role] || []).slice(1).flatMap(([k, l, ic]) => (GROUPS[k]
+    ? GROUPS[k].tabs.filter(([, , , roles]) => roles.includes(role)).map(([tk, tl, tic]) => [tk, `${l} · ${tl}`, tic])
+    : [[k, l, ic]]));
   const hiddenForRole = hidden[role] || [];
   const isHid = (p) => hiddenForRole.includes(p);
   c.innerHTML = title('Permissions', '🔒') +

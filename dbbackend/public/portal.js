@@ -105,9 +105,9 @@ PAGES.home_trainee = async (c) => {
     ${navList([
       ['myattendance', '🕒', 'Attendance', 'Check in & out'],
       ['courses', '🎬', 'Courses', round ? esc(round.name) : 'No round yet'],
-      ['homework', '✎', 'Tasks', pendingHw ? `${big(pendingHw)} still to hand in` : 'All handed in', "openClassroom('homework')"],
-      ['quizzes', '📝', 'Quizzes', newQuiz ? `${big(newQuiz)} new` : 'Nothing new', "openClassroom('quizzes')"],
-      ['notes', '📌', 'Notes', `${big(notes.length)} notes`, "openClassroom('notes')"],
+      ['homework', '✎', 'Tasks', pendingHw ? `${big(pendingHw)} still to hand in` : 'All handed in'],
+      ['quizzes', '📝', 'Quizzes', newQuiz ? `${big(newQuiz)} new` : 'Nothing new'],
+      ['notes', '📌', 'Notes', `${big(notes.length)} notes`],
       ['mypay', '💳', 'Account', `${big(moneyText(paid))} paid`],
       ['help', '💬', 'Customer service', 'Ask the studio'],
       ['about', 'ℹ', 'About', 'The academy'],
@@ -138,7 +138,7 @@ PAGES.homework_trainee = async (c) => {
   const hw = await GET('/api/homeworks');
   window._hwList = hw;
   const overdue = (h) => h.due_date && !h.my_submission && new Date(h.due_date) < new Date(new Date().toDateString());
-  c.innerHTML = clsHead('Tasks') +
+  c.innerHTML = pageHead('Tasks') +
     (hw.length ? hw.map((h) => {
       const sub = h.my_submission;
       const n = sub && sub.images ? sub.images.length : 0;
@@ -216,7 +216,7 @@ window.doSubmitHw = async () => {
 /* ============ STUDENT QUIZZES ============ */
 PAGES.quizzes_trainee = async (c) => {
   const quizzes = await GET('/api/quizzes');
-  c.innerHTML = clsHead('Quizzes') +
+  c.innerHTML = pageHead('Quizzes') +
     (quizzes.length ? quizzes.map((q) => `<div class="card">
       <div class="item"><div class="av">📝</div>
         <div class="main"><div class="nm">${esc(q.title)} <span class="badge">${q.ref_code}</span></div>
@@ -268,7 +268,7 @@ window.finishQuiz = async () => {
 /* ============ STUDENT NOTES ============ */
 PAGES.notes_trainee = async (c) => {
   const notes = await GET('/api/notes');
-  c.innerHTML = clsHead('Notes & Instructions') +
+  c.innerHTML = pageHead('Notes & Instructions') +
     (notes.length ? notes.map((n) => `<div class="card"><div class="nm" style="font-weight:600">${esc(n.title)}</div>
       <div class="sub muted">${dt(n.created_at)}</div>
       ${n.body ? `<div style="font-size:14px;margin-top:6px">${esc(n.body)}</div>` : ''}</div>`).join('') : empty('No notes yet', '📌'));

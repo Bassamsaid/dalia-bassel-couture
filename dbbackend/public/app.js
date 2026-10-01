@@ -323,7 +323,7 @@ document.addEventListener('pointerdown', (e) => {
   setTimeout(() => rip.remove(), 600);
 });
 
-const state = { user: null, page: null, nav: [], stack: [], hidden: new Set() };
+const state = { user: null, page: null, nav: [], stack: [], hidden: new Set(), groupTab: {} };
 
 /* which sections are hidden for the signed-in user's role (admin sees everything) */
 async function loadPerms() {
@@ -337,12 +337,13 @@ function isHidden(page) {
   if (!state.user || state.user.role === 'admin') return false;
   const first = (NAV[state.user.role] || [])[0];
   if (page === 'profile' || (first && page === first[0])) return false; // landing + profile always available
-  // Tasks, quizzes and notes are one screen now. A role that had all three
-  // taken away keeps it that way; one of them left open keeps the screen.
-  if (page === 'classroom' && !state.hidden.has('classroom')) {
-    return CLASSROOM_TABS.every(([k]) => state.hidden.has(k));
+  if (state.hidden.has(page)) return true;
+  // A merged screen goes away only when everything inside it is hidden; what is
+  // still allowed decides which tabs appear.
+  if (GROUPS[page]) {
+    return !GROUPS[page].tabs.some(([k, l, ic, roles]) => roles.includes(state.user.role) && !state.hidden.has(k));
   }
-  return state.hidden.has(page);
+  return false;
 }
 
 /* ---------- boot ---------- */
@@ -368,7 +369,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v121';
+const APP_VERSION = 'v122';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -530,23 +531,53 @@ window.otpVerify = async () => {
 
 /* ---------- app shell ---------- */
 
-/* The academy's three teaching screens — tasks, quizzes and notes — share one
-   entry in the menu and sit side by side as tabs. Listed here because both the
-   menu and the pages themselves read from it. */
-const CLASSROOM_TABS = [
-  ['homework', 'Tasks', '✎'],
-  ['quizzes', 'Quizzes', '📝'],
-  ['notes', 'Notes', '📌'],
-];
+/* Screens that belong together share one line in the menu and sit side by side
+   as tabs. The pages themselves are untouched — they are simply drawn inside
+   the screen named here, which carries the heading for them.
+   Each tab says which roles it is for; a role sees only its own. */
+const GROUPS = {
+  academy: {
+    title: 'Academy', icon: '🎓',
+    tabs: [
+      ['students', 'Students', '👩‍🎓', ['admin', 'manager', 'staff']],
+      ['finance', 'Payments', '💳', ['admin', 'manager']],
+      ['rounds', 'Rounds', '🗓', ['admin', 'manager']],
+      ['courses', 'Courses', '🎬', ['admin', 'manager', 'staff']],
+    ],
+  },
+  classroom: {
+    title: 'Classroom', icon: '📚',
+    tabs: [
+      ['homework', 'Tasks', '✎', ['admin', 'trainee']],
+      ['quizzes', 'Quizzes', '📝', ['admin', 'trainee']],
+      ['notes', 'Notes', '📌', ['admin', 'trainee']],
+    ],
+  },
+};
+
+/* the tabs of one merged screen that this user may actually open */
+function groupTabs(key) {
+  const g = GROUPS[key];
+  if (!g || !state.user) return [];
+  return g.tabs.filter(([k, l, ic, roles]) => roles.includes(state.user.role) && !isHidden(k));
+}
+
+/* the merged screen a page lives in, for this user — or nothing, if it stands alone */
+function groupOf(page) {
+  if (!state.user || GROUPS[page]) return null;
+  const mine = NAV[state.user.role] || [];
+  for (const key of Object.keys(GROUPS)) {
+    if (!mine.some(([k]) => k === key)) continue;
+    if (GROUPS[key].tabs.some(([k, l, ic, roles]) => k === page && roles.includes(state.user.role))) return key;
+  }
+  return null;
+}
 
 const NAV = {
   admin: [
     ['home', 'Home', '⌂'],
     ['members', 'Members', '👥'],
-    ['students', 'Students', '👩‍🎓'],
-    ['finance', 'Payments', '💳'],
-    ['rounds', 'Rounds', '🗓'],
-    ['courses', 'Courses', '🎬'],
+    ['academy', 'Academy', '🎓'],
     ['classroom', 'Classroom', '📚'],
     ['dalia', 'Dalia', '✦'],
     ['dresses', 'Dresses', '👗'],
@@ -571,10 +602,7 @@ const NAV = {
   manager: [
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
-    ['students', 'Students', '👩‍🎓'],
-    ['finance', 'Payments', '💳'],
-    ['rounds', 'Rounds', '🗓'],
-    ['courses', 'Courses', '🎬'],
+    ['academy', 'Academy', '🎓'],
     ['purchases', 'Purchases', '🧾'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
@@ -584,8 +612,7 @@ const NAV = {
   staff: [
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
-    ['courses', 'Courses', '🎬'],
-    ['students', 'Students', '👩‍🎓'],
+    ['academy', 'Academy', '🎓'],
     ['mysalary', 'Salary', '💵'],
     ['myrequests', 'Absences & Advances', '🗂'],
     ['dalia', 'Dalia Bassel', '✦'],
@@ -607,10 +634,10 @@ const NAV = {
 
 /* bottom bar shows only 2 tabs; the rest live in the side drawer */
 const BOTTOM = {
-  admin: [['home', 'Home', '⌂'], ['courses', 'Courses', '🎬'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
-  manager: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['courses', 'Courses', '🎬'], ['dalia', 'Dalia', '✦']],
+  admin: [['home', 'Home', '⌂'], ['academy', 'Academy', '🎓'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
+  manager: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['academy', 'Academy', '🎓'], ['dalia', 'Dalia', '✦']],
   trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
-  staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['courses', 'Courses', '🎬'], ['dalia', 'Dalia', '✦']],
+  staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['academy', 'Academy', '🎓'], ['dalia', 'Dalia', '✦']],
   customer: [['mydresses', 'My Dresses', '👗'], ['help', 'Customer service', '💬'], ['dalia', 'Dalia Bassel', '✦']],
   visitor: [['dalia', 'Dalia Bassel', '✦'], ['help', 'Customer service', '💬'], ['about', 'About', 'ℹ']],
 };
@@ -725,6 +752,10 @@ function persistRoute() {
   try { localStorage.setItem('dalia_route', JSON.stringify({ page: state.page, roundId: window._roundId, roundTab: window._roundTab, staffId: window._staffId, staffTab2: window._staffTab2 })); } catch (e) {}
 }
 function go(page, opts = {}) {
+  // a page that now lives inside a merged screen opens that screen on its tab,
+  // so every link and every "back to the list" still lands where it meant to
+  const grp = groupOf(page);
+  if (grp) { state.groupTab[grp] = page; page = grp; }
   if (isHidden(page)) page = (NAV[state.user.role] || [])[0][0]; // blocked section -> landing
   // push the current screen onto the back-stack (skip refreshes of the same page and back navigations)
   if (!opts._back && state.page && state.page !== page) {
