@@ -383,7 +383,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v139';
+const APP_VERSION = 'v140';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -568,6 +568,15 @@ const GROUPS = {
       ['vendors', 'Vendors', '🏬', ['admin']],
     ],
   },
+  me: {
+    title: 'My record', icon: '🧾',
+    tabs: [
+      ['myoverview', 'Overview', '👤', ['staff', 'manager']],
+      ['mysalary', 'Salary', '💵', ['staff', 'manager']],
+      ['myrequests', 'Absences', '🗂', ['staff', 'manager']],
+      ['myattendance', 'Attendance', '🕒', ['staff', 'manager']],
+    ],
+  },
   classroom: {
     title: 'Classroom', icon: '📚',
     tabs: [
@@ -625,8 +634,7 @@ const NAV = {
     ['dresses', 'Dresses', '👗'],
     ['academy', 'Academy', '🎓'],
     ['spending', 'Spending', '💸'],
-    ['mysalary', 'Salary', '💵'],
-    ['myrequests', 'Absences & Advances', '🗂'],
+    ['me', 'My record', '🧾'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],
@@ -634,8 +642,7 @@ const NAV = {
     ['home', 'Attendance', '🕒'],
     ['dresses', 'Dresses', '👗'],
     ['academy', 'Academy', '🎓'],
-    ['mysalary', 'Salary', '💵'],
-    ['myrequests', 'Absences & Advances', '🗂'],
+    ['me', 'My record', '🧾'],
     ['dalia', 'Dalia Bassel', '✦'],
     ['about', 'About', 'ℹ'],
   ],

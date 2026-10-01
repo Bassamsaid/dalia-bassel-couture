@@ -887,6 +887,7 @@ window.groupTab = (key, k) => { state.groupTab[key] = k; go(k); };
 function pageHead(t, ic) { return window._inGroup ? '' : title(t, ic || ''); }
 
 PAGES.academy = groupPage('academy');
+PAGES.me = groupPage('me');
 PAGES.classroom = groupPage('classroom');
 PAGES.spending = groupPage('spending');
 
