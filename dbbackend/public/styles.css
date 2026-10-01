@@ -1124,3 +1124,12 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 }
 .ps-table .ps-head-row td{padding-top:12px;font-size:10px;letter-spacing:2.5px;text-transform:uppercase;
   font-weight:700;color:var(--muted);border-bottom:none}
+
+/* ===== An invoice read in the order it is read on paper =====
+   the date, who it is from, what it was, which dress it went on, the amount */
+.inv-name .inv-date{display:inline-block;font-variant-numeric:tabular-nums;font-weight:800;
+  color:var(--purple-d);margin-inline-end:8px}
+.inv-line .inv-item{flex:1 1 auto}
+.inv-for{flex:0 0 auto;max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  background:var(--soft);border-radius:20px;padding:2px 9px;font-size:11.5px;font-weight:700;color:var(--purple-d)}
+.inv-for.none{background:transparent;color:var(--muted);font-weight:600;padding-inline:0}

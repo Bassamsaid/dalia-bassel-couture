@@ -1990,17 +1990,20 @@ PAGES.purchases = async (c) => {
     ${monthChips(invoices.map((inv) => inv.invoice_date || inv.created_at), f, 'setPurMonth')}
     <div style="margin-top:12px">${list.length ? list.map((inv) => {
       const n = inv.lines ? inv.lines.length : 0;
+      // the date first, then who it is from, then what it was and which dress it
+      // went on — the order somebody reads an invoice in
       return `<div class="card pu-card" onclick="openPurchase(${inv.id})">
       <div class="inv-head">
         ${inv.image ? `<img class="inv-scan" src="${esc(mediaUrl(inv.image))}" alt=""/>` : '<div class="inv-scan pu-noscan">🧾</div>'}
         <div class="inv-who">
-          <div class="inv-name"><bdi>${esc(inv.vendor_name || inv.shop || 'Shop')}</bdi></div>
-          <div class="inv-meta"><bdi>${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</bdi> · ${n} item${n === 1 ? '' : 's'}${inv.note ? ` · <bdi>${esc(inv.note)}</bdi>` : ''}${inv.paid_by_name ? ` · 🧰 <bdi>${esc(inv.paid_by_name)}</bdi>` : ''}</div>
+          <div class="inv-name"><span class="inv-date">${inv.invoice_date ? dt(inv.invoice_date) : dt(inv.created_at)}</span><bdi>${esc(inv.vendor_name || inv.shop || 'Shop')}</bdi></div>
+          <div class="inv-meta">${n} item${n === 1 ? '' : 's'}${inv.note ? ` · <bdi>${esc(inv.note)}</bdi>` : ''}${inv.paid_by_name ? ` · 🧰 <bdi>${esc(inv.paid_by_name)}</bdi>` : ''}</div>
         </div>
         <div class="inv-total">${money(inv.total)}</div>
       </div>
       ${n ? `<div class="inv-lines">${inv.lines.map((li) => `<div class="inv-line">
-        <span class="inv-item"><bdi>${esc(li.item || '—')}</bdi>${li.dress_name ? ` <span class="inv-for">· <bdi>${esc(li.dress_name)}</bdi></span>` : ''}</span>
+        <span class="inv-item"><bdi>${esc(li.item || '—')}</bdi></span>
+        ${li.dress_name ? `<span class="inv-for">👗 <bdi>${esc(li.dress_name)}</bdi></span>` : '<span class="inv-for none">no dress</span>'}
         ${n > 1 ? `<span class="inv-amt">${money(li.amount)}</span>` : ''}</div>`).join('')}</div>` : ''}
     </div>`; }).join('') : empty(f ? 'No purchases this month' : 'No purchases yet', '🧾')}</div>`;
 };
@@ -2397,14 +2400,32 @@ PAGES.vendors = async (c) => {
             <button class="btn-icon" onclick="event.stopPropagation();delVendor(${v.id})">🗑</button></div></div>
       </div>`).join('')}</div>`).join('') : empty('No vendors yet — add the first one', '🏬')}
     ${orphans.length ? `<div class="sec-title">Shops not on the list yet</div>
-      <p class="hint" style="margin-top:-4px">These were typed onto invoices, so their spending shows against no vendor. Add one and its invoices join it.</p>
-      <div class="card">${orphans.map((o) => `<div class="item">
+      <p class="hint" style="margin-top:-4px">These were typed onto invoices, so their spending shows against no vendor. Add one as a vendor of its own, or say it is one you already have — a name typed two ways is one shop.</p>
+      <div class="card">${orphans.map((o) => { const q = esc(o.shop).replace(/'/g, "\\'"); return `<div class="item">
         <div class="av">❓</div>
         <div class="main"><div class="nm">${esc(o.shop)}</div><div class="sub">${o.invoices} invoice${o.invoices === 1 ? '' : 's'}</div></div>
         <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <div class="serif" style="font-weight:700;color:var(--bad)">${money(o.total)}</div>
-          <button class="btn sec sm" onclick="adoptShop('${esc(o.shop).replace(/'/g, "\\'")}')">＋ Add</button></div>
-      </div>`).join('')}</div>` : ''}`;
+          <div class="row" style="gap:4px">
+            <button class="btn ghost sm" onclick="linkShop('${q}')">↔ Same as…</button>
+            <button class="btn sec sm" onclick="adoptShop('${q}')">＋ Add</button></div></div>
+      </div>`; }).join('')}</div>` : ''}`;
+};
+
+/* Two spellings of the same shop. Joining them puts every invoice still
+   carrying the loose name onto the vendor it was always from. */
+window.linkShop = (shop) => {
+  const vendors = window._cfgVendors || [];
+  if (!vendors.length) return toast('Add a vendor first');
+  formModal(`"${shop}" is really…`, [
+    { name: 'vendor_id', label: 'Which vendor is it?', type: 'select', required: true,
+      options: [{ value: '', label: '—' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
+  ], async (d) => {
+    if (!d.vendor_id) return toast('Pick the vendor');
+    const r = await POST('/api/vendors/link-shop', { shop, vendor_id: Number(d.vendor_id) });
+    toast(`${r.moved} invoice${r.moved === 1 ? '' : 's'} joined ${r.vendor} ✓`);
+    go('vendors');
+  });
 };
 
 const VENDOR_FIELDS = (v = {}) => [
