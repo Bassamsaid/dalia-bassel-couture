@@ -2802,14 +2802,46 @@ PAGES.staff = async (c) => {
   const allUsers = await GET('/api/users');
   const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   window._staff = staff;
+  const month = window._payrollMonth || today().slice(0, 7);
   c.innerHTML = title('Staff', '') +
     `<button class="btn" onclick="addStaff()">＋ Staff member</button>
-    <div class="card" style="margin-top:12px">${staff.length ? staff.map((s) => `<div class="item" style="cursor:pointer" onclick="openStaff(${s.id})">
+    <div class="filters" style="margin-top:12px"><input type="month" value="${month}" onchange="setPayrollMonth(this.value)" style="width:auto;padding:8px" /></div>
+    <div id="payroll"><div class="card"><div class="hint" style="margin:0">Working out the month…</div></div></div>
+    <div class="card">${staff.length ? staff.map((s) => `<div class="item" style="cursor:pointer" onclick="openStaff(${s.id})">
       <div class="av">${esc(initials(s.name))}</div>
       <div class="main"><div class="nm">${esc(s.name)}${s.role === 'manager' ? ' <span class="badge">Manager</span>' : ''}</div>
         <div class="sub">${s.job_title ? esc(s.job_title) + ' · ' : ''}${money(s.base_salary)}${s.hire_date ? ' · since ' + dt(s.hire_date) : ''}</div></div>
       <span class="muted" style="font-size:20px">›</span></div>`).join('') : empty('No staff yet', '💼')}</div>`;
+  payrollFor(staff, month);
 };
+window.setPayrollMonth = (m) => { window._payrollMonth = m; go('staff'); };
+
+/* What the month costs in wages: every net added up, with what each person's
+   comes to. Worked out after the list is drawn, because it is one request per
+   person and the names should not wait for it. */
+async function payrollFor(staff, month) {
+  const el = document.getElementById('payroll');
+  if (!el) return;
+  const sheets = await Promise.all(staff.map((s) =>
+    GET(`/api/staff/${s.id}/salary?month=${month}`).then((x) => ({ s, x })).catch(() => null)));
+  const rows = sheets.filter(Boolean);
+  if (!rows.length) { el.innerHTML = ''; return; }
+  const total = rows.reduce((t, r) => t + (r.x.net || 0), 0);
+  const base = rows.reduce((t, r) => t + (r.x.base || 0), 0);
+  const sent = await GET(`/api/salary-payments`).then((p) => p
+    .filter((x) => x.month === month).reduce((t, x) => t + (x.amount || 0), 0)).catch(() => 0);
+  el.innerHTML = `<div class="card pr-card">
+      <div class="pr-k">Wages for ${esc(monthLabel(month))}</div>
+      <div class="pr-v">${money(total)}</div>
+      <div class="pr-m">${rows.length} on the payroll · ${money(base)} in basic salaries${sent ? ` · ${moneyText(sent)} already sent` : ''}</div>
+    </div>
+    <div class="card" style="margin-bottom:12px">${rows
+      .slice().sort((a, b) => b.x.net - a.x.net)
+      .map((r) => `<div class="item" style="cursor:pointer" onclick="openStaff(${r.s.id})">
+        <div class="main"><div class="nm">${esc(r.s.name)}</div>
+          <div class="sub">${r.x.present_days} present${r.x.absent_days ? ' · ' + r.x.absent_days + ' absent' : ''}${r.x.advances ? ' · ' + moneyText(r.x.advances) + ' advance' : ''}</div></div>
+        <div class="serif" style="font-weight:700;white-space:nowrap">${money(r.x.net)}</div></div>`).join('')}</div>`;
+}
 window.openStaff = (id) => { window._staffId = id; window._staffTab2 = 'overview'; go('staffmember'); };
 window.staffTab2 = (t) => { window._staffTab2 = t; go('staffmember'); };
 window.setSalMonth = (m) => { window._salMonth = m; go('staffmember'); };
