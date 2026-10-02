@@ -1386,3 +1386,12 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dup-warn .nm{font-weight:800;color:var(--ink);font-size:14px}
 .dup-warn .sub{font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.55;margin-top:5px}
 .item.dup{background:rgba(245,158,11,.09);box-shadow:inset 3px 0 0 var(--warn)}
+.dsg{padding:0}
+.dsg-h{font-weight:800;font-size:14px;color:var(--ink);padding:13px 14px 10px;border-bottom:1px solid var(--line)}
+.dsg-r{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;
+  border-bottom:1px solid var(--line)}
+.dsg-m b{font-family:var(--sans);font-size:15px;font-weight:800;color:var(--ink);
+  font-variant-numeric:tabular-nums lining-nums}
+.dsg-m span{display:block;font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px}
+.dsg-n{font-size:12px;font-weight:600;color:var(--muted);padding:11px 14px 13px;line-height:1.5}
+.dsg-n.warn{color:var(--warn)}
