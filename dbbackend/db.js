@@ -921,7 +921,7 @@ const ready = (async () => {
   try {
     const { applyImports } = require('./apply-imports');
     for (const d of await applyImports(db)) {
-      console.log(`Imported ${d.file}: ${d.written} row(s) added${d.skipped ? `, ${d.skipped} already there` : ''}${d.removed ? `, ${d.removed} removed` : ''}.`);
+      console.log(`Imported ${d.file}: ${d.written} row(s) added${d.skipped ? `, ${d.skipped} already there` : ''}${d.removed ? `, ${d.removed} removed` : ''}${d.copied ? `, ${d.copied} photo(s) put in place` : ''}.`);
     }
   } catch (e) {
     console.warn('Recorded months could not be imported:', e.message);

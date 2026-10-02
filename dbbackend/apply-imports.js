@@ -18,16 +18,26 @@
 // taken the first file this does not matter; on an empty one it decides whether
 // the correction survives.
 //
-// Only the tables below can be written this way. An import is a record of days
-// worked and days off, not a way to reach the rest of the database from a file
-// on disk.
+// Only the tables below can be written this way. Days worked and days off, and
+// studio costs — a stack of paper invoices is the same problem as a month of
+// paper timesheets, and arrives the same way. Nothing else: an import is not a
+// way to reach the rest of the database from a file on disk, and in particular
+// never users, sessions or anything that decides what somebody may see.
+//
+// An invoice has a photograph, so a file may carry its photographs too. They sit
+// in imports/files/ and are copied into the uploads directory under the exact
+// names the rows refer to, which is the only way a row written from disk can
+// point at a picture that is really there.
 const fs = require('node:fs');
 const path = require('node:path');
 
-const ALLOWED = ['attendance', 'absences', 'leaves'];
+const ALLOWED = ['attendance', 'absences', 'leaves', 'expenses'];
 const DIR = path.join(__dirname, 'imports');
+const FILES = path.join(DIR, 'files');
 
-async function applyImports(db) {
+async function applyImports(db, uploadDir) {
+  // the same place the app itself keeps photographs, so a copied one is served
+  const UPLOAD_DIR = uploadDir || process.env.UPLOAD_DIR || path.join(__dirname, 'uploads');
   let files;
   try { files = fs.readdirSync(DIR).filter((f) => f.endsWith('.json')).sort(); }
   catch (e) { return []; }
@@ -62,6 +72,23 @@ async function applyImports(db) {
       }
     }
 
+    // The photographs first, so no row is ever written pointing at a picture
+    // that is not there yet. Copied by name, never overwriting one already in
+    // the uploads directory — a photo that is there is the real one.
+    let copied = 0;
+    for (const name of (Array.isArray(payload && payload.files) ? payload.files : [])) {
+      const safe = path.basename(String(name || ''));
+      if (!safe || safe !== name) continue; // a name, never a path
+      const from = path.join(FILES, safe);
+      const to = path.join(UPLOAD_DIR, safe);
+      try {
+        if (!fs.existsSync(from) || fs.existsSync(to)) continue;
+        fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+        fs.copyFileSync(from, to);
+        copied += 1;
+      } catch (e) { console.warn(`Import ${file}: ${safe} could not be put in place — ${e.message}`); }
+    }
+
     let written = 0, skipped = 0;
     for (const t of ALLOWED) {
       const rows = tables[t];
@@ -79,7 +106,7 @@ async function applyImports(db) {
     }
     await db.prepare('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
       .run(key, new Date().toISOString());
-    done.push({ file, written, skipped, removed });
+    done.push({ file, written, skipped, removed, copied });
   }
   return done;
 }
