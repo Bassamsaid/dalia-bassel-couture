@@ -1429,3 +1429,8 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .bottomnav.bn5{justify-content:space-between;padding:6px 4px}
 .bottomnav.bn5 button{min-width:0;flex:1 1 0;padding:10px 2px 8px;font-size:9.5px;letter-spacing:.2px}
 .bottomnav.bn5 button .ic{font-size:18px}
+/* a dress whose balance was given up on */
+.dp-row.off{opacity:.78;background:rgba(0,0,0,.025)}
+.dp-v.muted{color:var(--muted);font-size:13px}
+.dp-bar i.gone{background:repeating-linear-gradient(45deg,rgba(0,0,0,.08),rgba(0,0,0,.08) 4px,transparent 4px,transparent 8px)}
+.dp-act{margin-top:9px;width:100%}

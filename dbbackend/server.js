@@ -1031,9 +1031,14 @@ api['GET /api/dresses'] = async (req, res, user) => {
     d.unread = (await db.prepare("SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0 AND link_page='dress' AND link_id=?").get(user.id, d.id)).c;
     if (user.role === 'admin') {
       d.material_cost = (await db.prepare('SELECT COALESCE(SUM(amount),0) s FROM purchase_lines WHERE dress_id=?').get(d.id)).s;
-      d.profit = (d.price || 0) - d.material_cost;
       d.paid = (await db.prepare('SELECT COALESCE(SUM(amount),0) s FROM dress_payments WHERE dress_id=?').get(d.id)).s;
-      d.remaining = Math.max(0, (d.price || 0) - d.paid);
+      // Written off: the balance is never coming, so what the dress really sold
+      // for is what came in. The price she agreed stays on the record, and what
+      // was given up is carried beside it rather than quietly disappearing.
+      d.forgiven = d.written_off ? Math.max(0, (d.price || 0) - d.paid) : 0;
+      d.sold_for = d.written_off ? d.paid : (d.price || 0);
+      d.profit = d.sold_for - d.material_cost;
+      d.remaining = d.written_off ? 0 : Math.max(0, (d.price || 0) - d.paid);
     } else if (user.role === 'customer') {
       // clients see THEIR OWN order's price, deposits and balance (+ receipts)
       d.paid = (await db.prepare('SELECT COALESCE(SUM(amount),0) s FROM dress_payments WHERE dress_id=?').get(d.id)).s;
@@ -1143,6 +1148,22 @@ api['GET /api/dresses/:id/purchases'] = async (req, res, user, url, params) => {
 api['GET /api/dresses/:id/payments'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   send(res, 200, await db.prepare('SELECT * FROM dress_payments WHERE dress_id=? ORDER BY COALESCE(paid_at,created_at) DESC, id DESC').all(params.id));
+};
+/* The balance on a dress that is never coming. Not a deletion: the dress keeps
+   the price she agreed and gains the date it was given up on, so it can be put
+   back if the money does arrive after all. */
+api['PUT /api/dresses/:id/write-off'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  const d = await db.prepare('SELECT id FROM dresses WHERE id=?').get(params.id);
+  if (!d) return send(res, 404, { error: 'not found' });
+  if (b.off) {
+    await db.prepare("UPDATE dresses SET written_off=1, written_off_at=COALESCE(written_off_at, date('now')), written_off_note=? WHERE id=?")
+      .run(b.note || null, params.id);
+  } else {
+    await db.prepare('UPDATE dresses SET written_off=0, written_off_at=NULL, written_off_note=NULL WHERE id=?').run(params.id);
+  }
+  send(res, 200, { ok: true });
 };
 api['POST /api/dresses/:id/payments'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
@@ -2083,13 +2104,14 @@ api['GET /api/books'] = async (req, res, user) => {
 
   // What is still owed is worked out per dress and per student: somebody who
   // overpaid must not cancel out somebody who has not paid at all.
-  const dressRows = await db.prepare(`SELECT COALESCE(d.price,0) price,
+  const dressRows = await db.prepare(`SELECT COALESCE(d.price,0) price, COALESCE(d.written_off,0) written_off,
     COALESCE((SELECT SUM(amount) FROM dress_payments WHERE dress_id=d.id),0) paid FROM dresses d`).all();
   const courseRows = await db.prepare(`SELECT COALESCE(e.total_fee,0) fee,
     COALESCE((SELECT SUM(amount) FROM payments p WHERE p.user_id=u.id),0) paid
     FROM users u LEFT JOIN enrollments e ON e.user_id=u.id WHERE u.role='trainee'`).all();
-  const dressValue = dressRows.reduce((a, r) => a + r.price, 0);
-  const dueDresses = dressRows.reduce((a, r) => a + Math.max(0, r.price - r.paid), 0);
+  // a dress written off really sold for what came in, and owes nothing more
+  const dressValue = dressRows.reduce((a, r) => a + (r.written_off ? r.paid : r.price), 0);
+  const dueDresses = dressRows.reduce((a, r) => a + (r.written_off ? 0 : Math.max(0, r.price - r.paid)), 0);
   const courseFees = courseRows.reduce((a, r) => a + r.fee, 0);
   const dueCourses = courseRows.reduce((a, r) => a + Math.max(0, r.fee - r.paid), 0);
   const worthIncome = dressValue + courseFees;
