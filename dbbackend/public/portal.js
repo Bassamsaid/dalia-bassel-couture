@@ -555,10 +555,18 @@ PAGES.myfloat = async (c) => {
 };
 
 PAGES.mysalary = async (c) => {
-  const month = window._mySalMonth || today().slice(0, 7);
+  const pays = await GET('/api/salary-payments'); // own
+  // Arriving from the notification about a particular payment: open the month
+  // that payment is for. A September salary opened in October shows a month she
+  // was not paid for and a screen that says nothing was sent.
+  let month = window._mySalMonth || today().slice(0, 7);
+  if (window._openPayAfter) {
+    const p = pays.find((x) => x.id === window._openPayAfter);
+    if (p && p.month) { month = p.month; window._mySalMonth = p.month; }
+    window._openPayAfter = null;
+  }
   let sal = null;
   try { sal = await GET(`/api/staff/${state.user.id}/salary?month=${month}`); } catch (e) {}
-  const pays = await GET('/api/salary-payments'); // own
   window._mySal = sal;
   // A salary waiting to be confirmed goes at the top, not under a month's
   // arithmetic she would have to scroll past. The notification tells her to
@@ -567,7 +575,7 @@ PAGES.mysalary = async (c) => {
   const waitingCard = waiting.map((x) => `<div class="card pay-wait">
       <div class="pw-k">The studio sent you</div>
       <div class="pw-v">${money(x.amount)}</div>
-      <div class="pw-m">${x.month ? esc(x.month) : ''}${x.note ? ' · ' + esc(x.note) : ''} · ${dt(x.created_at)}</div>
+      <div class="pw-m">${x.month ? esc(monthLabel(x.month)) : ''}${x.note ? ' · ' + esc(x.note) : ''} · ${dt(x.created_at)}</div>
       ${x.image ? `<img class="thumb" style="max-width:190px;margin:10px auto 0;display:block" src="${esc(mediaUrl(x.image))}" onclick="lightbox('${esc(mediaUrl(x.image))}')"/>` : ''}
       <button class="btn" style="margin-top:12px" onclick="confirmSalary(${x.id})">✓ I received this</button>
       <div class="hint" style="margin-top:8px">Tap once the money is with you. The studio is told.</div>

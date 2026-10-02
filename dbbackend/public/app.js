@@ -390,7 +390,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v147';
+const APP_VERSION = 'v148';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1312,6 +1312,7 @@ window.openNotif = (page, id) => {
   }
   if (page === 'homework' && id) window._openTaskAfter = id; // land on that task's hand-in list
   if ((page === 'chats' || page === 'help') && id) window._openChatAfter = id; // open that conversation
+  if (page === 'mysalary' && id) window._openPayAfter = id; // land on that payment's month, not today's
   const target = PAGES[page] ? page : 'notifications';
   go(target);
 };

@@ -181,6 +181,14 @@ async function notifyAll(o = {}, exceptId) {
   } catch (e) {}
 }
 function money0(n) { return (Number(n) || 0).toLocaleString('en-US') + ' EGP'; }
+/* "2026-09" as "September 2026" — a month somebody reads rather than decodes. */
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+function monthName(ym) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(ym || ''));
+  return m ? `${MONTH_NAMES[Number(m[2]) - 1] || m[2]} ${m[1]}` : 'this month';
+}
+
 // ---- time / weekday helpers (payroll) ----
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 function hm2min(s) { if (!s) return 0; const p = String(s).split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); }
@@ -1974,7 +1982,15 @@ api['POST /api/salary-payments'] = async (req, res, user) => {
   // That month's salary has gone out, and this month's instalment came off it —
   // so it is paid, without anybody having to remember to say so.
   if (b.month) await db.prepare('UPDATE advances SET paid=1 WHERE user_id=? AND month=? AND paid=0').run(b.user_id, b.month);
-  await notify(b.user_id, { type: 'salary', title: `You received a salary of ${money0(b.amount)} 💵`, body: 'Open the Salary screen and confirm receipt', link_page: 'mysalary', actor_name: user.name });
+  // The month it is for, and the payment itself, so tapping the notification
+  // opens her salary on that month rather than on whichever one it happens to be
+  // today — a salary for September read in October shows an empty screen.
+  await notify(b.user_id, {
+    type: 'salary',
+    title: `Your ${monthName(b.month)} salary · ${money0(b.amount)} 💵`,
+    body: 'Tap to open it and confirm you received it',
+    link_page: 'mysalary', link_id: r.lastInsertRowid, actor_name: user.name,
+  });
   send(res, 200, { id: r.lastInsertRowid });
 };
 // staff (owner) confirms receipt; admin may also confirm
