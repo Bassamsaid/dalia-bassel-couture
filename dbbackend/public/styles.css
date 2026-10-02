@@ -1169,3 +1169,19 @@ input[readonly]:focus, textarea[readonly]:focus{box-shadow:none; border-color:va
   padding-top:12px;border-top:2px solid var(--purple)}
 .sal-net-k{font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--muted)}
 .sal-net-v{font-family:var(--serif,Georgia,serif);font-size:24px;font-weight:700;color:var(--ok)}
+
+/* ===== An advance paid off over several months ===== */
+.adv-card.done{border-inline-start:3px solid var(--ok)}
+.adv-bar{height:5px;border-radius:5px;background:var(--soft);overflow:hidden;margin:8px 0 6px}
+.adv-bar span{display:block;height:100%;background:var(--grad);border-radius:5px;transition:width .3s}
+.adv-left{font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:8px}
+.adv-parts{display:flex;flex-direction:column;gap:5px}
+.adv-part{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:10px;background:var(--soft)}
+.adv-part.paid{background:rgba(63,143,102,.09)}
+.adv-part .ap-m{font-variant-numeric:tabular-nums;font-weight:700;font-size:12.5px;color:var(--ink);flex:0 0 auto}
+.adv-part .ap-a{flex:1;font-size:12.5px;font-weight:700;color:var(--muted)}
+.adv-part.paid .ap-a{color:var(--ok)}
+.adv-part .ap-s{flex:0 0 auto;font:inherit;font-size:11px;font-weight:700;letter-spacing:.3px;
+  border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:16px;padding:4px 10px;cursor:pointer}
+button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
+.adv-part.paid .ap-s,.ap-s.on{background:var(--ok);border-color:transparent;color:#fff;cursor:default}

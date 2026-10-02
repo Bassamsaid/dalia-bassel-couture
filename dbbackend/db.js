@@ -677,6 +677,19 @@ const ready = (async () => {
   await tryExec('ALTER TABLE attendance ADD COLUMN extra_hours REAL');
   await tryExec('ALTER TABLE attendance ADD COLUMN extra_note TEXT');
 
+  // An advance taken over several months. The salary deducts by month, so each
+  // instalment stays a row of its own with its own month — that part was always
+  // right, it was just being typed four times by hand. What was missing was
+  // anything saying those four rows are one 6,500 advance over four months.
+  //   parent_id  — the advance this instalment belongs to
+  //   instalments— on the parent: how many it was split over (month stays NULL
+  //                there, so the salary never counts the parent twice)
+  //   paid       — this instalment has come off a salary
+  await tryExec('ALTER TABLE advances ADD COLUMN parent_id INTEGER');
+  await tryExec('ALTER TABLE advances ADD COLUMN instalments INTEGER');
+  await tryExec('ALTER TABLE advances ADD COLUMN paid INTEGER DEFAULT 0');
+  await tryExec('CREATE INDEX IF NOT EXISTS idx_advances_parent ON advances(parent_id)');
+
   // A float — عهدة — is cash handed to somebody to keep at the studio and spend
   // from. Two things are recorded against it: the cash itself moving (handed
   // over, or given back), and the spending that came out of it, which is just

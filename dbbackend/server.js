@@ -1656,12 +1656,40 @@ api['POST /api/adjustments'] = async (req, res, user) => {
 };
 api['DELETE /api/adjustments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM salary_adjustments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 
+/* YYYY-MM plus n months. Done on the numbers, because a Date would drag a
+   timezone into something that is only ever a year and a month. */
+function addMonths(ym, n) {
+  const [y, m] = String(ym).split('-').map(Number);
+  const t = (y * 12) + (m - 1) + n;
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`;
+}
+
+/* An advance and its instalments come back as one thing: the plan, with the
+   months under it, how many have come off a salary, and whether that is all of
+   them. A plain one-off advance has no instalments and is its own plan. */
+function advanceShape(parent, kids) {
+  const parts = kids.slice().sort((a, b) => String(a.month || '').localeCompare(String(b.month || '')));
+  const paid = parts.filter((p) => p.paid).length;
+  const total = parts.length ? parts.reduce((a, p) => a + (p.amount || 0), 0) : (parent.amount || 0);
+  return {
+    ...parent,
+    total,
+    instalments: parts.length || 1,
+    paid_count: parts.length ? paid : (parent.paid ? 1 : 0),
+    paid_amount: parts.length ? parts.filter((p) => p.paid).reduce((a, p) => a + (p.amount || 0), 0) : (parent.paid ? parent.amount : 0),
+    complete: parts.length ? (paid === parts.length) : !!parent.paid,
+    parts,
+  };
+}
 api['GET /api/advances'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return;
   const uid = user.role === 'admin' ? url.searchParams.get('user_id') : user.id; // non-admin: own only
-  const q = uid ? 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY created_at DESC'
-    : 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id ORDER BY created_at DESC';
-  send(res, 200, uid ? await db.prepare(q).all(uid) : await db.prepare(q).all());
+  const q = uid ? 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY a.created_at DESC, a.id DESC'
+    : 'SELECT a.*,u.name user_name FROM advances a JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC, a.id DESC';
+  const rows = uid ? await db.prepare(q).all(uid) : await db.prepare(q).all();
+  const kids = {};
+  rows.forEach((r) => { if (r.parent_id) (kids[r.parent_id] = kids[r.parent_id] || []).push(r); });
+  send(res, 200, rows.filter((r) => !r.parent_id).map((r) => advanceShape(r, kids[r.id] || [])));
 };
 api['POST /api/advances'] = async (req, res, user) => {
   if (!requireStaffish(user, res)) return;
@@ -1671,6 +1699,27 @@ api['POST /api/advances'] = async (req, res, user) => {
   // admin creates approved advances; staff request pending ones (deduct from current month once approved)
   const status = user.role === 'admin' ? (b.status || 'approved') : 'pending';
   const month = user.role === 'admin' ? (b.month || null) : new Date().toISOString().slice(0, 7);
+  // Split over several months: one plan, and a row per month for the salary to
+  // find. The division is to the piastre and whatever is left over rides on the
+  // last instalment, so the parts always add back up to what was handed over.
+  const n = Math.max(1, Math.min(36, Number(b.instalments) || 1));
+  if (n > 1 && user.role === 'admin') {
+    const total = Number(b.amount) || 0;
+    const each = Math.round((total / n) * 100) / 100;
+    const start = /^\d{4}-\d{2}$/.test(String(b.month || '')) ? String(b.month) : studioNow().date.slice(0, 7);
+    const p = await db.prepare('INSERT INTO advances (user_id,amount,month,note,status,instalments) VALUES (?,?,NULL,?,?,?)')
+      .run(uid, total, b.note || null, status, n);
+    const pid = p.lastInsertRowid;
+    let placed = 0;
+    for (let i = 0; i < n; i++) {
+      const amt = i === n - 1 ? Math.round((total - placed) * 100) / 100 : each;
+      placed = Math.round((placed + amt) * 100) / 100;
+      await db.prepare('INSERT INTO advances (user_id,amount,month,note,status,parent_id) VALUES (?,?,?,?,?,?)')
+        .run(uid, amt, addMonths(start, i), b.note || null, status, pid);
+    }
+    await notify(uid, { type: 'advance', title: `An advance of ${money0(total)} over ${n} month(s)`, body: `${money0(each)} a month from ${addMonths(start, 0)}`, link_page: 'me', actor_name: user.name });
+    return send(res, 200, { id: pid, instalments: n });
+  }
   const r = await db.prepare('INSERT INTO advances (user_id,amount,month,note,status) VALUES (?,?,?,?,?)').run(uid, b.amount, month, b.note || null, status);
   if (user.role !== 'admin') await notifyRoles('admin', { type: 'advance', title: `Advance request from ${user.name}`, body: money0(b.amount), link_page: 'staff', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
@@ -1684,7 +1733,22 @@ api['PUT /api/advances/:id'] = async (req, res, user, url, params) => {
   if (adv) await notify(adv.user_id, { type: 'advance', title: `Advance request ${st === 'approved' ? 'approved ✅' : 'rejected ❌'}`, body: money0(adv.amount), link_page: 'myrequests', actor_name: user.name });
   send(res, 200, { ok: true });
 };
-api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM advances WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+/* Ticking an instalment off by hand, for a month whose salary was handed over
+   without being recorded here. */
+api['PUT /api/advances/:id/paid'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const b = await readBody(req);
+  await db.prepare('UPDATE advances SET paid=? WHERE id=?').run(b.paid ? 1 : 0, params.id);
+  send(res, 200, { ok: true });
+};
+/* Deleting a plan takes its instalments with it — they are not advances of their
+   own and leaving them behind would keep deducting for something that is gone. */
+api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  await db.prepare('DELETE FROM advances WHERE parent_id=?').run(params.id);
+  await db.prepare('DELETE FROM advances WHERE id=?').run(params.id);
+  send(res, 200, { ok: true });
+};
 
 // Auto salary breakdown for a staff member in a given month (YYYY-MM). Admin, or the staff themselves.
 api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
@@ -1903,6 +1967,9 @@ api['POST /api/salary-payments'] = async (req, res, user) => {
   if (!b.user_id) return send(res, 400, { error: 'staff required' });
   const img = await maybeImage(b.image);
   const r = await db.prepare('INSERT INTO salary_payments (user_id,month,amount,image,note) VALUES (?,?,?,?,?)').run(b.user_id, b.month || null, b.amount || 0, img, b.note || null);
+  // That month's salary has gone out, and this month's instalment came off it —
+  // so it is paid, without anybody having to remember to say so.
+  if (b.month) await db.prepare('UPDATE advances SET paid=1 WHERE user_id=? AND month=? AND paid=0').run(b.user_id, b.month);
   await notify(b.user_id, { type: 'salary', title: `You received a salary of ${money0(b.amount)} 💵`, body: 'Open the Salary screen and confirm receipt', link_page: 'mysalary', actor_name: user.name });
   send(res, 200, { id: r.lastInsertRowid });
 };
