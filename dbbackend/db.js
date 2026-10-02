@@ -709,6 +709,11 @@ const ready = (async () => {
   await tryExec('CREATE INDEX IF NOT EXISTS idx_float_moves_user ON float_moves(user_id)');
   await tryExec('ALTER TABLE expenses ADD COLUMN paid_by INTEGER');
   await tryExec('ALTER TABLE purchase_invoices ADD COLUMN paid_by INTEGER');
+  // A wage that has gone out is a cost the studio carried, so paying one writes
+  // itself into the studio costs. The link is what stops it being counted twice:
+  // the cost belongs to that payment, and goes when the payment goes.
+  await tryExec('ALTER TABLE expenses ADD COLUMN salary_payment_id INTEGER');
+  await tryExec('CREATE INDEX IF NOT EXISTS idx_expenses_salary ON expenses(salary_payment_id)');
 
   const { fixAttendanceTz, pruneAttendanceBefore } = require('./fix-attendance-tz');
   // Shifts from before the studio began keeping this properly, cleared at the
@@ -793,6 +798,36 @@ const ready = (async () => {
     }
   } catch (e) {
     console.warn('Expense types could not be added:', e.message);
+  }
+
+  // Wages are the studio's biggest running cost, and until now they were kept
+  // only on the salary records — so the studio costs read low by exactly the
+  // payroll. From here a salary payment writes its own cost; this puts the ones
+  // already sent in beside them, dated to the month they were for, so the
+  // monthly figures are whole. Once only: the flag means a cost deleted on
+  // purpose afterwards stays deleted.
+  try {
+    const flag = await db.prepare("SELECT value FROM settings WHERE key = 'salary_costs_2026_10'").get();
+    if (!flag) {
+      await db.prepare('INSERT INTO expense_types (name) SELECT ? WHERE NOT EXISTS (SELECT 1 FROM expense_types WHERE name = ?)').run('Salaries', 'Salaries');
+      const pays = await db.prepare(`SELECT s.id, s.user_id, s.month, s.amount, s.created_at, u.name
+        FROM salary_payments s JOIN users u ON u.id = s.user_id
+        WHERE NOT EXISTS (SELECT 1 FROM expenses e WHERE e.salary_payment_id = s.id)`).all();
+      for (const p of pays) {
+        // the month it was for, not the day it was sent: a September wage is a
+        // September cost, however late it went out
+        const m = String(p.month || '').slice(0, 7);
+        const date = /^\d{4}-\d{2}$/.test(m)
+          ? new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10)
+          : String(p.created_at || '').slice(0, 10) || null;
+        await db.prepare('INSERT INTO expenses (type,amount,date,note,salary_payment_id) VALUES (?,?,?,?,?)')
+          .run('Salaries', p.amount || 0, date, `${p.name}${m ? ' · ' + m : ''} salary`, p.id);
+      }
+      await db.prepare("INSERT INTO settings (key,value) VALUES ('salary_costs_2026_10',?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(new Date().toISOString());
+      if (pays.length) console.log(`Studio costs: ${pays.length} salary payment(s) written in as costs.`);
+    }
+  } catch (e) {
+    console.warn('Salaries could not be written into the studio costs:', e.message);
   }
 
   // Last, deliberately: months kept on paper go in after the old rows have been

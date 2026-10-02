@@ -1973,6 +1973,19 @@ api['GET /api/salary-payments'] = async (req, res, user, url) => {
     : 'SELECT s.*,u.name user_name FROM salary_payments s JOIN users u ON u.id=s.user_id ORDER BY s.created_at DESC';
   send(res, 200, uid ? await db.prepare(q).all(uid) : await db.prepare(q).all());
 };
+/* A salary that has gone out, written into the studio costs where it belongs.
+   It is dated to the month it is FOR, not the day it was sent: a September wage
+   paid in October is September's cost, or every month's figure reads wrong.
+   paid_by is left empty — wages go from the bank, never from somebody's float. */
+async function addSalaryCost(payId, userId, month, amount) {
+  const who = await db.prepare('SELECT name FROM users WHERE id=?').get(userId);
+  const m = String(month || '').slice(0, 7);
+  const date = /^\d{4}-\d{2}$/.test(m)
+    ? new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10)
+    : studioNow().date;
+  await db.prepare('INSERT INTO expenses (type,amount,date,note,salary_payment_id) VALUES (?,?,?,?,?)')
+    .run('Salaries', amount || 0, date, `${(who && who.name) || 'Staff'}${m ? ' · ' + m : ''} salary`, payId);
+}
 api['POST /api/salary-payments'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
@@ -1982,6 +1995,9 @@ api['POST /api/salary-payments'] = async (req, res, user) => {
   // That month's salary has gone out, and this month's instalment came off it —
   // so it is paid, without anybody having to remember to say so.
   if (b.month) await db.prepare('UPDATE advances SET paid=1 WHERE user_id=? AND month=? AND paid=0').run(b.user_id, b.month);
+  // Wages are a studio cost like any other, and always go from the bank — so the
+  // payment writes its own cost rather than waiting to be typed in twice.
+  await addSalaryCost(r.lastInsertRowid, b.user_id, b.month, b.amount || 0);
   // The month it is for, and the payment itself, so tapping the notification
   // opens her salary on that month rather than on whichever one it happens to be
   // today — a salary for September read in October shows an empty screen.
@@ -2003,7 +2019,13 @@ api['PUT /api/salary-payments/:id/confirm'] = async (req, res, user, url, params
   if (user.role !== 'admin') await notifyRoles('admin', { type: 'salary', title: `${user.name} confirmed salary receipt ✅`, body: money0(p.amount), link_page: 'staff', actor_name: user.name }, user.id);
   send(res, 200, { ok: true });
 };
-api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM salary_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  await db.prepare('DELETE FROM salary_payments WHERE id=?').run(params.id);
+  // the cost it wrote goes with it — a wage that was never paid is not a cost
+  await db.prepare('DELETE FROM expenses WHERE salary_payment_id=?').run(params.id);
+  send(res, 200, { ok: true });
+};
 
 // ================= EXPENSES (vendors, types, entries) =================
 // Each vendor carries its unified spend = material purchases + general expenses.
@@ -2152,13 +2174,17 @@ api['GET /api/floats/:id'] = async (req, res, user, url, params) => {
   const costs = await db.prepare(`SELECT e.*, (SELECT name FROM vendors WHERE id=e.vendor_id) vendor_name
     FROM expenses e WHERE e.paid_by=? ORDER BY e.date DESC, e.id DESC`).all(id);
   const invoices = await db.prepare(`SELECT i.*, (SELECT SUM(amount) FROM purchase_lines WHERE invoice_id=i.id) total,
-    (SELECT name FROM vendors WHERE id=i.vendor_id) vendor_name
+    (SELECT name FROM vendors WHERE id=i.vendor_id) vendor_name,
+    (SELECT GROUP_CONCAT(DISTINCT d.customer_name) FROM purchase_lines l
+       JOIN dresses d ON d.id = l.dress_id WHERE l.invoice_id = i.id) dress_names
     FROM purchase_invoices i WHERE i.paid_by=? ORDER BY i.invoice_date DESC, i.id DESC`).all(id);
   const when = (d) => String(d || '').slice(0, 10);
   const entries = [
     ...moves.map((m) => ({ kind: m.kind === 'out' ? 'back' : 'handed', id: m.id, amount: m.amount, date: when(m.date || m.created_at), note: m.note })),
     ...costs.map((e) => ({ kind: 'cost', id: e.id, amount: e.amount, date: when(e.date || e.created_at), note: [e.type, e.vendor_name, e.note].filter(Boolean).join(' · ') })),
-    ...invoices.map((i) => ({ kind: 'invoice', id: i.id, amount: i.total || 0, date: when(i.invoice_date || i.created_at), note: [i.vendor_name || i.shop, i.note].filter(Boolean).join(' · ') })),
+    // which dress the materials went on is the thing somebody checking a float
+    // actually wants to read, so it leads the line
+    ...invoices.map((i) => ({ kind: 'invoice', id: i.id, amount: i.total || 0, date: when(i.invoice_date || i.created_at), note: [i.dress_names ? '👗 ' + i.dress_names : null, i.vendor_name || i.shop, i.note].filter(Boolean).join(' · ') })),
   ].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
   send(res, 200, { user: who, ...(await floatFor(id)), entries });
 };
@@ -2212,7 +2238,15 @@ api['POST /api/expenses'] = async (req, res, user) => {
   const r = await db.prepare('INSERT INTO expenses (vendor_id,type,amount,date,note,image,paid_by) VALUES (?,?,?,?,?,?,?)').run(b.vendor_id || null, b.type || null, b.amount, b.date || null, b.note || null, img, b.paid_by || null);
   send(res, 200, { id: r.lastInsertRowid });
 };
-api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM expenses WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  // a wage's cost is the wage: taking it off here alone would leave the salary
+  // record saying it was paid and the books saying it never cost anything
+  const e = await db.prepare('SELECT salary_payment_id FROM expenses WHERE id=?').get(params.id);
+  if (e && e.salary_payment_id) return send(res, 400, { error: 'This is a salary that was sent. Remove it from the staff member\'s salary record and it comes off here too.' });
+  await db.prepare('DELETE FROM expenses WHERE id=?').run(params.id);
+  send(res, 200, { ok: true });
+};
 
 // ================= NOTIFICATIONS =================
 // Raw file upload — the body IS the file, so an HD video does not have to be

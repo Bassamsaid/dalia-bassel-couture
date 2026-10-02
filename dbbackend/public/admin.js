@@ -2230,21 +2230,35 @@ PAGES.expenses = async (c) => {
   let inner = '';
   if (tab === 'entries') {
     const ef = window._expMonth || '';
+    const pf = window._expPaid || ''; // '' all · 'bank' · a float holder's id
     expenses.sort((a, b) => String(b.date || b.created_at || '').localeCompare(String(a.date || a.created_at || '')));
-    const elist = ef ? expenses.filter((e) => String(e.date || e.created_at || '').slice(0, 7) === ef) : expenses;
+    const mlist = ef ? expenses.filter((e) => String(e.date || e.created_at || '').slice(0, 7) === ef) : expenses;
+    const elist = pf === 'bank' ? mlist.filter((e) => !e.paid_by)
+      : pf ? mlist.filter((e) => String(e.paid_by) === String(pf)) : mlist;
     const etotal = elist.reduce((a, e) => a + (e.amount || 0), 0);
+    const holders = window._floatHolders || [];
+    // each chip totals the month, not the chip already chosen — otherwise
+    // picking one makes the others read zero
+    const sumWhere = (x) => mlist.filter(x).reduce((a, e) => a + (e.amount || 0), 0);
     inner = `<div class="grid g2" style="margin-bottom:10px">
         <div class="stat"><div class="n serif" style="color:var(--bad)">${money(etotal)}</div><div class="l">${ef ? monthLabel(ef) : 'All-time'} spent</div></div>
         <div class="stat"><div class="n serif">${elist.length}</div><div class="l">cost${elist.length === 1 ? '' : 's'} recorded</div></div>
       </div>
       <button class="btn" onclick="addExpense()">＋ New studio cost</button>
       ${monthChips(expenses.map((e) => e.date || e.created_at), ef, 'setExpMonth')}
+      <div class="filters wrap" style="margin-top:8px">
+        <span class="chip ${pf === '' ? 'active' : ''}" onclick="setExpPaid('')">Paid from: any</span>
+        <span class="chip ${pf === 'bank' ? 'active' : ''}" onclick="setExpPaid('bank')">🏦 The bank · ${moneyText(sumWhere((e) => !e.paid_by))}</span>
+        ${holders.map((h) => `<span class="chip ${String(pf) === String(h.id) ? 'active' : ''}" onclick="setExpPaid('${h.id}')">🧰 ${esc(h.name)} · ${moneyText(sumWhere((e) => String(e.paid_by) === String(h.id)))}</span>`).join('')}
+      </div>
       <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item">
-        ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : '<div class="av">💸</div>'}
-        <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''}${e.paid_by_name ? ` · 🧰 <bdi>${esc(e.paid_by_name)}</bdi>'s float` : ''}</div></div>
-        <div class="row" style="gap:2px">
+        ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : `<div class="av">${e.salary_payment_id ? '💼' : '💸'}</div>`}
+        <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''} · ${e.paid_by_name ? `🧰 <bdi>${esc(e.paid_by_name)}</bdi>'s float` : '🏦 the bank'}</div></div>
+        ${e.salary_payment_id
+          ? `<button class="btn-icon" title="This came from the salary record" onclick="go('staff')">💼</button>`
+          : `<div class="row" style="gap:2px">
           <button class="btn-icon" title="Move to Purchases" onclick="moveCostToPurchase(${e.id})">↗</button>
-          <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div></div>`).join('') : empty(ef ? 'Nothing spent in ' + monthLabel(ef) : 'Nothing here yet', '🏠')}</div>`;
+          <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`}</div>`).join('') : empty(ef || pf ? 'Nothing matches this filter' : 'Nothing here yet', '🏠')}</div>`;
   } else if (tab === 'analysis') {
     const byMonth = {};
     const addTo = (m, t, amt) => { byMonth[m] = byMonth[m] || { total: 0, types: {} }; byMonth[m].total += amt; byMonth[m].types[t] = (byMonth[m].types[t] || 0) + amt; };
@@ -2265,6 +2279,7 @@ PAGES.expenses = async (c) => {
      <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
+window.setExpPaid = (v) => { window._expPaid = v; go('expenses'); };
 window.addExpense = async () => { await loadFloatHolders(); const { vendors, types } = window._expRef; formModal('New studio cost', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'type', label: 'Type', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
@@ -2391,6 +2406,7 @@ PAGES.float = async (c) => {
       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(f.spent)}</div><div class="l">spent</div></div>
       <div class="stat fl-left"><div class="n serif" style="color:var(--${f.balance < 0 ? 'bad' : 'ok'})">${money(f.balance)}</div><div class="l">still in hand</div></div>
     </div>
+    ${f.spent ? `<div class="hint" style="margin:2px 2px 8px">Of what she spent: <b>${money(f.invoices)}</b> on dresses · <b>${money(f.costs)}</b> on the studio.</div>` : ''}
     ${f.back ? `<div class="hint" style="margin:2px 2px 8px">${money(f.back)} of it was given back.</div>` : ''}
     ${f.balance < 0 ? `<div class="card" style="border-inline-start:4px solid var(--bad)"><div class="nm" style="color:var(--bad)">She has spent ${money(-f.balance)} of her own</div>
       <div class="sub muted">Hand that over to settle it, or take the spending off this float.</div></div>` : ''}
@@ -2440,20 +2456,43 @@ window.editFloatMove = (id, userId) => {
   });
 };
 
-/* Recording what the cash went on, from the float itself. It was always
-   possible — a studio cost with her float chosen under Paid from — but only if
-   you knew to go to the other screen and look for the choice. Here the float is
-   already chosen and the form opens on her. */
+/* Recording what the cash went on, from the float itself. Float money only ever
+   goes one of two ways — onto a dress, or onto the studio — so the first thing
+   it asks is which, and then it files itself there: a purchase invoice against
+   that dress, or a studio cost. Either way it is marked as hers, so it comes
+   off her float on its own; there is no third place for float spending to sit. */
 window.spendFromFloat = async (userId) => {
   await loadFloatHolders();
+  const her = (window._floatHolders || []).find((h) => h.id === userId);
+  const whose = her ? `${her.name}'s float` : 'the float';
+  modal(`<h3>🧰 Spent from ${esc(whose)}</h3>
+    <p class="hint" style="margin:2px 2px 14px">What did the cash go on? It is recorded where it belongs, and comes off ${her ? esc(her.name) + "'s" : 'the'} float either way.</p>
+    <div class="nav-list flush">
+      <div class="nav-row" style="${tintVars('dresses')}" onclick="closeModal();floatOnDress(${userId})">
+        <span class="rail"></span><span class="ic">👗</span>
+        <span class="txt"><span class="nm">Materials for a dress</span><span class="meta">Goes on that dress as an invoice — and into its material cost</span></span>
+        <span class="chev">›</span></div>
+      <div class="nav-row" style="${tintVars('expenses')}" onclick="closeModal();floatOnStudio(${userId})">
+        <span class="rail"></span><span class="ic">🏠</span>
+        <span class="txt"><span class="nm">Something for the studio</span><span class="meta">Rent, bills, coffee corner, cleaning — goes into studio costs</span></span>
+        <span class="chev">›</span></div>
+    </div>`);
+};
+
+/* the two headings a float can be spent under — kept fresh so the lists are never stale */
+async function spendRefs() {
   let types = (window._expRef && window._expRef.types) || [];
   let vendors = (window._expRef && window._expRef.vendors) || [];
-  if (!types.length) {
+  if (!types.length || !vendors.length) {
     try { [types, vendors] = await Promise.all([GET('/api/expense-types'), GET('/api/vendors')]); window._expRef = { types, vendors }; } catch (e) {}
   }
-  const holders = window._floatHolders || [];
-  const her = holders.find((h) => h.id === userId);
-  formModal(her ? `Spent from ${her.name}'s float` : 'Spent from the float', [
+  return { types, vendors };
+}
+
+window.floatOnStudio = async (userId) => {
+  const { types, vendors } = await spendRefs();
+  const her = (window._floatHolders || []).find((h) => h.id === userId);
+  formModal(her ? `Studio cost from ${her.name}'s float` : 'Studio cost from the float', [
     { name: 'amount', label: 'How much', type: 'number', required: true },
     { name: 'type', label: 'What for', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
     { name: 'vendor_id', label: 'Vendor (optional)', type: 'select', options: [{ value: '', label: '— none —' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
@@ -2462,7 +2501,39 @@ window.spendFromFloat = async (userId) => {
     { name: 'image', label: 'Receipt photo (optional)', type: 'image' },
   ], async (d) => {
     await POST('/api/expenses', { ...d, paid_by: userId });
-    toast('On her float ✓');
+    toast('In studio costs, off her float ✓');
+    window._floatId = userId; go('float');
+  });
+};
+
+/* Materials bought with float cash: an invoice against that dress, so the money
+   lands in the dress's material cost and in the vendor's total, not in a pile
+   of its own. The shop has to be named — same rule as any other invoice. */
+window.floatOnDress = async (userId) => {
+  const { vendors } = await spendRefs();
+  let dresses = window._dresses || [];
+  if (!dresses.length) { try { dresses = await GET('/api/dresses'); window._dresses = dresses; } catch (e) {} }
+  const open = dresses.filter((d) => d.status !== 'delivered');
+  const pick = (open.length ? open : dresses).map((d) => ({ value: d.id, label: `${d.customer_name}${d.delivery_date ? ' · ' + d.delivery_date : ''}` }));
+  const her = (window._floatHolders || []).find((h) => h.id === userId);
+  formModal(her ? `Materials from ${her.name}'s float` : 'Materials from the float', [
+    { name: 'amount', label: 'How much', type: 'number', required: true },
+    { name: 'dress_id', label: 'Which dress', type: 'select', required: true, options: [{ value: '', label: '—' }, ...pick] },
+    { name: 'item', label: 'What was bought', placeholder: 'Lace · tulle · beads · thread' },
+    { name: 'vendor_id', label: 'Vendor', type: 'select', options: [{ value: '', label: '— or type the shop below —' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
+    { name: 'shop', label: 'Shop (if not on the list)' },
+    { name: 'date', label: 'Date', type: 'date', value: today() },
+    { name: 'note', label: 'Note' },
+    { name: 'image', label: 'Invoice photo (optional)', type: 'image' },
+  ], async (d) => {
+    if (!d.dress_id) throw new Error('Which dress was it for?');
+    if (!d.vendor_id && !String(d.shop || '').trim()) throw new Error('Name the shop it came from.');
+    await POST('/api/purchases', {
+      vendor_id: d.vendor_id || null, shop: d.shop || null, invoice_date: d.date || null,
+      note: d.note || null, image: d.image || null, paid_by: userId,
+      lines: [{ dress_id: Number(d.dress_id), item: d.item || null, amount: Number(d.amount) }],
+    });
+    toast('On the dress, off her float ✓');
     window._floatId = userId; go('float');
   });
 };
