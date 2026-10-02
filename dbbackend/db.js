@@ -740,6 +740,24 @@ const ready = (async () => {
   await tryExec('ALTER TABLE dresses ADD COLUMN written_off_at TEXT');
   await tryExec('ALTER TABLE dresses ADD COLUMN written_off_note TEXT');
   await tryExec('CREATE INDEX IF NOT EXISTS idx_expenses_salary ON expenses(salary_payment_id)');
+  // A deposit is the money that books the dress; everything after it is an
+  // instalment against the price. The studio says which when it writes the
+  // payment down.
+  await tryExec("ALTER TABLE dress_payments ADD COLUMN kind TEXT"); // deposit | payment
+  // Payments written down before there was a word for it: the first money on a
+  // dress is its deposit, the rest are instalments. Only rows that have no word
+  // yet are touched, so this is safe to run on every boot and needs no flag —
+  // a flag set on an empty table would close the job before the rows arrived.
+  try {
+    const r = await db.prepare(`UPDATE dress_payments SET kind='deposit'
+      WHERE kind IS NULL AND id IN (
+        SELECT (SELECT q.id FROM dress_payments q WHERE q.dress_id=p.dress_id
+                ORDER BY COALESCE(q.paid_at,q.created_at) ASC, q.id ASC LIMIT 1)
+        FROM dress_payments p GROUP BY p.dress_id)`).run();
+    const r2 = await db.prepare("UPDATE dress_payments SET kind='payment' WHERE kind IS NULL").run();
+    const n = (r.changes || 0) + (r2.changes || 0);
+    if (n) console.log(`Dress payments: ${r.changes || 0} marked as a deposit, ${r2.changes || 0} as an instalment.`);
+  } catch (e) { console.warn('Dress payments could not be marked:', e.message); }
 
   const { fixAttendanceTz, pruneAttendanceBefore } = require('./fix-attendance-tz');
   // Shifts from before the studio began keeping this properly, cleared at the

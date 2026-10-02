@@ -1491,3 +1491,9 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .home-lux .bk-owed{padding:11px 16px 13px}
 .home-lux .bk-owed-r b{font-size:15px}
 .home-lux .bk-foot{padding:10px 16px 13px;font-size:11.5px;letter-spacing:.2px}
+
+/* A payment says what it is: the money that booked the dress, or more off the price */
+.pay-k{display:inline-block;vertical-align:2px;margin-inline-start:7px;padding:2px 8px;border-radius:20px;
+  font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+  background:var(--soft);color:var(--purple-d)}
+.pay-k.dep{background:rgba(63,143,102,.13);color:var(--ok)}
