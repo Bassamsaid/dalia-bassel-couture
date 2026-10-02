@@ -396,7 +396,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v160';
+const APP_VERSION = 'v161';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1157,15 +1157,9 @@ function brandGroup(o) {
       <div class="k">${esc(f.label)}</div></div>`).join('');
   const body = `${o.content !== undefined ? `<div class="bg-body">${o.content}</div>` : navList(o.rows, true)}
     ${figs ? `<div class="bg-figs"><div class="fig-row${(o.figures || []).length > 3 ? ' wrap' : ''}"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}`;
-  // The house's own slice of the books, set out in the head: what came in, what
-  // it cost, what it leaves. The dashboard underneath is the detail behind it.
-  // no minus in front of a nought: "−0 EGP" reads like a mistake, because it is one
-  const pl = (o.pl || []).map(([k, v, cls]) => `<div class="bg-pl-r ${cls || ''}">
-      <span>${esc(k)}</span><b>${String(cls || '').includes('out') && Math.abs(v) > 0.0001 ? '−' : ''}${money(Math.abs(v))}</b></div>`).join('');
   const head = `<div class="bg-name">${esc(o.name)}</div>
       <div class="bg-kind">${esc(o.kind)}</div>
-      ${o.summary ? `<div class="bg-sum">${o.summary}</div>` : ''}
-      ${pl ? `<div class="bg-pl">${o.plWhen ? `<div class="bg-pl-w">${esc(o.plWhen)}</div>` : ''}${pl}</div>` : ''}`;
+      ${o.summary ? `<div class="bg-sum">${o.summary}</div>` : ''}`;
   const vars = `--c1:${o.c1};--c2:${o.c2};--glow:${o.glow}`;
   if (!o.collapse) {
     return `<div class="brand-group" style="${vars}"><div class="bg-head">${head}</div>${body}</div>`;

@@ -1262,7 +1262,7 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
   background:rgba(255,255,255,.8);box-shadow:var(--shadow);
   backdrop-filter:blur(10px) saturate(1.2);-webkit-backdrop-filter:blur(10px) saturate(1.2);
   animation:rise .45s ease both}
-.home-lux .bk-net{padding:22px 18px 18px;text-align:center;color:#fff;position:relative;overflow:hidden;
+.home-lux .bk-net{padding:20px 18px 17px;text-align:center;color:#fff;position:relative;overflow:hidden;
   background:linear-gradient(135deg,#0f3d2e,#1f9d6b 62%,#0f3d2e)}
 .home-lux .bk-net.bad{background:linear-gradient(135deg,#5b1220,#c2185b 62%,#5b1220)}
 .home-lux .bk-net::after{content:"";position:absolute;top:-60%;inset-inline-end:-18%;width:62%;height:220%;
@@ -1303,17 +1303,6 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .home-lux .bk-foot{padding:12px 16px 14px;font-size:11.5px;color:var(--muted);font-weight:600;
   border-top:1px dashed var(--line)}
 
-/* ===== A house's own slice of the books, inside its coloured head ===== */
-.home-lux .bg-pl{margin-top:13px;padding-top:11px;border-top:1px solid rgba(255,255,255,.26);position:relative;z-index:1}
-.home-lux .bg-pl-w{font-size:9.5px;letter-spacing:2px;text-transform:uppercase;font-weight:800;
-  opacity:.72;margin-bottom:7px}
-.home-lux .bg-pl-r{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:3px 0;
-  font-size:12.5px;font-weight:600;opacity:.95}
-.home-lux .bg-pl-r b{font-family:var(--sans);font-weight:800;font-variant-numeric:tabular-nums lining-nums;
-  white-space:nowrap}
-.home-lux .bg-pl-r.tot{border-top:1px solid rgba(255,255,255,.26);margin-top:6px;padding-top:8px;
-  font-weight:800;opacity:1;font-size:13.5px}
-
 /* ===== A house opens from its own head ===== */
 .home-lux .bg-acc .bg-head{cursor:pointer}
 .home-lux .bg-acc .bg-panel{display:none}
@@ -1323,8 +1312,6 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .home-lux .bg-acc.open .bg-chev{transform:rotate(90deg)}
 .home-lux .bg-acc .bg-head:active{filter:brightness(1.08)}
 /* a figure shown for context that is already counted somewhere else */
-.home-lux .bg-pl-r.note{opacity:.72;font-size:11.5px}
-.home-lux .bg-pl-r.note b{font-weight:700}
 
 /* ===== The sum in plain words: money in, money out, what is left ===== */
 .home-lux .bk-head-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
@@ -1411,3 +1398,10 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .bulk-row .br-f input{width:100%;margin-top:4px;padding:8px 10px;font-size:14px;font-weight:600;
   text-transform:none;letter-spacing:0;color:var(--ink)}
 .bulk-row .br-x{position:absolute;top:6px;inset-inline-end:6px}
+
+/* ===== One card, read top to bottom, ending in the profit ===== */
+.home-lux .bk-top{padding:15px 16px 4px;font-size:10px;letter-spacing:2.4px;text-transform:uppercase;
+  font-weight:800;color:var(--muted)}
+.home-lux .bk-line.net{border-top:2px solid var(--ink);padding:16px 16px 18px}
+.home-lux .bk-line.net .bk-v{font-size:28px;font-family:var(--serif);font-weight:700}
+.home-lux .bk-line.net .bk-k{font-size:12px}

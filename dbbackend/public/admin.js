@@ -319,55 +319,41 @@ window.toggleSpend = (k) => {
    honestly — a dress is not earned on any one day — so all time carries a second
    reading beside it: what everything is worth once what is owed comes in. The
    two answer different questions, and are never added together. */
-const booksPct = (x) => (x * 100).toFixed(Math.abs(x) < 0.1 ? 1 : 0).replace(/\.0$/, '') + '%';
 function booksPeriod(books) {
   const key = window._booksMonth === undefined ? '' : window._booksMonth; // '' = all time
   return { key, b: (key && books.by[key]) ? books.by[key] : books.all, when: key ? monthLabel(key) : 'All time' };
 }
-/* The headline and the period it is for. Everything below it — each house's own
-   slice, and the sum at the bottom — is counted for whichever period is chosen. */
-function booksTop(books) {
-  const { key, b } = booksPeriod(books);
-  const chips = ['', ...books.months.slice(0, 11)];
-  return `<div class="books">
-    <div class="bk-net ${b.net >= 0 ? 'ok' : 'bad'}">
-      <div class="bk-net-k">${b.net >= 0 ? 'Profit' : 'Loss'} · ${key ? esc(monthLabel(key)) : 'all time'}</div>
-      <div class="bk-net-v" data-count="${Math.abs(b.net)}" data-fmt="money">${money(0)}</div>
-      <div class="bk-net-m">${b.income ? `${moneyText(b.income)} came in · ${moneyText(b.cost)} went out` : 'No money came in this period'}</div>
-    </div>
-    <div class="filters wrap bk-chips">
-      ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthLabel(k) : 'All time'}</span>`).join('')}
-    </div>
-  </div>`;
-}
-/* The sum itself, in the plainest words there are: money in, money out, what is
-   left. Nothing here is a term of art — anybody who can add can check it. */
-function booksSum(books) {
+/* ONE card for the books, and only one. The figures used to be set out twice —
+   once inside each coloured house and again in a sum at the bottom — which is
+   the same arithmetic read two ways and the reason the screen stopped being
+   readable. Here it is said once: what came in, what went out, what is left. */
+function booksCard(books) {
   const { key, b } = booksPeriod(books);
   const w = books.worth;
-  const when = key ? monthLabel(key) : 'All time';
+  const chips = ['', ...books.months.slice(0, 11)];
   const head = (label, v, cls) => `<div class="bk-head-line ${cls || ''}">
     <span class="bk-k">${esc(label)}</span><span class="bk-v">${money(v)}</span></div>`;
   const sub = (ic, label, v) => `<div class="bk-sub-line">
     <span class="bk-ic">${ic}</span><span class="bk-k">${esc(label)}</span>
     <span class="bk-v">${money(v)}</span></div>`;
-  return `<div class="books bk-sheet-card">
-    <div class="bk-ttl">${esc(when)}</div>
+  return `<div class="books">
+    <div class="bk-top">The books · ${key ? esc(monthLabel(key)) : 'all time'}</div>
+    <div class="filters wrap bk-chips">
+      ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthLabel(k) : 'All time'}</span>`).join('')}
+    </div>
     ${head('Money in', b.income, 'in')}
-    ${sub('👗', 'From the dresses', b.dresses)}
-    ${sub('🎓', 'From the academy', b.courses)}
+    ${sub('\u{1F457}', 'Dresses', b.dresses)}
+    ${sub('\u{1F393}', 'Academy', b.courses)}
     ${head('Money out', b.cost, 'out')}
-    ${sub('🧾', 'Materials for the dresses', b.materials)}
-    ${sub('🏠', 'The studio: rent, bills, wages', b.studio)}
+    ${sub('\u{1F9FE}', 'Materials', b.materials)}
+    ${sub('\u{1F3E0}', 'Rent, bills, wages', b.studio)}
     <div class="bk-line net ${b.net >= 0 ? 'ok' : 'bad'}">
-      <span class="bk-k">${b.net >= 0 ? 'Profit' : 'Loss'}<i>money in, less money out</i></span>
-      <span class="bk-v">${money(Math.abs(b.net))}</span></div>
-    ${!key ? `<div class="bk-owed">
-      <div class="bk-owed-t">Money people still owe us — not counted above, because it has not come in</div>
-      <div class="bk-owed-r"><span>👗 Owed on dresses</span><b>${money(w.dueDresses)}</b></div>
-      <div class="bk-owed-r"><span>🎓 Owed on courses</span><b>${money(w.dueCourses)}</b></div>
-      <div class="bk-owed-r tot"><span>Profit once it is all paid</span><b class="${w.net >= 0 ? 'ok' : 'bad'}">${money(w.net)}</b></div>
-    </div>` : `<div class="bk-foot">${esc(monthLabel(key))} counts only what moved that month — the money that came in, and the money that went out.</div>`}
+      <span class="bk-k">${b.net >= 0 ? 'Profit' : 'Loss'}</span>
+      <span class="bk-v" data-count="${Math.abs(b.net)}" data-fmt="money">${money(0)}</span></div>
+    ${!key && (w.dueDresses || w.dueCourses) ? `<div class="bk-owed">
+      <div class="bk-owed-r"><span>Still owed to us</span><b>${money(w.dueDresses + w.dueCourses)}</b></div>
+      <div class="bk-owed-r tot"><span>Profit once it is paid</span><b class="${w.net >= 0 ? 'ok' : 'bad'}">${money(w.net)}</b></div>
+    </div>` : ''}
   </div>`;
 }
 window.setBooksMonth = (k) => { window._booksMonth = k; go('home'); };
@@ -390,19 +376,12 @@ PAGES.home_admin = async (c) => {
   const pTotal = invoices.reduce((a, x) => a + (x.total || 0), 0);
   const eTotal = expenses.reduce((a, x) => a + (x.amount || 0), 0);
   const spendRows = vendorSpendRows(invoices, expenses);
-  const { b: bk, when: bkWhen } = booksPeriod(books);
   c.innerHTML = luxBackdrop() + dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
-    booksTop(books) + `
+    booksCard(books) + `
     ${brandGroup({
       name: 'Daliessa', kind: 'Dresses · Couture', collapse: 'dresses',
       c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
       summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
-      plWhen: bkWhen,
-      pl: [
-        ['Money in', bk.dresses],
-        ['Materials', bk.materials, 'out'],
-        ['Profit', bk.dresses - bk.materials, 'tot'],
-      ],
       rows: [
         ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
         ['dressmoney', '💰', 'Dress money', dRem ? `${big(moneyText(dRem))} still due` : `${big(moneyText(dPaid))} collected`, "go('dresses')"],
@@ -421,10 +400,6 @@ PAGES.home_admin = async (c) => {
       name: 'Dalia Bassel', kind: 'Academy', collapse: 'academy',
       c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
       summary: `${sheet.totals.count} students · ${rounds.length} round${rounds.length === 1 ? '' : 's'} · ${homeworks.length} task${homeworks.length === 1 ? '' : 's'}`,
-      plWhen: bkWhen,
-      pl: [
-        ['Money in', bk.courses, 'tot'],
-      ],
       rows: [
         ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
         ['rounds', '🗓', 'Rounds & groups', `${big(rounds.length)} round${rounds.length === 1 ? '' : 's'}`],
@@ -444,15 +419,6 @@ PAGES.home_admin = async (c) => {
       name: 'The studio', kind: 'What it costs to run', collapse: 'spending',
       c1: '#0f766e', c2: '#14b8a6', glow: '15,118,110',
       summary: `${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'} on record`,
-      plWhen: bkWhen,
-      // Materials are shown here too, but marked as already counted against the
-      // dresses — the same money in two places reads like twice the money
-      // otherwise, and the sum at the bottom only takes it off once.
-      pl: [
-        ['Rent, bills, wages', bk.studio, 'out'],
-        ['Materials · already counted on the dresses', bk.materials, 'out note'],
-        ['Money out, all of it', bk.cost, 'tot out'],
-      ],
       content: spendAccordion([
         { key: 'purchases', page: 'purchases', icon: '🧾', label: 'Purchases',
           meta: `${big(moneyText(pTotal))} · ${big(invoices.length)} invoice${invoices.length === 1 ? '' : 's'}`,
@@ -471,7 +437,6 @@ PAGES.home_admin = async (c) => {
         { value: pTotal + eTotal, label: 'Total out', money: true },
       ],
     })}
-    ${booksSum(books)}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
         <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
