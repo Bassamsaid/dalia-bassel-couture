@@ -390,7 +390,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v150';
+const APP_VERSION = 'v151';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1113,7 +1113,11 @@ const TILE_TINT = {
   help:     ['#0f766e', '#5eead4', '15,118,110'],
   chats:    ['#0f766e', '#5eead4', '15,118,110'],
   dressmoney: ['#b3873a', '#e8c477', '179,135,58'],
+  dressmargin: ['#0d8a5f', '#6ee7b7', '13,138,95'],
   staff:    ['#0f766e', '#5eead4', '15,118,110'],
+  purchases: ['#0f766e', '#5eead4', '15,118,110'],
+  expenses: ['#1f6f8b', '#7fd0e8', '31,111,139'],
+  vendors:  ['#0e7490', '#67e8f9', '14,116,144'],
 };
 function tintVars(key) {
   const [c1, c2, glow] = TILE_TINT[key] || TILE_TINT.students;
@@ -1149,7 +1153,7 @@ function brandGroup(o) {
       ${o.summary ? `<div class="bg-sum">${o.summary}</div>` : ''}
     </div>
     ${o.content !== undefined ? `<div class="bg-body">${o.content}</div>` : navList(o.rows, true)}
-    ${figs ? `<div class="bg-figs"><div class="fig-row"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}
+    ${figs ? `<div class="bg-figs"><div class="fig-row${(o.figures || []).length > 3 ? ' wrap' : ''}"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}
   </div>`;
 }
 const big = (v) => `<b>${typeof v === 'number' ? v.toLocaleString('en-US') : esc(String(v))}</b>`;

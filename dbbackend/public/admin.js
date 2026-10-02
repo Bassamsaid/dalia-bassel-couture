@@ -229,22 +229,65 @@ window.removeCover = async () => {
 };
 
 /* ============ HOME / DASHBOARD ============ */
+/* What every shop has had out of us. Invoices carry either a vendor on the list
+   or a shop typed by hand, so both are grouped by name — otherwise the halves
+   never add up to the purchases total they sit under. */
+function vendorSpendRows(invoices, expenses) {
+  const by = {};
+  const bucket = (name) => {
+    const nm = String(name || '').trim() || 'No vendor named';
+    const k = nm.toLowerCase();
+    return (by[k] = by[k] || { name: nm, id: null, purchases: 0, costs: 0, invoices: 0 });
+  };
+  invoices.forEach((inv) => {
+    const g = bucket(inv.vendor_name || inv.shop);
+    if (!g.id && inv.vendor_id) g.id = inv.vendor_id;
+    g.purchases += inv.total || 0;
+    g.invoices += 1;
+  });
+  // a studio cost against a vendor belongs on its line too, told apart from materials
+  (expenses || []).forEach((e) => {
+    if (!e.vendor_name) return;
+    const g = bucket(e.vendor_name);
+    if (!g.id && e.vendor_id) g.id = e.vendor_id;
+    g.costs += e.amount || 0;
+  });
+  return Object.values(by).sort((a, b) => (b.purchases + b.costs) - (a.purchases + a.costs));
+}
+/* The same list drawn as a bar each, so one glance says who takes the most. */
+function vendorSpendPane(rows, pTotal, limit) {
+  const max = rows.reduce((a, r) => Math.max(a, r.purchases + r.costs), 0) || 1;
+  const n = limit || 6;
+  const show = rows.slice(0, n);
+  return `<div class="spend-pane">
+    <div class="sp-ttl">What each vendor has had${pTotal ? ` · ${moneyText(pTotal)} in materials` : ''}</div>
+    ${show.length ? show.map((r) => { const t = r.purchases + r.costs; return `<div class="sp-row" onclick="${r.id ? `openVendorReport(${r.id})` : "go('vendors')"}">
+      <div class="sp-top"><span class="sp-nm">${esc(r.name)}</span><span class="sp-v">${money(t)}</span></div>
+      <div class="sp-bar"><i style="width:${Math.max(3, Math.round((t / max) * 100))}%"></i></div>
+      <div class="sp-sub">${r.invoices ? `🧾 ${money(r.purchases)} · ${r.invoices} invoice${r.invoices === 1 ? '' : 's'}` : 'no invoices'}${r.costs ? ` · 🏠 ${money(r.costs)} studio costs` : ''}</div>
+    </div>`; }).join('') : '<div class="hint" style="padding:4px 2px">Nothing bought yet.</div>'}
+    ${rows.length > n ? `<div class="sp-more" onclick="go('vendors')">＋ ${rows.length - n} more · see every vendor ›</div>` : ''}
+  </div>`;
+}
+
 PAGES.home_admin = async (c) => {
-  const [sheet, rounds, dresses, reminders, about, users, homeworks, quizzes, videos] = await Promise.all([
+  const [sheet, rounds, dresses, reminders, about, users, homeworks, quizzes, videos, invoices, expenses] = await Promise.all([
     GET('/api/finance/sheet'), GET('/api/rounds'), GET('/api/dresses'), GET('/api/reminders'), GET('/api/about'), GET('/api/users'),
     GET('/api/homeworks'), GET('/api/quizzes'), GET('/api/videos'),
+    GET('/api/purchases'), GET('/api/expenses'),
   ]);
-  const chats = await GET('/api/chats').catch(() => ({ threads: [] }));
-  const chatCount = chats.threads.length;
-  const chatUnread = chats.threads.reduce((a, t) => a + (t.unread || 0), 0);
   const dueSoon = reminders.filter((r) => !r.done).length;
   const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
   const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
   const dRem = dresses.reduce((a, x) => a + (x.remaining || 0), 0);
+  const dMat = dresses.reduce((a, x) => a + (x.material_cost || 0), 0);
+  const dMargin = dTotal - dMat; // what the dresses leave once their materials are paid for
   const dOpen = dresses.filter((x) => (x.status || 'open') !== 'done').length;
   const clients = users.filter((u) => u.role === 'customer').length;
-  const visitors = users.filter((u) => u.role === 'visitor').length;
-  const team = users.filter((u) => ['staff', 'manager'].includes(u.role)).length;
+  // Money out: material invoices on one side, the studio's own running costs on the other
+  const pTotal = invoices.reduce((a, x) => a + (x.total || 0), 0);
+  const eTotal = expenses.reduce((a, x) => a + (x.amount || 0), 0);
+  const spendRows = vendorSpendRows(invoices, expenses);
   c.innerHTML = luxBackdrop() + dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
     heroBanner(about, true) + `
     ${brandGroup({
@@ -272,22 +315,34 @@ PAGES.home_admin = async (c) => {
       summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
       rows: [
         ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
-        ['clients', '💛', 'Clients', `${big(clients)} client${clients === 1 ? '' : 's'}`, "openMembers('customer')"],
         ['dressmoney', '💰', 'Dress money', dRem ? `${big(moneyText(dRem))} still due` : `${big(moneyText(dPaid))} collected`, "go('dresses')"],
+        ['dressmargin', '📈', 'Materials & margin', `${big(moneyText(dMat))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} margin`, "go('dresses')"],
       ],
       figuresGo: "go('dresses')",
       figures: [
         { value: dPaid, label: 'Deposits in', money: true, color: 'var(--ok)' },
         { value: dRem, label: 'Remaining', money: true, color: dRem ? 'var(--bad)' : 'var(--ok)' },
         { value: dTotal, label: 'Total value', money: true },
+        { value: dMat, label: 'Materials', money: true, color: 'var(--bad)' },
+        { value: dMargin, label: 'Margin', money: true, color: dMargin >= 0 ? 'var(--ok)' : 'var(--bad)' },
       ],
     })}
-    <div class="sec-title">Everyone</div>
-    ${navList([
-      ['members', '👥', 'Members', `${big(users.length)} registered · ${big(visitors)} visitor${visitors === 1 ? '' : 's'}`],
-      ['staff', '🧵', 'Team', `${big(team)} in the studio`],
-      ['chats', '💬', 'Customer service', chatUnread ? `${big(chatUnread)} new message${chatUnread === 1 ? '' : 's'}` : `${big(chatCount)} conversation${chatCount === 1 ? '' : 's'}`],
-    ])}
+    ${brandGroup({
+      name: 'Spending', kind: 'Money out',
+      c1: '#0f766e', c2: '#14b8a6', glow: '15,118,110',
+      summary: `${moneyText(pTotal + eTotal)} out · ${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'}`,
+      content: navList([
+        ['purchases', '🧾', 'Purchases', `${big(moneyText(pTotal))} · ${big(invoices.length)} invoice${invoices.length === 1 ? '' : 's'}`],
+        ['expenses', '🏠', 'Studio costs', `${big(moneyText(eTotal))} · ${big(expenses.length)} entr${expenses.length === 1 ? 'y' : 'ies'}`],
+        ['vendors', '🏬', 'Vendors', `${big(spendRows.length)} shop${spendRows.length === 1 ? '' : 's'} supplied us`],
+      ], true) + vendorSpendPane(spendRows, pTotal),
+      figuresGo: "go('purchases')",
+      figures: [
+        { value: pTotal, label: 'Purchases', money: true, color: 'var(--bad)' },
+        { value: eTotal, label: 'Studio costs', money: true, color: 'var(--bad)' },
+        { value: pTotal + eTotal, label: 'Total out', money: true },
+      ],
+    })}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
         <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
@@ -1528,6 +1583,7 @@ PAGES.dresses = async (c) => {
   });
   const statuses = [['all', 'All'], ['open', 'New'], ['in_progress', 'In progress'], ['delivered', 'Delivered']];
   c.innerHTML = title('Dresses', '') +
+    dressTotals(list) +
     `${canEdit ? '<button class="btn" onclick="addDress()">＋ Register a dress</button>' : ''}
     <div class="filters" style="margin-top:12px">${statuses.map(([k, l]) => `<span class="chip ${f.status === k && !f.assigned ? 'active' : ''}" onclick="dressFilter('status','${k}')">${l}</span>`).join('')}
       <span class="chip ${f.assigned ? 'active' : ''}" onclick="dressFilter('assigned','x')">👤 Assigned</span></div>
@@ -1549,6 +1605,30 @@ PAGES.dresses = async (c) => {
   if (window._dressSearch) liveSearch(window._dressSearch, '#dressList');
   if (window._openDressAfter) { const oid = window._openDressAfter; window._openDressAfter = null; if (dresses.some((x) => x.id === oid)) setTimeout(() => openDress(oid), 30); }
 };
+/* The whole filtered list added up: what it is worth, what came in, what the
+   fabric cost and what is left over. Follows the filters, so a month chosen
+   above is the month these totals are for. Admin only — nobody else has prices. */
+function dressTotals(list) {
+  if (state.user.role !== 'admin' || !list.length) return '';
+  const val = list.reduce((a, x) => a + (x.price || 0), 0);
+  const paid = list.reduce((a, x) => a + (x.paid || 0), 0);
+  const rem = list.reduce((a, x) => a + (x.remaining || 0), 0);
+  const mat = list.reduce((a, x) => a + (x.material_cost || 0), 0);
+  const margin = val - mat;
+  const pct = val ? Math.round((margin / val) * 100) : 0;
+  const cell = (label, v, cls, note) => `<div class="dt-cell"><div class="dt-k">${label}</div>
+    <div class="dt-v ${cls || ''}">${money(v)}</div>${note ? `<div class="dt-n">${note}</div>` : ''}</div>`;
+  return `<div class="dress-tot">
+    <div class="dt-ttl">${list.length} dress${list.length === 1 ? '' : 'es'} in this view</div>
+    <div class="dt-grid">
+      ${cell('Total value', val)}
+      ${cell('Collected', paid, 'ok')}
+      ${cell(rem ? 'Remaining' : 'Settled', rem, rem ? 'bad' : 'ok')}
+      ${cell('Materials', mat, 'bad')}
+      ${cell('Margin', margin, margin >= 0 ? 'ok' : 'bad', val ? pct + '% of the price' : '')}
+    </div>
+  </div>`;
+}
 /* What the dress is worth, what has come in, and what is still owed. Only the
    admin sees it: the price is hidden from everybody else, here as everywhere. */
 function dressMoney(d) {
