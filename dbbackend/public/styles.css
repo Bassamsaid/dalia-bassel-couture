@@ -1456,3 +1456,14 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .pk-m{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--muted);
   font-variant-numeric:tabular-nums lining-nums}
 .pick-none{padding:10px 2px}
+
+/* ===== The dress page: a notch smaller so more of it fits the phone ===== */
+.dpanes .dpane label{font-size:10px;margin:11px 0 4px;letter-spacing:.6px}
+.dpanes .dpane input,.dpanes .dpane select,.dpanes .dpane textarea{padding:9px 11px;font-size:13px;border-radius:9px}
+.dpanes .dpane textarea{min-height:60px}
+.dpanes .dpane > .hint{font-size:11.5px}
+.dpanes .dpane .divider{margin:14px 0 11px}
+/* Save and Delete sit side by side, small, and never wrap onto two lines */
+.dp-acts{display:flex;gap:8px}
+.dp-acts .btn{flex:1;width:auto;padding:9px 10px;font-size:10.5px;letter-spacing:.4px;
+  white-space:nowrap;border-radius:9px;box-shadow:none}

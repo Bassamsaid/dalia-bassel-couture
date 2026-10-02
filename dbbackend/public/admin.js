@@ -2086,9 +2086,9 @@ PAGES.dress = async (c) => {
     ${canEdit ? `<select id="assignSel_${id}" onchange="saveAssign(${id})"><option value="">— unassigned —</option>${staff.map((s) => `<option value="${s.id}" ${d.assigned_to === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`
       : `<div class="hint">${d.assignee_name ? '👤 ' + esc(d.assignee_name) : 'Unassigned'}</div>`}
     ${canEdit ? `<div class="divider"></div>
-      <div class="row">
-        <button class="btn" onclick="saveDressDetails(${id})">Save changes</button>
-        <button class="btn danger" onclick="delDress(${id})">Delete booking</button>
+      <div class="dp-acts">
+        <button class="btn" onclick="saveDressDetails(${id})">Save</button>
+        <button class="btn danger" onclick="delDress(${id})">Delete</button>
       </div>` : ''}`);
 
   const measure = pane('measure', `
