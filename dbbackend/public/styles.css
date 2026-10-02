@@ -1405,3 +1405,17 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .home-lux .bk-line.net{border-top:2px solid var(--ink);padding:16px 16px 18px}
 .home-lux .bk-line.net .bk-v{font-size:28px;font-family:var(--serif);font-weight:700}
 .home-lux .bk-line.net .bk-k{font-size:12px}
+
+/* ===== The three figures that head Sales and Collections ===== */
+.t3{display:flex;background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:18px;
+  box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px}
+.t3-c{flex:1;min-width:0;text-align:center;padding:14px 8px 15px;position:relative}
+.t3-c + .t3-c::before{content:"";position:absolute;inset-inline-start:0;top:14%;height:72%;width:1px;background:var(--line)}
+.t3-k{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;font-weight:800;color:var(--muted)}
+.t3-v{font-family:var(--sans);font-size:15px;font-weight:800;letter-spacing:-.4px;margin-top:6px;
+  color:var(--ink);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+.t3-v.ok{color:var(--ok)} .t3-v.bad{color:var(--bad)}
+.t3-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:4px}
+.dp-bar i.owe{background:rgba(0,0,0,.1)}
+.home-lux .bk-head-line[onclick]:active{background:rgba(0,0,0,.04)}
+.home-lux .bk-owed[onclick]:active{background:rgba(0,0,0,.05)}
