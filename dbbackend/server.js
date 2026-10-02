@@ -2124,8 +2124,11 @@ api['GET /api/floats'] = async (req, res, user) => {
 /* One person's float: the cash movements and everything spent out of it, as one
    list in date order — which is how somebody checks a float against the money
    actually in the drawer. */
+/* The admin, or the person holding it. Somebody carrying the studio's cash
+   should be able to see what she is carrying without having to ask. */
 api['GET /api/floats/:id'] = async (req, res, user, url, params) => {
-  if (!requireAdmin(user, res)) return;
+  if (!requireAuth(user, res)) return;
+  if (user.role !== 'admin' && user.id !== Number(params.id)) return send(res, 403, { error: 'forbidden' });
   const id = Number(params.id);
   const who = await db.prepare('SELECT id,name,role,job_title FROM users WHERE id=?').get(id);
   if (!who) return send(res, 404, {});
