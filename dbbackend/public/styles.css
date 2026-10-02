@@ -1325,3 +1325,20 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 /* a figure shown for context that is already counted somewhere else */
 .home-lux .bg-pl-r.note{opacity:.72;font-size:11.5px}
 .home-lux .bg-pl-r.note b{font-weight:700}
+
+/* ===== The sum in plain words: money in, money out, what is left ===== */
+.home-lux .bk-head-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:13px 16px 9px;border-top:1px solid var(--line)}
+.home-lux .bk-head-line:first-of-type{border-top:none}
+.home-lux .bk-head-line .bk-k{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;
+  color:var(--muted)}
+.home-lux .bk-head-line .bk-v{font-family:var(--sans);font-size:17px;font-weight:800;letter-spacing:-.3px;
+  font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;color:var(--ink)}
+.home-lux .bk-head-line.in .bk-v{color:var(--ok)}
+.home-lux .bk-head-line.out .bk-v{color:var(--bad)}
+.home-lux .bk-sub-line{display:flex;align-items:baseline;gap:10px;padding:6px 16px 6px 20px}
+.home-lux .bk-sub-line:last-of-type{padding-bottom:12px}
+.home-lux .bk-sub-line .bk-ic{flex:0 0 auto;width:20px;font-size:13px}
+.home-lux .bk-sub-line .bk-k{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--muted)}
+.home-lux .bk-sub-line .bk-v{flex:0 0 auto;font-family:var(--sans);font-size:13.5px;font-weight:700;
+  font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;color:var(--ink)}
