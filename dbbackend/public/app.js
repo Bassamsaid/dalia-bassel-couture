@@ -29,6 +29,13 @@ const moneyText = (n) => {
   return `${v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })} ${(window._cfg && window._cfg.currency) || 'EGP'}`;
 };
 const money = (n) => `<bdi>${moneyText(n)}</bdi>`;
+/* The totals on Home are read at a glance, so they are shown in whole pounds.
+   Nothing you act on loses its piastres — a salary, an invoice, a payment all
+   keep them. Only these totals are rounded, where ".97" on 274,721 is noise,
+   and every line of the card is rounded the same way so the three still add
+   up on the screen. */
+const money0Text = (n) => `${Math.round(Number(n || 0)).toLocaleString('en-US')} ${(window._cfg && window._cfg.currency) || 'EGP'}`;
+const money0 = (n) => `<bdi>${money0Text(n)}</bdi>`;
 const dt = (s) => s ? String(s).slice(0, 10) : '—';
 const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
 /* The studio's day, not UTC's. Egypt is three hours ahead, so from nine in the
@@ -396,7 +403,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v175';
+const APP_VERSION = 'v176';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1078,7 +1085,9 @@ function runCounters(root) {
     const to = Number(el.dataset.count || 0);
     // Written with textContent, so the plain form: markup here would be read out
     // character by character instead of rendered.
-    const fmt = el.dataset.fmt === 'money' ? moneyText : (v) => Number(v).toLocaleString('en-US');
+    const fmt = el.dataset.fmt === 'money' ? moneyText
+      : el.dataset.fmt === 'money0' ? money0Text
+        : (v) => Number(v).toLocaleString('en-US');
     if (reduce || !to) { el.textContent = fmt(to); return; }
     const dur = 900; let t0 = null;
     const step = (t) => {
@@ -1189,6 +1198,8 @@ window.navList = navList;
 window.brandGroup = brandGroup;
 window.big = big;
 window.moneyText = moneyText;
+window.money0 = money0;
+window.money0Text = money0Text;
 
 const PAGES = {};
 
