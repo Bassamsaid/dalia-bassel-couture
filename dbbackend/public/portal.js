@@ -560,7 +560,19 @@ PAGES.mysalary = async (c) => {
   try { sal = await GET(`/api/staff/${state.user.id}/salary?month=${month}`); } catch (e) {}
   const pays = await GET('/api/salary-payments'); // own
   window._mySal = sal;
-  c.innerHTML = pageHead('My Salary', '💵') +
+  // A salary waiting to be confirmed goes at the top, not under a month's
+  // arithmetic she would have to scroll past. The notification tells her to
+  // confirm; this is the thing it should land her on.
+  const waiting = pays.filter((x) => x.status !== 'confirmed');
+  const waitingCard = waiting.map((x) => `<div class="card pay-wait">
+      <div class="pw-k">The studio sent you</div>
+      <div class="pw-v">${money(x.amount)}</div>
+      <div class="pw-m">${x.month ? esc(x.month) : ''}${x.note ? ' · ' + esc(x.note) : ''} · ${dt(x.created_at)}</div>
+      ${x.image ? `<img class="thumb" style="max-width:190px;margin:10px auto 0;display:block" src="${esc(mediaUrl(x.image))}" onclick="lightbox('${esc(mediaUrl(x.image))}')"/>` : ''}
+      <button class="btn" style="margin-top:12px" onclick="confirmSalary(${x.id})">✓ I received this</button>
+      <div class="hint" style="margin-top:8px">Tap once the money is with you. The studio is told.</div>
+    </div>`).join('');
+  c.innerHTML = pageHead('My Salary', '💵') + waitingCard +
     `<div class="filters"><input type="month" value="${month}" onchange="setMySalMonth(this.value)" style="width:auto;padding:8px" /></div>` +
     (sal ? '<button class="btn sec sm" style="margin-bottom:10px" onclick="openPayslip(window._mySal)">🖨 Print my payslip</button>' : '') +
     (sal ? salaryBreakdown(sal, month) : empty('No salary info yet', '💵')) +
