@@ -396,7 +396,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v168';
+const APP_VERSION = 'v169';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -631,6 +631,7 @@ const NAV = {
     ['classroom', 'Classroom', '📚'],
     ['dalia', 'Dalia', '✦'],
     ['dresses', 'Dresses', '👗'],
+    ['collections', 'Collections', '💵'],
     ['spending', 'Spending', '💸'],
     ['staff', 'Staff', '💼'],
     ['attreqs', 'Attendance requests', '🕒'],
@@ -680,7 +681,7 @@ const NAV = {
 
 /* bottom bar shows only 2 tabs; the rest live in the side drawer */
 const BOTTOM = {
-  admin: [['home', 'Home', '⌂'], ['academy', 'Academy', '🎓'], ['dresses', 'Dresses', '👗'], ['dalia', 'Dalia', '✦']],
+  admin: [['home', 'Home', '⌂'], ['dresses', 'Dresses', '👗'], ['collections', 'Collections', '💵'], ['academy', 'Academy', '🎓'], ['dalia', 'Dalia', '✦']],
   manager: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['academy', 'Academy', '🎓'], ['dalia', 'Dalia', '✦']],
   trainee: [['home', 'Home', '⌂'], ['dalia', 'Dalia Bassel', '✦']],
   staff: [['home', 'Attendance', '🕒'], ['dresses', 'Dresses', '👗'], ['academy', 'Academy', '🎓'], ['dalia', 'Dalia', '✦']],
@@ -1122,6 +1123,7 @@ const TILE_TINT = {
   chats:    ['#0f766e', '#5eead4', '15,118,110'],
   dressmoney: ['#b3873a', '#e8c477', '179,135,58'],
   dressmargin: ['#0d8a5f', '#6ee7b7', '13,138,95'],
+  collections: ['#b3873a', '#e8c477', '179,135,58'],
   staff:    ['#0f766e', '#5eead4', '15,118,110'],
   purchases: ['#0f766e', '#5eead4', '15,118,110'],
   expenses: ['#1f6f8b', '#7fd0e8', '31,111,139'],

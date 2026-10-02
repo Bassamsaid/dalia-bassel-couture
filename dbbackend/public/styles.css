@@ -1425,3 +1425,7 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 /* the months above the books: one row, small, and it slides if there are many */
 .home-lux .bk-chips{margin:0;padding:9px 12px 10px;gap:6px;flex-wrap:nowrap}
 .home-lux .bk-chips .chip{padding:5px 11px;font-size:11.5px;border-width:1.2px;letter-spacing:.2px}
+/* five tabs: a little tighter so they share the width without sliding */
+.bottomnav.bn5{justify-content:space-between;padding:6px 4px}
+.bottomnav.bn5 button{min-width:0;flex:1 1 0;padding:10px 2px 8px;font-size:9.5px;letter-spacing:.2px}
+.bottomnav.bn5 button .ic{font-size:18px}

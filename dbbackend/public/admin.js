@@ -1824,8 +1824,9 @@ PAGES.collections = async (c) => {
   const tabs = [['due', `Still owing (${rows.filter((d) => d.due > 0).length})`], ['settled', `Paid up (${rows.filter((d) => !d.due).length})`], ['all', `All (${rows.length})`]];
   c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
     title('Collections', '💵') +
-    `<p class="hint" style="margin:2px 2px 12px">What each dress sold for, what has come in, and what is still owed.</p>
+    `<p class="hint" style="margin:2px 2px 12px">What each dress sold for, what has come in, and what is still owed. Every payment from a client is written down here.</p>
      ${threeTotals([['Sold for', price], ['Received', paid, 'ok'], ['Still owed', due, due ? 'bad' : 'ok']])}
+     <button class="btn" style="margin-bottom:4px" onclick="takePayment()">＋ Record a payment</button>
      ${missingNote(dresses, 'collections')}
      <div class="filters" style="margin:12px 0 10px">${tabs.map(([k, l]) => `<span class="chip ${f === k ? 'active' : ''}" onclick="colFilter('${k}')">${l}</span>`).join('')}</div>
      ${list.length ? list.map((d) => {
@@ -1839,6 +1840,34 @@ PAGES.collections = async (c) => {
     }).join('') : empty(f === 'due' ? 'Every dress is paid up ✓' : 'Nothing here', '💵')}`;
 };
 window.colFilter = (k) => { window._colF = k; go('collections'); };
+/* A payment is taken at the counter, not by going and finding the dress first.
+   So it is recorded here, the same way a studio cost is, and lands on the dress
+   it is for — which is the only place it was ever really kept. */
+window.takePayment = async (dressId) => {
+  let dresses = window._dresses || [];
+  if (!dresses.length) { try { dresses = await GET('/api/dresses'); window._dresses = dresses; } catch (e) {} }
+  const owing = dresses.filter((d) => d.price > 0 && Math.max(0, d.price - (d.paid || 0)) > 0);
+  const rest = dresses.filter((d) => d.price > 0 && !owing.includes(d));
+  const label = (d) => `${d.customer_name} · ${moneyText(Math.max(0, d.price - (d.paid || 0)))} left`;
+  formModal('Record a payment', [
+    { name: 'dress_id', label: 'Whose dress', type: 'select', required: true, value: dressId || '',
+      options: [{ value: '', label: '—' },
+        ...owing.map((d) => ({ value: d.id, label: label(d) })),
+        ...rest.map((d) => ({ value: d.id, label: `${d.customer_name} · paid up` }))] },
+    { name: 'amount', label: 'How much', type: 'number', required: true },
+    { name: 'method', label: 'How', type: 'select', value: 'transfer',
+      options: [{ value: 'transfer', label: '🏦 Transfer / Instapay' }, { value: 'cash', label: '💵 Cash' }] },
+    { name: 'paid_at', label: 'Date', type: 'date', value: today() },
+    { name: 'note', label: 'Note (deposit, second instalment…)' },
+    { name: 'image', label: 'Receipt (optional)', type: 'image' },
+  ], async (d) => {
+    if (!d.dress_id) throw new Error('Whose dress is it for?');
+    if (!(Number(d.amount) > 0)) throw new Error('How much came in?');
+    await POST('/api/dresses/' + d.dress_id + '/payments', d);
+    toast('Taken, and put on her dress ✓');
+    go('collections');
+  });
+};
 
 window.dressFilter = (k, v) => {
   const f = window._dressF || { status: 'all', month: '', assigned: false };
@@ -2042,7 +2071,7 @@ PAGES.dress = async (c) => {
         <span id="dRemain_${id}">${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}</span>
       </div>
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
-      <button class="btn sec sm" style="margin-top:6px" onclick="addDressPayment(${id})">＋ Add payment / deposit</button>` : ''}`) : '';
+      <button class="btn sec sm" style="margin-top:6px" onclick="go('collections')">💵 Payments are taken under Collections ›</button>` : ''}`) : '';
 
   const materials = canEdit ? pane('materials', `
     <div id="dmat_${id}"><div class="hint">Loading…</div></div>
@@ -2154,13 +2183,9 @@ async function loadDressPayments(id) {
       <button class="btn-icon" onclick="delDressPayment(${p.id},${id})">🗑</button></div>`).join('')}</div>` : '<div class="hint">No payments yet</div>';
   } catch (e) { box.innerHTML = '<div class="hint">Could not load payments</div>'; }
 }
-window.addDressPayment = (id) => formModal('Add dress payment', [
-  { name: 'amount', label: 'Amount', type: 'number', required: true },
-  { name: 'method', label: 'Method', type: 'select', value: 'transfer', options: [{ value: 'transfer', label: 'Bank transfer / Instapay' }, { value: 'cash', label: 'Cash' }] },
-  { name: 'paid_at', label: 'Date', type: 'date', value: today() },
-  { name: 'note', label: 'Note (e.g. deposit)', value: '' },
-  { name: 'image', label: 'Receipt (optional)', type: 'image' },
-], async (d) => { await POST('/api/dresses/' + id + '/payments', d); toast('Payment added'); closeModal(); refreshDress(id); });
+/* kept as a name, because notifications and old links still call it — it opens
+   the one form there is now, with her dress already chosen */
+window.addDressPayment = (id) => takePayment(id);
 window.delDressPayment = (pid, id) => confirmDel('Delete this payment?', async () => { await DEL('/api/dress-payments/' + pid); refreshDress(id); });
 async function loadDressUpdates(id) {
   const box = document.getElementById('dupd_' + id); if (!box) return;
