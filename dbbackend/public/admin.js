@@ -373,11 +373,13 @@ function booksCard(books, d) {
   const mat = per.materials, run = per.studio, spent = mat + run;
   const profit = sold - spent;
   const chips = ['', ...books.months.slice(0, 11)];
+  // Whole pounds throughout, so the three figures add up on the screen the way
+  // they add up in his head — no ".97" under a "342,278.03".
   const head = (label, v, cls, act) => `<div class="bk-head-line ${cls || ''}"${act ? ` onclick="${act}" style="cursor:pointer"` : ''}>
-    <span class="bk-k">${esc(label)}${act ? ' ›' : ''}</span><span class="bk-v">${money(v)}</span></div>`;
+    <span class="bk-k">${esc(label)}${act ? ' ›' : ''}</span><span class="bk-v">${money0(v)}</span></div>`;
   const sub = (ic, label, v) => `<div class="bk-sub-line">
     <span class="bk-ic">${ic}</span><span class="bk-k">${esc(label)}</span>
-    <span class="bk-v">${money(v)}</span></div>`;
+    <span class="bk-v">${money0(v)}</span></div>`;
   return `<div class="books">
     <div class="bk-top">The dresses · ${key ? esc(monthLabel(key)) : 'all time'}</div>
     <div class="filters bk-chips">
@@ -389,12 +391,12 @@ function booksCard(books, d) {
     ${sub('\u{1F3E0}', 'Rent, bills, wages', run)}
     <div class="bk-line net ${profit >= 0 ? 'ok' : 'bad'}">
       <span class="bk-k">${profit >= 0 ? 'Profit' : 'Loss'}</span>
-      <span class="bk-v" data-count="${Math.abs(profit)}" data-fmt="money">${money(0)}</span></div>
+      <span class="bk-v" data-count="${Math.abs(profit)}" data-fmt="money0">${money0(0)}</span></div>
     <div class="bk-owed" onclick="go('collections')" style="cursor:pointer">
-      <div class="bk-owed-r"><span>Paid so far ›</span><b class="ok">${money(paid)}</b></div>
-      <div class="bk-owed-r tot"><span>Left to collect</span><b class="${due ? 'bad' : 'ok'}">${money(due)}</b></div>
+      <div class="bk-owed-r"><span>Paid so far ›</span><b class="ok">${money0(paid)}</b></div>
+      <div class="bk-owed-r tot"><span>Left to collect</span><b class="${due ? 'bad' : 'ok'}">${money0(due)}</b></div>
     </div>
-    <div class="bk-foot">Dresses only. Course money is on its own, under Academy.</div>
+    <div class="bk-foot">Dresses only · course money is under Academy</div>
   </div>`;
 }
 window.setBooksMonth = (k) => { window._booksMonth = k; go('home'); };
