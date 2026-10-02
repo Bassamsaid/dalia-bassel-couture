@@ -2434,7 +2434,8 @@ PAGES.expenses = async (c) => {
         <div class="stat"><div class="n serif" style="color:var(--bad)">${money(etotal)}</div><div class="l">${ef ? monthLabel(ef) : 'All-time'} spent</div></div>
         <div class="stat"><div class="n serif">${elist.length}</div><div class="l">cost${elist.length === 1 ? '' : 's'} recorded</div></div>
       </div>
-      <button class="btn" onclick="addExpense()">＋ New studio cost</button>
+      <div class="row"><button class="btn" onclick="addExpense()">＋ New studio cost</button>
+        <button class="btn sec" onclick="go('bulkcosts')">🧾 Several at once</button></div>
       ${monthChips(expenses.map((e) => e.date || e.created_at), ef, 'setExpMonth')}
       <div class="filters wrap" style="margin-top:8px">
         <span class="chip ${pf === '' ? 'active' : ''}" onclick="setExpPaid('')">Paid from: any</span>
@@ -2474,6 +2475,117 @@ PAGES.expenses = async (c) => {
      <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
+
+/* ============ A STACK OF INVOICES, IN ONE GO ============
+   Five invoices from one shop, all from the bank, all fabric, is five trips
+   through a form that asks the same four questions every time. Here the shop,
+   the heading and where the money came from are answered once, the photos are
+   shot or picked all together, and every invoice needs only its own amount and
+   date. The photos go up as they are chosen, so saving at the end is quick. */
+PAGES.bulkcosts = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🧾'); return; }
+  await loadFloatHolders();
+  let types = (window._expRef && window._expRef.types) || [];
+  let vendors = (window._expRef && window._expRef.vendors) || [];
+  if (!types.length || !vendors.length) {
+    try { [types, vendors] = await Promise.all([GET('/api/expense-types'), GET('/api/vendors')]); window._expRef = { types, vendors }; } catch (e) {}
+  }
+  const b = window._bulk = window._bulk || { vendor_id: '', shop: '', type: 'Fabric & materials', paid_by: '', rows: [] };
+  const typeOpts = [...new Set([...types.map((t) => t.name), 'Fabric & materials'])];
+  c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
+    title('Several invoices at once', '🧾') +
+    `<p class="hint" style="margin:2px 2px 12px">Answer the shop, the heading and where the money came from once. Then add the photos — every invoice only needs its own amount and date.</p>
+     <div class="card bulk-head">
+       <label>Shop
+         <select onchange="bulkSet('vendor_id',this.value)">
+           <option value="">— type the name below —</option>
+           ${vendors.map((v) => `<option value="${v.id}" ${String(b.vendor_id) === String(v.id) ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}
+         </select></label>
+       ${b.vendor_id ? '' : `<label>Shop name <input value="${esc(b.shop)}" placeholder="صلاح سواريه" oninput="window._bulk.shop=this.value" /></label>`}
+       <label>What it is
+         <select onchange="bulkSet('type',this.value)">
+           ${typeOpts.map((t) => `<option ${b.type === t ? 'selected' : ''}>${esc(t)}</option>`).join('')}
+         </select></label>
+       <label>Paid from
+         <select onchange="bulkSet('paid_by',this.value)">
+           ${paidFromOptions().map((o) => `<option value="${o.value}" ${String(b.paid_by) === String(o.value) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+         </select></label>
+     </div>
+     <div class="row" style="margin:12px 0 4px">
+       <button class="btn" onclick="bulkAdd(true)">📷 Photograph them</button>
+       <button class="btn sec" onclick="bulkAdd(false)">🖼 From the phone</button>
+     </div>
+     <div id="bulkRows">${bulkRowsHtml()}</div>
+     ${b.rows.length ? `<button class="btn" id="bulkSave" style="margin-top:12px" onclick="bulkSave()">Save ${b.rows.length} invoice${b.rows.length === 1 ? '' : 's'}</button>
+       <button class="btn ghost sm" style="margin-top:8px" onclick="bulkClear()">Start again</button>` : ''}`;
+};
+function bulkRowsHtml() {
+  const b = window._bulk || { rows: [] };
+  if (!b.rows.length) return '<p class="hint" style="margin:14px 2px">No invoices added yet.</p>';
+  const total = b.rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+  return `<div class="hint" style="margin:14px 2px 8px">${b.rows.length} invoice${b.rows.length === 1 ? '' : 's'} · ${money(total)} so far</div>` +
+    b.rows.map((r, i) => `<div class="card bulk-row">
+      <img class="thumb" src="${esc(mediaUrl(r.image))}" onclick="lightbox('${esc(mediaUrl(r.image))}')" />
+      <div class="br-f">
+        <label>Amount <input type="number" step="0.01" inputmode="decimal" value="${r.amount || ''}" placeholder="0"
+          oninput="bulkRow(${i},'amount',this.value)" /></label>
+        <label>Date <input type="date" value="${esc(r.date || today())}" onchange="bulkRow(${i},'date',this.value)" /></label>
+        <label>Note <input value="${esc(r.note || '')}" placeholder="invoice no." oninput="bulkRow(${i},'note',this.value)" /></label>
+      </div>
+      <button class="btn-icon br-x" onclick="bulkDrop(${i})">🗑</button>
+    </div>`).join('');
+}
+window.bulkSet = (k, v) => { window._bulk[k] = v; if (k === 'vendor_id') go('bulkcosts'); };
+window.bulkRow = (i, k, v) => {
+  window._bulk.rows[i][k] = v;
+  if (k === 'amount') { // keep the running total honest without redrawing the fields being typed into
+    const b = window._bulk;
+    const t = b.rows.reduce((a, r) => a + (Number(r.amount) || 0), 0);
+    const h = document.querySelector('#bulkRows .hint');
+    if (h) h.innerHTML = `${b.rows.length} invoice${b.rows.length === 1 ? '' : 's'} · ${money(t)} so far`;
+  }
+};
+window.bulkDrop = (i) => { window._bulk.rows.splice(i, 1); go('bulkcosts'); };
+window.bulkClear = () => { window._bulk = null; go('bulkcosts'); };
+window.bulkAdd = (camera) => {
+  toast('Sending the photos…');
+  pickScans(async (b64) => {
+    try {
+      const up = await uploadDataUrl(b64, 'invoice.jpg');
+      window._bulk.rows.push({ image: up.file, amount: '', date: today(), note: '' });
+      go('bulkcosts');
+    } catch (e) { toast(e.message || 'That photo did not go up', 'error'); }
+  }, camera);
+};
+window.bulkSave = async () => {
+  const b = window._bulk;
+  const rows = b.rows.filter((r) => Number(r.amount) > 0);
+  if (!rows.length) return toast('Put an amount on at least one invoice', 'error');
+  const missing = b.rows.length - rows.length;
+  if (missing && !confirm(`${missing} invoice${missing === 1 ? ' has' : 's have'} no amount on ${missing === 1 ? 'it' : 'them'} and will not be saved.\n\nSave the other ${rows.length}?`)) return;
+  const btn = document.querySelector('#bulkSave');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  let done = 0;
+  try {
+    for (const r of rows) {
+      await POST('/api/expenses', {
+        vendor_id: b.vendor_id || null, type: b.type || null, amount: Number(r.amount),
+        date: r.date || today(), note: [b.vendor_id ? '' : b.shop, r.note].filter(Boolean).join(' · ') || null,
+        image: r.image, paid_by: b.paid_by || null,
+      });
+      done += 1;
+      if (btn) btn.textContent = `Saving… ${done}/${rows.length}`;
+    }
+    window._bulk = null;
+    toast(`${done} invoice${done === 1 ? '' : 's'} saved ✓`);
+    window._expTab = 'entries'; go('expenses');
+  } catch (e) {
+    // whatever went in stays in; only the ones left are kept to try again
+    b.rows = b.rows.slice(done);
+    toast(`${done} saved, then it stopped: ${e.message || 'connection'}`, 'error');
+    go('bulkcosts');
+  }
+};
 window.setExpPaid = (v) => { window._expPaid = v; go('expenses'); };
 /* ============ SALARIES SENT MORE THAN ONCE ============
    Naming the duplicates was not enough: they were still sitting there. This is

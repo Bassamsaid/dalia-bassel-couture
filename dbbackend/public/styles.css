@@ -1395,3 +1395,19 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dsg-m span{display:block;font-size:11.5px;color:var(--muted);font-weight:600;margin-top:3px}
 .dsg-n{font-size:12px;font-weight:600;color:var(--muted);padding:11px 14px 13px;line-height:1.5}
 .dsg-n.warn{color:var(--warn)}
+
+/* ===== A stack of invoices, entered in one go ===== */
+.bulk-head label{display:block;margin-bottom:10px;font-size:11px;letter-spacing:1.2px;
+  text-transform:uppercase;font-weight:800;color:var(--muted)}
+.bulk-head label:last-child{margin-bottom:0}
+.bulk-head select,.bulk-head input{width:100%;margin-top:5px;padding:9px 11px;text-transform:none;
+  letter-spacing:0;font-size:14px;font-weight:600;color:var(--ink)}
+.bulk-row{display:flex;gap:11px;align-items:flex-start;position:relative;padding:12px}
+.bulk-row .thumb{width:76px;height:96px;flex:0 0 auto;object-fit:cover;border-radius:10px;cursor:pointer}
+.bulk-row .br-f{flex:1;min-width:0}
+.bulk-row .br-f label{display:block;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;
+  font-weight:800;color:var(--muted);margin-bottom:7px}
+.bulk-row .br-f label:last-child{margin-bottom:0}
+.bulk-row .br-f input{width:100%;margin-top:4px;padding:8px 10px;font-size:14px;font-weight:600;
+  text-transform:none;letter-spacing:0;color:var(--ink)}
+.bulk-row .br-x{position:absolute;top:6px;inset-inline-end:6px}
