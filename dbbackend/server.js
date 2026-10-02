@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const tls = require('node:tls');
 const { URL } = require('node:url');
-const { db, ready, hashPassword, verifyPassword, DB_PATH } = require('./db');
+const { db, ready, hashPassword, verifyPassword, DB_PATH, normMonth } = require('./db');
 const { restore } = require('./restore');
 const { fixAttendanceTz } = require('./fix-attendance-tz');
 const store = require('./storage');
@@ -1990,20 +1990,36 @@ api['POST /api/salary-payments'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
   if (!b.user_id) return send(res, 400, { error: 'staff required' });
+  // one shape for a month, always — a month written the other way round is
+  // recognised by nothing afterwards
+  const month = normMonth(b.month);
+  // The same salary sent twice is the same money counted twice, in her record
+  // and in the studio costs both. It is refused until the first one is dealt
+  // with, or until somebody says plainly that a second payment is meant.
+  if (month && !b.force) {
+    const dup = await db.prepare('SELECT id,amount FROM salary_payments WHERE user_id=? AND month=?').get(b.user_id, month);
+    if (dup) {
+      const who = await db.prepare('SELECT name FROM users WHERE id=?').get(b.user_id);
+      return send(res, 409, {
+        error: `${(who && who.name) || 'She'} was already sent ${money0(dup.amount)} for ${monthName(month)}. Delete that one first, or send this as a second payment for the same month.`,
+        duplicate: { id: dup.id, amount: dup.amount, month },
+      });
+    }
+  }
   const img = await maybeImage(b.image);
-  const r = await db.prepare('INSERT INTO salary_payments (user_id,month,amount,image,note) VALUES (?,?,?,?,?)').run(b.user_id, b.month || null, b.amount || 0, img, b.note || null);
+  const r = await db.prepare('INSERT INTO salary_payments (user_id,month,amount,image,note) VALUES (?,?,?,?,?)').run(b.user_id, month, b.amount || 0, img, b.note || null);
   // That month's salary has gone out, and this month's instalment came off it —
   // so it is paid, without anybody having to remember to say so.
-  if (b.month) await db.prepare('UPDATE advances SET paid=1 WHERE user_id=? AND month=? AND paid=0').run(b.user_id, b.month);
+  if (month) await db.prepare('UPDATE advances SET paid=1 WHERE user_id=? AND month=? AND paid=0').run(b.user_id, month);
   // Wages are a studio cost like any other, and always go from the bank — so the
   // payment writes its own cost rather than waiting to be typed in twice.
-  await addSalaryCost(r.lastInsertRowid, b.user_id, b.month, b.amount || 0);
+  await addSalaryCost(r.lastInsertRowid, b.user_id, month, b.amount || 0);
   // The month it is for, and the payment itself, so tapping the notification
   // opens her salary on that month rather than on whichever one it happens to be
   // today — a salary for September read in October shows an empty screen.
   await notify(b.user_id, {
     type: 'salary',
-    title: `Your ${monthName(b.month)} salary · ${money0(b.amount)} 💵`,
+    title: `Your ${monthName(month)} salary · ${money0(b.amount)} 💵`,
     body: 'Tap to open it and confirm you received it',
     link_page: 'mysalary', link_id: r.lastInsertRowid, actor_name: user.name,
   });

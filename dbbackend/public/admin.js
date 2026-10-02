@@ -2423,6 +2423,13 @@ PAGES.expenses = async (c) => {
     // each chip totals the month, not the chip already chosen — otherwise
     // picking one makes the others read zero
     const sumWhere = (x) => mlist.filter(x).reduce((a, e) => a + (e.amount || 0), 0);
+    // The same salary sent twice sits here twice, and the studio costs carry it
+    // twice with it. Two salary costs for the same person and the same month is
+    // never right, so they are named rather than left to be spotted.
+    const salCount = {};
+    expenses.forEach((e) => { if (e.salary_payment_id && e.note) salCount[e.note] = (salCount[e.note] || 0) + 1; });
+    const dupNotes = Object.keys(salCount).filter((k) => salCount[k] > 1);
+    const dupTotal = expenses.filter((e) => dupNotes.includes(e.note)).reduce((a, e) => a + (e.amount || 0), 0);
     inner = `<div class="grid g2" style="margin-bottom:10px">
         <div class="stat"><div class="n serif" style="color:var(--bad)">${money(etotal)}</div><div class="l">${ef ? monthLabel(ef) : 'All-time'} spent</div></div>
         <div class="stat"><div class="n serif">${elist.length}</div><div class="l">cost${elist.length === 1 ? '' : 's'} recorded</div></div>
@@ -2434,11 +2441,15 @@ PAGES.expenses = async (c) => {
         <span class="chip ${pf === 'bank' ? 'active' : ''}" onclick="setExpPaid('bank')">🏦 The bank · ${moneyText(sumWhere((e) => !e.paid_by))}</span>
         ${holders.map((h) => `<span class="chip ${String(pf) === String(h.id) ? 'active' : ''}" onclick="setExpPaid('${h.id}')">🧰 ${esc(h.name)} · ${moneyText(sumWhere((e) => String(e.paid_by) === String(h.id)))}</span>`).join('')}
       </div>
-      <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item">
+      ${dupNotes.length ? `<div class="card dup-warn" style="margin-top:12px">
+        <div class="nm">⚠️ ${dupNotes.length} salar${dupNotes.length === 1 ? 'y was' : 'ies were'} sent more than once</div>
+        <div class="sub">${dupNotes.map(esc).join(' · ')}. That is ${money(dupTotal)} counted here, where only part of it was really paid. Tap 💼 on the one to drop and it comes off the salary record and off these costs together.</div>
+      </div>` : ''}
+      <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item${dupNotes.includes(e.note) ? ' dup' : ''}">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : `<div class="av">${e.salary_payment_id ? '💼' : '💸'}</div>`}
         <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''} · ${e.paid_by_name ? `🧰 <bdi>${esc(e.paid_by_name)}</bdi>'s float` : '🏦 the bank'}</div></div>
         ${e.salary_payment_id
-          ? `<button class="btn-icon" title="This came from the salary record" onclick="go('staff')">💼</button>`
+          ? `<button class="btn-icon" title="Drop this salary record" onclick="dropSalaryCost(${e.salary_payment_id},'${esc(String(e.note || 'this salary')).replace(/'/g, "\\'")}')">💼</button>`
           : `<div class="row" style="gap:2px">
           <button class="btn-icon" title="Move to Purchases" onclick="moveCostToPurchase(${e.id})">↗</button>
           <button class="btn-icon" onclick="delExpense(${e.id})">🗑</button></div>`}</div>`).join('') : empty(ef || pf ? 'Nothing matches this filter' : 'Nothing here yet', '🏠')}</div>`;
@@ -2463,6 +2474,14 @@ PAGES.expenses = async (c) => {
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
 window.setExpPaid = (v) => { window._expPaid = v; go('expenses'); };
+/* A salary cost is the salary: taking it off here takes the payment off her
+   record too, which is the only way the two can stay telling the same story. */
+window.dropSalaryCost = (payId, label) => {
+  if (!confirm(`Drop this salary?\n\n${label}\n\nIt comes off the staff member's salary record AND off the studio costs, together. This cannot be undone.`)) return;
+  DEL('/api/salary-payments/' + payId)
+    .then(() => { toast('Dropped — off her record and off the costs ✓'); go('expenses'); })
+    .catch((e) => toast(e.message || 'Could not drop it', 'error'));
+};
 window.addExpense = async () => { await loadFloatHolders(); const { vendors, types } = window._expRef; formModal('New studio cost', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'type', label: 'Type', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
@@ -3445,7 +3464,17 @@ window.sendSalary = (id, net, month) => formModal('Send salary', [
   d.user_id = id;
   if (!d.amount && d.amount !== 0) d.amount = net; // keep the prefilled amount if the field was left as-is
   try { await POST('/api/salary-payments', d); toast('Salary sent ✓'); go('staffmember'); }
-  catch (e) { toast(e.message || 'Could not send salary — try again', 'error'); throw e; }
+  catch (e) {
+    // That month is already paid. It is nearly always a second tap on Send, so
+    // the question is asked rather than the money quietly sent twice.
+    if (/already sent/i.test(e.message || '')) {
+      if (!confirm(`${e.message}\n\nSend it anyway, as a second payment for that month?`)) throw e;
+      await POST('/api/salary-payments', { ...d, force: 1 });
+      toast('Sent as a second payment ✓'); go('staffmember');
+      return;
+    }
+    toast(e.message || 'Could not send salary — try again', 'error'); throw e;
+  }
 });
 window.delSalaryPay = (pid) => confirmDel('Delete this salary payment?', async () => { await DEL('/api/salary-payments/' + pid); go('staffmember'); });
 window.approveAdvance = async (aid, ok) => { await PUT('/api/advances/' + aid, { status: ok ? 'approved' : 'rejected' }); toast(ok ? 'Approved' : 'Rejected'); go('staffmember'); };
