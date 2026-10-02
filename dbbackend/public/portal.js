@@ -606,9 +606,7 @@ PAGES.myrequests = async (c) => {
           <div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div></div>`; }).join('')}</div>` : ''}
 
     <div class="sec-title">My advances</div>
-    <div class="card">${advances.length ? advances.map((a) => `<div class="item"><div class="av">💵</div>
-      <div class="main"><div class="nm">${money(a.amount)}</div><div class="sub">${a.month ? 'Deduct ' + a.month : ''}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
-      ${stBadge(a.status || 'approved')}</div>`).join('') : empty('No advances')}</div>`;
+    ${advances.length ? advances.map((a) => advanceCard(a, false)).join('') : `<div class="card">${empty('No advances')}</div>`}`;
 };
 window.setMyReqMonth = (m) => { window._myReqMonth = m; go('myrequests'); };
 const WEEKDAY_NAME = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

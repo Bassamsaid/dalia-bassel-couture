@@ -2867,10 +2867,13 @@ PAGES.staffmember = async (c) => {
         ${st === 'pending' ? `<button class="btn sm ghost" onclick="confirmAbsence(${a.id})">Confirm</button>` : ''}
         <button class="btn-icon" onclick="delAbsence(${a.id})">🗑</button></div>`; }).join('') : empty('No absences recorded')}</div>`;
   } else if (tab === 'advance') {
+    const owing = advances.filter((a) => !a.complete && (a.status || 'approved') === 'approved')
+      .reduce((t, a) => t + (a.total - a.paid_amount), 0);
     inner = `<button class="btn" onclick="addAdvance(${id})">＋ Add advance</button>
-      <div class="card" style="margin-top:12px">${advances.length ? advances.map((a) => { const st = a.status || 'approved'; return `<div class="item"><div class="av">💵</div>
-        <div class="main"><div class="nm">${money(a.amount)} <span class="badge ${st === 'approved' ? 'ok' : st === 'rejected' ? 'bad' : 'warn'}">${st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'Pending'}</span></div><div class="sub">${a.month ? 'Deduct ' + a.month : 'No month set'}${a.note ? ' · ' + esc(a.note) : ''}</div></div>
-        ${st === 'pending' ? `<button class="btn sm ghost" onclick="approveAdvance(${a.id},1)">Approve</button><button class="btn sm danger" onclick="approveAdvance(${a.id},0)">Reject</button>` : `<button class="btn-icon" onclick="delAdvance(${a.id})">🗑</button>`}</div>`; }).join('') : empty('No advances')}</div>`;
+      ${owing ? `<div class="card" style="margin-top:12px;text-align:center">
+        <div class="sub muted" style="letter-spacing:2px;text-transform:uppercase;font-size:11px;font-weight:700">Still to come off</div>
+        <div class="serif" style="font-size:28px;font-weight:700;color:var(--bad);margin-top:2px">${money(owing)}</div></div>` : ''}
+      <div style="margin-top:12px">${advances.length ? advances.map((a) => advanceCard(a, true)).join('') : empty('No advances')}</div>`;
   } else {
     // The whole month, not only the days somebody turned up. A sheet that lists
     // nine days out of thirty does not say whether the other twenty-one were
@@ -2979,10 +2982,50 @@ window.addAdjustment = (id, type, month) => formModal(type === 'bonus' ? 'Add bo
 ], async (d) => { d.user_id = id; d.type = type; await POST('/api/adjustments', d); toast('Saved'); go('staffmember'); });
 window.delAdjustment = (aid) => confirmDel('Delete this?', async () => { await DEL('/api/adjustments/' + aid); go('staffmember'); });
 window.addAdvance = (id) => formModal('Add advance', [
-  { name: 'amount', label: 'Amount', type: 'number', required: true },
-  { name: 'month', label: 'Deduct from month', type: 'month', value: today().slice(0, 7) },
+  { name: 'amount', label: 'Amount handed over', type: 'number', required: true },
+  { name: 'instalments', label: 'Over how many months', type: 'number', value: 1 },
+  { name: 'month', label: 'First deduction from', type: 'month', value: today().slice(0, 7) },
   { name: 'note', label: 'Note (optional)' },
-], async (d) => { d.user_id = id; await POST('/api/advances', d); toast('Added'); go('staffmember'); });
+], async (d) => {
+  d.user_id = id;
+  const r = await POST('/api/advances', d);
+  toast(r.instalments > 1 ? `Split over ${r.instalments} months ✓` : 'Added');
+  go('staffmember');
+});
+window.markInstalment = async (aid, paid) => {
+  await PUT('/api/advances/' + aid + '/paid', { paid: paid ? 1 : 0 });
+  go(state.page);
+};
+
+/* An advance as the thing it is: what was handed over, over how many months, how
+   much of it has come off a salary, and what is left. Each month underneath says
+   whether it has been taken yet. */
+function advanceCard(a, canEdit) {
+  const st = a.status || 'approved';
+  const stBadge = `<span class="badge ${st === 'approved' ? 'ok' : st === 'rejected' ? 'bad' : 'warn'}">${st === 'approved' ? 'Approved' : st === 'rejected' ? 'Rejected' : 'Pending'}</span>`;
+  const multi = a.instalments > 1;
+  const left = Math.round((a.total - a.paid_amount) * 100) / 100;
+  return `<div class="card adv-card${a.complete ? ' done' : ''}">
+    <div class="item" style="border-bottom:none;padding-bottom:4px">
+      <div class="av">${a.complete ? '✓' : '💵'}</div>
+      <div class="main">
+        <div class="nm">${money(a.total)} ${a.complete ? '<span class="badge ok">Complete</span>' : stBadge}</div>
+        <div class="sub">${multi ? `${a.instalments} month(s) · ${a.paid_count} paid` : (a.month ? 'Deduct ' + a.month : 'No month set')}${a.note ? ' · ' + esc(a.note) : ''}</div>
+      </div>
+      ${st === 'pending' && canEdit ? `<button class="btn sm ghost" onclick="approveAdvance(${a.id},1)">Approve</button><button class="btn sm danger" onclick="approveAdvance(${a.id},0)">Reject</button>`
+        : canEdit ? `<button class="btn-icon" onclick="delAdvance(${a.id})">🗑</button>` : ''}
+    </div>
+    ${multi ? `<div class="adv-bar"><span style="width:${Math.round((a.paid_count / a.instalments) * 100)}%"></span></div>
+      <div class="adv-left">${a.complete ? 'Paid off in full' : `${money(left)} still to come off`}</div>
+      <div class="adv-parts">${a.parts.map((p) => `<div class="adv-part${p.paid ? ' paid' : ''}">
+        <span class="ap-m">${esc(p.month || '—')}</span>
+        <span class="ap-a">${money(p.amount)}</span>
+        ${canEdit
+          ? `<button class="ap-s" onclick="markInstalment(${p.id},${p.paid ? 0 : 1})">${p.paid ? 'Paid ✓' : 'Mark paid'}</button>`
+          : `<span class="ap-s ${p.paid ? 'on' : ''}">${p.paid ? 'Paid ✓' : 'Due'}</span>`}
+      </div>`).join('')}</div>` : ''}
+  </div>`;
+}
 window.delAdvance = (aid) => confirmDel('Delete this advance?', async () => { await DEL('/api/advances/' + aid); go('staffmember'); });
 window.sendSalary = (id, net, month) => formModal('Send salary', [
   { name: 'month', label: 'Month', type: 'month', value: month },
