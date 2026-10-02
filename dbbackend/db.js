@@ -72,6 +72,22 @@ db.transaction = async (fn) => {
 // A migration that has already been applied throws; that is the signal it is done.
 const tryExec = async (sql) => { try { await db.exec(sql); } catch (e) { /* already applied */ } };
 
+/* A month is YYYY-MM everywhere it is written, read or compared. Some rows carry
+   it the other way round — 09-2026 — and nothing recognises those: the month is
+   not named in the notification, the cost is dated to today instead of the month
+   it is for, and her own salary screen cannot find it. Turning one round is
+   never a guess: a four-digit part is the year, wherever it sits. */
+function normMonth(v) {
+  const s = String(v || '').trim();
+  let m = /^(\d{4})-(\d{1,2})$/.exec(s);
+  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return `${m[1]}-${String(m[2]).padStart(2, '0')}`;
+  m = /^(\d{1,2})-(\d{4})$/.exec(s);
+  if (m && Number(m[1]) >= 1 && Number(m[1]) <= 12) return `${m[2]}-${String(m[1]).padStart(2, '0')}`;
+  m = /^(\d{4})[/](\d{1,2})$/.exec(s) || /^(\d{4})(\d{2})$/.exec(s);
+  if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return `${m[1]}-${String(m[2]).padStart(2, '0')}`;
+  return null;
+}
+
 function hashPassword(pw) {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(String(pw), salt, 32).toString('hex');
@@ -830,6 +846,34 @@ const ready = (async () => {
     console.warn('Salaries could not be written into the studio costs:', e.message);
   }
 
+  // Months written the other way round — 09-2026 for September 2026. Nothing
+  // recognises those: the notification could not name the month, the studio cost
+  // was dated to the day it was sent rather than the month it was for, and her
+  // own salary screen could not find it. Turned round once, with the cost it
+  // wrote put right beside it.
+  try {
+    const flag = await db.prepare("SELECT value FROM settings WHERE key = 'salary_month_format_2026_10'").get();
+    if (!flag) {
+      const rows = await db.prepare(`SELECT s.id, s.month, s.user_id, u.name
+        FROM salary_payments s JOIN users u ON u.id = s.user_id
+        WHERE s.month IS NOT NULL AND s.month <> ''`).all();
+      let fixed = 0;
+      for (const r of rows) {
+        const m = normMonth(r.month);
+        if (!m || m === r.month) continue;
+        await db.prepare('UPDATE salary_payments SET month=? WHERE id=?').run(m, r.id);
+        const date = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);
+        await db.prepare('UPDATE expenses SET date=?, note=? WHERE salary_payment_id=?')
+          .run(date, `${r.name} · ${m} salary`, r.id);
+        fixed += 1;
+      }
+      await db.prepare("INSERT INTO settings (key,value) VALUES ('salary_month_format_2026_10',?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(new Date().toISOString());
+      if (fixed) console.log(`Salaries: ${fixed} month(s) written the wrong way round were turned round.`);
+    }
+  } catch (e) {
+    console.warn('Salary months could not be put right:', e.message);
+  }
+
   // Last, deliberately: months kept on paper go in after the old rows have been
   // cleared and the clock put right, so nothing just loaded is swept up by
   // either. Their times are already the studio's, and marked as such.
@@ -848,4 +892,4 @@ const ready = (async () => {
 // with it — so it is marked handled here. Whoever awaits it still gets the error.
 ready.catch(() => {});
 
-module.exports = { db, ready, hashPassword, verifyPassword, DB_PATH };
+module.exports = { db, ready, hashPassword, verifyPassword, DB_PATH, normMonth };
