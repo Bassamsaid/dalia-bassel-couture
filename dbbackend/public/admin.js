@@ -1755,16 +1755,19 @@ function dressTotals(list) {
   const mat = list.reduce((a, x) => a + (x.material_cost || 0), 0);
   const margin = val - mat;
   const pct = val ? Math.round((margin / val) * 100) : 0;
-  const cell = (label, v, cls, note) => `<div class="dt-cell"><div class="dt-k">${label}</div>
-    <div class="dt-v ${cls || ''}">${money(v)}</div>${note ? `<div class="dt-n">${note}</div>` : ''}</div>`;
+  // The same four lines the Home card reads in, in the same order: what the
+  // dresses are worth, what the fabric cost, what that leaves — then the cash
+  // side of it. Five cells with rules between them read as five facts; these
+  // read as one sum.
   return `<div class="dress-tot">
     <div class="dt-ttl">${list.length} dress${list.length === 1 ? '' : 'es'} in this view</div>
-    <div class="dt-grid">
-      ${cell('Total value', val)}
-      ${cell('Collected', paid, 'ok')}
-      ${cell(rem ? 'Remaining' : 'Settled', rem, rem ? 'bad' : 'ok')}
-      ${cell('Materials', mat, 'bad')}
-      ${cell('Profit', margin, margin >= 0 ? 'ok' : 'bad', val ? pct + '% of the price' : '')}
+    <div class="fee-list">
+      ${feeRow('Total value', val)}
+      ${feeRow('Materials', mat, 'bad')}
+      <div class="fee-row big"><span class="fee-k">Profit</span>
+        <span class="fee-v" style="color:var(--${margin >= 0 ? 'ok' : 'bad'})">${money(margin)}${val ? ` <i>${pct}%</i>` : ''}</span></div>
+      ${feeRow('Collected', paid, 'ok', false, 'cash')}
+      ${feeRow(rem ? 'Left to collect' : 'Settled', rem, rem ? 'bad' : 'ok')}
     </div>
     <div class="dt-more" onclick="go('dressprofit')">📈 Profit, dress by dress ›</div>
   </div>`;
@@ -3560,8 +3563,8 @@ function kv(label, val, cls) { return `<div class="item"><div class="main"><div 
 /* A line of the dress's money: the words on the left, the figure on the right,
    one line each. The old pair stacked the two and made four tall boxes of what
    is really a four-line sum. */
-function feeRow(label, v, cls, strong) {
-  return `<div class="fee-row${strong ? ' big' : ''}"><span class="fee-k">${esc(label)}</span>
+function feeRow(label, v, cls, strong, extra) {
+  return `<div class="fee-row${strong ? ' big' : ''}${extra ? ' ' + extra : ''}"><span class="fee-k">${esc(label)}</span>
     <span class="fee-v" style="color:var(--${cls || 'ink'})">${money(v)}</span></div>`;
 }
 

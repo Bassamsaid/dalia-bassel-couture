@@ -1553,7 +1553,25 @@ label{font-size:10.5px;margin:12px 0 5px}
 /* Two cards to a row leaves about 145px of line, so the words give way before
    the figure does — a price that reads "75,000…" is worse than a short word. */
 .dr-money .dr-row{gap:6px}
-.dr-money .k{font-size:9.5px;letter-spacing:.2px;flex:0 1 auto;min-width:0;overflow:hidden;
+.dr-money .k{font-size:9px;letter-spacing:.1px;flex:0 1 auto;min-width:0;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
 .dr-money .v{flex:0 0 auto;font-size:11.5px;overflow:visible;text-overflow:clip}
 .dr-money .dr-row.profit .v i{font-size:9.5px}
+
+/* ===== The figures above the dress list, as one sum ===== */
+.dress-tot{padding:13px 14px 2px}
+.dress-tot .dt-ttl{margin-bottom:9px}
+.dress-tot .fee-list{margin:0 0 2px}
+/* what has actually come in is a different question from what the dresses make */
+.fee-row.cash{border-top:1px dashed var(--line);margin-top:2px}
+.fee-v i{font-style:normal;font-size:10.5px;font-weight:700;opacity:.7;margin-inline-start:4px}
+.dress-tot .dt-more{margin-top:0}
+/* the heading and the one big button on a screen, a shade quieter again */
+.page-title{font-size:17px;margin:4px 2px 11px}
+.btn{padding:10px 14px;font-size:11px}
+/* five lines of a sum, kept to the height the grid of cells used */
+.dress-tot .fee-row{padding:5px 12px;line-height:1.25}
+.dress-tot .fee-row.big{padding:7px 12px}
+.dress-tot .fee-v{font-size:14.5px}
+.dress-tot .fee-row.big .fee-v{font-size:17px}
+.dress-tot .dt-more{padding:8px 0 9px}
