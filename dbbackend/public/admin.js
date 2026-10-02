@@ -1756,8 +1756,15 @@ function dressRows(dresses) {
   return dresses.filter((d) => d.price > 0).map((d) => {
     const price = d.price || 0, spent = d.material_cost || 0;
     const paid = d.paid || 0;
-    return { ...d, price, spent, paid, profit: price - spent, due: Math.max(0, price - paid),
-      pct: price ? (price - spent) / price : 0 };
+    // written off: the balance is never coming, so it sold for what came in and
+    // owes nothing more. The price she agreed is kept, and what was given up
+    // with it, because a debt let go is a loss and should be visible as one.
+    const off = !!d.written_off;
+    const sold = off ? paid : price;
+    const forgiven = off ? Math.max(0, price - paid) : 0;
+    return { ...d, price, spent, paid, off, sold, forgiven,
+      profit: sold - spent, due: off ? 0 : Math.max(0, price - paid),
+      pct: sold ? (sold - spent) / sold : 0 };
   });
 }
 /* the three figures at the top of either screen */
@@ -1785,7 +1792,7 @@ PAGES.sales = async (c) => {
   const rows = dressRows(dresses);
   const sort = window._dpSort || 'profit';
   rows.sort((a, b) => sort === 'pct' ? b.pct - a.pct : sort === 'price' ? b.price - a.price : b.profit - a.profit);
-  const price = rows.reduce((a, x) => a + x.price, 0);
+  const price = rows.reduce((a, x) => a + x.sold, 0);
   const spent = rows.reduce((a, x) => a + x.spent, 0);
   const profit = price - spent;
   const sorts = [['profit', 'Most profit'], ['pct', 'Best %'], ['price', 'Priciest']];
@@ -1796,12 +1803,12 @@ PAGES.sales = async (c) => {
      ${missingNote(dresses, 'sales')}
      <div class="filters" style="margin:12px 0 10px">${sorts.map(([k, l]) => `<span class="chip ${sort === k ? 'active' : ''}" onclick="dpSort('${k}')">${l}</span>`).join('')}</div>
      ${rows.length ? rows.map((d) => {
-      const share = d.price ? Math.max(0, Math.min(100, (d.spent / d.price) * 100)) : 0;
+      const share = d.sold ? Math.max(0, Math.min(100, (d.spent / d.sold) * 100)) : 0;
       return `<div class="dp-row" onclick="openDress(${d.id})">
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
           <span class="dp-v ${d.profit >= 0 ? 'ok' : 'bad'}">${money(d.profit)}</span></div>
         <div class="dp-bar"><i class="mat" style="width:${share}%"></i><i class="pro" style="width:${100 - share}%"></i></div>
-        <div class="dp-sub">${money(d.price)} sold · ${money(d.spent)} spent${d.spent ? ` · <b class="${d.profit >= 0 ? '' : 'bad'}">${Math.round(d.pct * 100)}%</b> profit` : ' · <span class="dp-flag">nothing spent yet</span>'}</div>
+        <div class="dp-sub">${money(d.sold)} sold · ${money(d.spent)} spent${d.spent ? ` · <b class="${d.profit >= 0 ? '' : 'bad'}">${Math.round(d.pct * 100)}%</b> profit` : ' · <span class="dp-flag">nothing spent yet</span>'}${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} written off</span>` : ''}</div>
       </div>`;
     }).join('') : empty('No dress has a price on it yet', '📈')}`;
 };
@@ -1816,30 +1823,59 @@ PAGES.collections = async (c) => {
   window._dresses = dresses;
   const rows = dressRows(dresses);
   const f = window._colF || 'due';
-  const list = f === 'due' ? rows.filter((d) => d.due > 0) : f === 'settled' ? rows.filter((d) => !d.due) : rows;
-  list.sort((a, b) => f === 'settled' ? b.paid - a.paid : b.due - a.due);
-  const price = rows.reduce((a, x) => a + x.price, 0);
+  const list = f === 'due' ? rows.filter((d) => d.due > 0)
+    : f === 'settled' ? rows.filter((d) => !d.due && !d.off)
+    : f === 'off' ? rows.filter((d) => d.off) : rows;
+  list.sort((a, b) => f === 'settled' ? b.paid - a.paid : f === 'off' ? b.forgiven - a.forgiven : b.due - a.due);
+  // the realised sale, the same figure Sales shows — one label must not mean two
+  // different numbers on two screens, which is how this got hard to read before
+  const price = rows.reduce((a, x) => a + x.sold, 0);
   const paid = rows.reduce((a, x) => a + x.paid, 0);
   const due = rows.reduce((a, x) => a + x.due, 0);
-  const tabs = [['due', `Still owing (${rows.filter((d) => d.due > 0).length})`], ['settled', `Paid up (${rows.filter((d) => !d.due).length})`], ['all', `All (${rows.length})`]];
+  const forgiven = rows.reduce((a, x) => a + x.forgiven, 0);
+  const offCount = rows.filter((d) => d.off).length;
+  const tabs = [['due', `Still owing (${rows.filter((d) => d.due > 0).length})`],
+    ['settled', `Paid up (${rows.filter((d) => !d.due && !d.off).length})`],
+    ...(offCount ? [['off', `Written off (${offCount})`]] : []),
+    ['all', `All (${rows.length})`]];
   c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
     title('Collections', '💵') +
     `<p class="hint" style="margin:2px 2px 12px">What each dress sold for, what has come in, and what is still owed. Every payment from a client is written down here.</p>
      ${threeTotals([['Sold for', price], ['Received', paid, 'ok'], ['Still owed', due, due ? 'bad' : 'ok']])}
+     ${forgiven ? `<div class="card dp-note" style="border-inline-start-color:var(--muted)">
+       ✕ <b>${money(forgiven)}</b> on ${offCount} dress${offCount === 1 ? '' : 'es'} was written off — given up on, so it is out of what is owed above and out of the sales.</div>` : ''}
      <button class="btn" style="margin-bottom:4px" onclick="takePayment()">＋ Record a payment</button>
      ${missingNote(dresses, 'collections')}
      <div class="filters" style="margin:12px 0 10px">${tabs.map(([k, l]) => `<span class="chip ${f === k ? 'active' : ''}" onclick="colFilter('${k}')">${l}</span>`).join('')}</div>
      ${list.length ? list.map((d) => {
       const got = d.price ? Math.max(0, Math.min(100, (d.paid / d.price) * 100)) : 0;
-      return `<div class="dp-row" onclick="openDress(${d.id})">
+      const nm = esc(d.customer_name).replace(/'/g, "\\'");
+      return `<div class="dp-row${d.off ? ' off' : ''}" onclick="openDress(${d.id})">
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
-          <span class="dp-v ${d.due ? 'bad' : 'ok'}">${d.due ? money(d.due) : 'Paid up ✓'}</span></div>
-        <div class="dp-bar"><i class="pro" style="width:${got}%"></i><i class="owe" style="width:${100 - got}%"></i></div>
-        <div class="dp-sub">${money(d.price)} sold · ${money(d.paid)} in${d.due ? ` · <b class="bad">${Math.round(100 - got)}%</b> still owed` : ''}${d.delivery_date ? ' · delivery ' + dt(d.delivery_date) : ''}</div>
+          <span class="dp-v ${d.off ? 'muted' : d.due ? 'bad' : 'ok'}">${d.off ? '✕ Written off' : d.due ? money(d.due) : 'Paid up ✓'}</span></div>
+        <div class="dp-bar"><i class="pro" style="width:${got}%"></i><i class="${d.off ? 'gone' : 'owe'}" style="width:${100 - got}%"></i></div>
+        <div class="dp-sub">${money(d.price)} sold · ${money(d.paid)} in${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} given up</span>` : d.due ? ` · <b class="bad">${Math.round(100 - got)}%</b> still owed` : ''}${d.delivery_date ? ' · delivery ' + dt(d.delivery_date) : ''}</div>
+        ${d.off
+          ? `<button class="btn ghost sm dp-act" onclick="event.stopPropagation();unwriteOff(${d.id},'${nm}')">↩ No — the money is coming</button>`
+          : d.due ? `<button class="btn ghost sm dp-act" onclick="event.stopPropagation();writeOff(${d.id},'${nm}',${d.due})">✕ No more money coming</button>` : ''}
       </div>`;
     }).join('') : empty(f === 'due' ? 'Every dress is paid up ✓' : 'Nothing here', '💵')}`;
 };
 window.colFilter = (k) => { window._colF = k; go('collections'); };
+/* Giving up on a balance. Not a deletion and not a quiet edit of the price: the
+   price she agreed stays on the dress, what was given up is written beside it,
+   and it can be undone the day the money turns up after all. */
+window.writeOff = (id, name, due) => formModal(`Give up on ${name}'s balance?`, [
+  { name: 'note', label: 'Why (kept on the dress)', placeholder: 'She is not paying the rest' },
+], async (d) => {
+  await PUT('/api/dresses/' + id + '/write-off', { off: 1, note: d.note || null });
+  toast('Written off — out of what is owed ✓');
+  window._colF = 'off'; go('collections');
+}, { hint: `${moneyText(due)} is still owed. Writing it off takes it out of what is owed and out of the sales, so the dress counts as having sold for what actually came in. It can be undone.` });
+window.unwriteOff = (id, name) => confirmDel(`Put ${name}'s balance back as owed?`, async () => {
+  await PUT('/api/dresses/' + id + '/write-off', { off: 0 });
+  toast('Back as owed ✓'); window._colF = 'due'; go('collections');
+});
 /* A payment is taken at the counter, not by going and finding the dress first.
    So it is recorded here, the same way a studio cost is, and lands on the dress
    it is for — which is the only place it was ever really kept. */

@@ -733,6 +733,12 @@ const ready = (async () => {
   // itself into the studio costs. The link is what stops it being counted twice:
   // the cost belongs to that payment, and goes when the payment goes.
   await tryExec('ALTER TABLE expenses ADD COLUMN salary_payment_id INTEGER');
+  // A dress whose balance is never coming. Written down rather than quietly
+  // deleted: the price she agreed stays, and what was forgiven stays beside it,
+  // because a debt given up is a loss and the books should say so.
+  await tryExec('ALTER TABLE dresses ADD COLUMN written_off INTEGER DEFAULT 0');
+  await tryExec('ALTER TABLE dresses ADD COLUMN written_off_at TEXT');
+  await tryExec('ALTER TABLE dresses ADD COLUMN written_off_note TEXT');
   await tryExec('CREATE INDEX IF NOT EXISTS idx_expenses_salary ON expenses(salary_payment_id)');
 
   const { fixAttendanceTz, pruneAttendanceBefore } = require('./fix-attendance-tz');
