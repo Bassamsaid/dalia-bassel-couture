@@ -384,8 +384,8 @@ PAGES.home_admin = async (c) => {
       summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
       rows: [
         ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} in all`],
-        ['dressmoney', '💰', 'Dress money', `${big(moneyText(dRem))} still owed on them`, "go('dresses')"],
-        ['dressmargin', '📈', 'Dress profit', `${big(moneyText(dMargin))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} of ${moneyText(dTotal)}`, "go('dressprofit')"],
+        ['dressmoney', '💰', 'Dress money', `${big(moneyText(dTotal))} the lot · ${big(moneyText(dRem))} still owed`, "go('dresses')"],
+        ['dressmargin', '📈', 'Dress profit', `${big(moneyText(dMargin))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} of it`, "go('dressprofit')"],
       ],
     })}
     ${brandGroup({
@@ -398,7 +398,7 @@ PAGES.home_admin = async (c) => {
         ['courses', '🎬', 'Courses', `${big(videos.length)} video${videos.length === 1 ? '' : 's'}`],
         ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`],
         ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`],
-        ['finance', '💳', 'Course money', `${big(moneyText(sheet.totals.remaining))} still owed on them`],
+        ['finance', '💳', 'Course money', `${big(moneyText(sheet.totals.total_fee))} the lot · ${big(moneyText(sheet.totals.remaining))} still owed`],
       ],
     })}
     ${brandGroup({
