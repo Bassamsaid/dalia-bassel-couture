@@ -1497,3 +1497,25 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
   font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
   background:var(--soft);color:var(--purple-d)}
 .pay-k.dep{background:rgba(63,143,102,.13);color:var(--ok)}
+
+/* ===== The dress's money, as four lines of one sum ===== */
+.fee-list{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#fff;margin:2px 0 10px}
+.fee-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:10px 13px;border-bottom:1px solid var(--line)}
+.fee-list > *:last-child .fee-row,.fee-list > .fee-row:last-child{border-bottom:none}
+.fee-k{font-size:12.5px;font-weight:700;color:var(--muted)}
+.fee-v{flex:0 0 auto;font-family:var(--sans);font-size:15px;font-weight:800;letter-spacing:-.3px;
+  font-variant-numeric:tabular-nums lining-nums}
+.fee-row.big{background:rgba(0,0,0,.025)}
+.fee-row.big .fee-k{color:var(--ink);text-transform:uppercase;letter-spacing:1.2px;font-size:11px;font-weight:800}
+.fee-row.big .fee-v{font-size:19px}
+/* a button that is there to be found, not to shout */
+.btn.sm.quiet{width:100%;text-transform:none;letter-spacing:.1px;font-size:12px;font-weight:700;padding:9px 12px}
+.sec-title.sm{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted);margin:16px 2px 7px}
+.sec-title.sm::after{display:none}
+/* the payments under it are a short list, not a row of cards */
+.dpane[data-pane="money"] .item{padding:9px 0}
+.dpane[data-pane="money"] .item .av{width:32px;height:32px;font-size:15px}
+.dpane[data-pane="money"] .item .nm{font-size:14.5px}
+.dpane[data-pane="money"] .item .sub{font-size:11.5px}
+.dpane[data-pane="money"] .item .thumb{width:32px !important;height:32px !important}
