@@ -733,7 +733,7 @@ PAGES.mydresses = async (c, opts = {}) => {
         </div>
         <div class="card" style="box-shadow:none;margin:8px 0 0">${(d.payments && d.payments.length) ? d.payments.map((p, i) => `<div class="item">
           <div class="av">${p.method === 'cash' ? '💵' : '🏦'}</div>
-          <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.method === 'cash' ? 'Cash' : 'Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+          <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : p.kind === 'payment' ? 'Payment' : ''}${p.kind ? ' · ' : ''}${p.method === 'cash' ? 'Cash' : 'Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
           <button class="btn sec sm" onclick="printDressPay(${d.id},${i})">🖨 Receipt</button></div>`).join('') : '<div class="hint">No payments yet</div>'}</div>` : ''}
       ${d.fittings.length ? `<div class="sec-title">Fitting dates</div>${d.fittings.map((f) => `<div class="item"><div class="av">${f.done ? '✓' : '◷'}</div><div class="main"><div class="nm">${dt(f.fitting_date)}</div><div class="sub">${f.note ? esc(f.note) : ''}</div></div></div>`).join('')}` : ''}
       ${d.images.length ? `<div class="sec-title">Dress photos</div><div class="gallery">${d.images.map((im) => `<img class="thumb" style="aspect-ratio:3/4" src="${esc(mediaUrl(im.image))}" onclick="lightbox('${esc(mediaUrl(im.image))}','${esc(im.caption || d.customer_name)}')"/>`).join('')}</div>` : ''}

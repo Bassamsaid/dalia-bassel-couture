@@ -1043,7 +1043,7 @@ api['GET /api/dresses'] = async (req, res, user) => {
       // clients see THEIR OWN order's price, deposits and balance (+ receipts)
       d.paid = (await db.prepare('SELECT COALESCE(SUM(amount),0) s FROM dress_payments WHERE dress_id=?').get(d.id)).s;
       d.remaining = Math.max(0, (d.price || 0) - d.paid);
-      d.payments = await db.prepare('SELECT amount,method,note,paid_at FROM dress_payments WHERE dress_id=? ORDER BY COALESCE(paid_at,created_at) DESC, id DESC').all(d.id);
+      d.payments = await db.prepare('SELECT amount,method,note,paid_at,kind FROM dress_payments WHERE dress_id=? ORDER BY COALESCE(paid_at,created_at) DESC, id DESC').all(d.id);
     } else { delete d.price; } // staff / manager: no dress money
     if (user.role === 'staff') stripClient(d);
   }
@@ -1171,8 +1171,15 @@ api['POST /api/dresses/:id/payments'] = async (req, res, user, url, params) => {
   if (!b.amount) return send(res, 400, { error: 'Amount is required' });
   const img = await maybeImage(b.image);
   const method = b.method === 'cash' ? 'cash' : 'transfer';
-  const r = await db.prepare("INSERT INTO dress_payments (dress_id,amount,method,note,image,paid_at) VALUES (?,?,?,?,?,COALESCE(?,datetime('now')))")
-    .run(params.id, b.amount, method, b.note || null, img, b.paid_at || null);
+  // Deposit or instalment. Not asked twice: with nothing said, the first money
+  // on a dress is its deposit and everything after it an instalment.
+  let kind = b.kind === 'deposit' || b.kind === 'payment' ? b.kind : null;
+  if (!kind) {
+    const n = (await db.prepare('SELECT COUNT(*) c FROM dress_payments WHERE dress_id=?').get(params.id)).c;
+    kind = n ? 'payment' : 'deposit';
+  }
+  const r = await db.prepare("INSERT INTO dress_payments (dress_id,amount,method,note,image,paid_at,kind) VALUES (?,?,?,?,?,COALESCE(?,datetime('now')),?)")
+    .run(params.id, b.amount, method, b.note || null, img, b.paid_at || null, kind);
   send(res, 200, { id: r.lastInsertRowid });
 };
 api['DELETE /api/dress-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM dress_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };

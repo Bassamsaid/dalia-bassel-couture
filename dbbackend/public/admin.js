@@ -19,7 +19,8 @@ function fmField(f) {
   if (f.type === 'hidden') return `<input type="hidden" name="${f.name}" value="${esc(f.value ?? '')}" />`;
   const v = f.value ?? '';
   const req = f.required ? ' data-req="1"' : '';
-  if (f.type === 'select') return `<label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}"${req}>${
+  // f.auto: the field answers itself from another answer, until a hand changes it
+  if (f.type === 'select') return `<label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}"${req}${f.auto ? ` data-auto="1" onchange="this.removeAttribute('data-auto')"` : ''}>${
     (f.options || []).map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(v) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
   // A list you can search, instead of the phone's own wheel: with two dozen
   // clients that wheel is a scroll through wrapped text with no way to find a
@@ -30,7 +31,8 @@ function fmField(f) {
       oninput="pickFind('${f.name}', this.value)" />
     <div class="pick-list" id="pl_${f.name}">${(f.options || []).map((o) => `
       <div class="pick-row${String(o.value) === String(v) ? ' on' : ''}" data-v="${esc(o.value)}"
-        data-s="${esc(String(o.label).toLowerCase())}" onclick="pickOne('${f.name}','${esc(o.value)}')">
+        data-s="${esc(String(o.label).toLowerCase())}"${o.sets ? ` data-sets="${esc(JSON.stringify(o.sets))}"` : ''}
+        onclick="pickOne('${f.name}','${esc(o.value)}')">
         <span class="pk-n">${esc(o.label)}</span>${o.meta ? `<span class="pk-m">${esc(o.meta)}</span>` : ''}
       </div>`).join('')}</div>
     <div class="hint pick-none" id="pn_${f.name}" style="display:none">No name like that.</div>`;
@@ -57,6 +59,19 @@ window.pickOne = (name, value) => {
   if (!box || !hid) return;
   hid.value = value;
   box.querySelectorAll('.pick-row').forEach((r) => r.classList.toggle('on', r.dataset.v === String(value)));
+  // The row can answer another field for us — which client she is tells us
+  // whether this is her deposit or an instalment. A field the hand has already
+  // set keeps what the hand chose.
+  const row = box.querySelector('.pick-row.on');
+  if (row && row.dataset.sets) {
+    try {
+      const sets = JSON.parse(row.dataset.sets);
+      for (const k of Object.keys(sets)) {
+        const el = document.querySelector(`[name="${k}"][data-auto="1"]`);
+        if (el) el.value = sets[k];
+      }
+    } catch (e) { /* a row that cannot answer simply does not */ }
+  }
   const err = document.getElementById('fmErr'); if (err) err.classList.add('hidden');
 };
 window.pickFind = (name, q) => {
@@ -1932,13 +1947,20 @@ window.takePayment = async (dressId) => {
   formModal('A payment from a client', [
     { name: 'dress_id', label: 'Which client', type: 'pick', required: true, value: dressId || '',
       options: [
-        ...owing.map((d) => ({ value: d.id, label: d.customer_name, meta: `${num0(left(d))} left` })),
-        ...rest.map((d) => ({ value: d.id, label: d.customer_name, meta: 'paid in full' }))] },
+        ...owing.map((d) => ({ value: d.id, label: d.customer_name, meta: `${num0(left(d))} left`,
+          sets: { kind: (d.paid || 0) > 0 ? 'payment' : 'deposit' } })),
+        ...rest.map((d) => ({ value: d.id, label: d.customer_name, meta: 'paid in full',
+          sets: { kind: (d.paid || 0) > 0 ? 'payment' : 'deposit' } }))] },
+    // Picking the client already sets this; it is here to be changed, not filled in.
+    { name: 'kind', label: 'Deposit or payment', type: 'select', auto: true,
+      value: dressId && dresses.find((d) => d.id === dressId) && (dresses.find((d) => d.id === dressId).paid || 0) > 0 ? 'payment' : 'deposit',
+      options: [{ value: 'deposit', label: '🔖 Deposit — the money that books the dress' },
+        { value: 'payment', label: '💰 Payment — more off the price' }] },
     { name: 'amount', label: 'How much', type: 'number', required: true },
     { name: 'method', label: 'Cash or transfer', type: 'select', value: 'transfer',
       options: [{ value: 'transfer', label: '🏦 Transfer / Instapay' }, { value: 'cash', label: '💵 Cash' }] },
     { name: 'paid_at', label: 'Date', type: 'date', value: today() },
-    { name: 'note', label: 'Note (deposit, second payment…)' },
+    { name: 'note', label: 'Note (optional)' },
     { name: 'image', label: 'Receipt photo (optional)', type: 'image' },
   ], async (d) => {
     if (!d.dress_id) throw new Error('Which client paid?');
@@ -2260,13 +2282,21 @@ window.openInvoiceFor = async (invoiceId) => {
     openPurchase(invoiceId);
   } catch (e) { toast(e.message, 'error'); }
 };
+/* Deposit or instalment, in one small badge. Old rows carry no word for it, and
+   those are left bare rather than guessed at here — the database has already
+   marked the earliest payment on each dress. */
+function payBadge(k) {
+  if (k === 'deposit') return '<span class="pay-k dep">Deposit</span>';
+  if (k === 'payment') return '<span class="pay-k">Payment</span>';
+  return '';
+}
 async function loadDressPayments(id) {
   const box = document.getElementById('dpay_' + id); if (!box) return;
   try {
     const pays = await GET('/api/dresses/' + id + '/payments');
     box.innerHTML = pays.length ? `<div class="card" style="box-shadow:none;margin:0">${pays.map((p) => `<div class="item">
       <div class="av">${p.image ? `<img class="thumb" style="width:40px;height:40px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
-      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+      <div class="main"><div class="nm">${money(p.amount)} ${payBadge(p.kind)}</div><div class="sub">${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
       <button class="btn-icon" onclick="delDressPayment(${p.id},${id})">🗑</button></div>`).join('')}</div>` : '<div class="hint">No payments yet</div>';
   } catch (e) { box.innerHTML = '<div class="hint">Could not load payments</div>'; }
 }
