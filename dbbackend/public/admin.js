@@ -346,8 +346,8 @@ function booksCard(books, d) {
     <span class="bk-v">${money(v)}</span></div>`;
   return `<div class="books">
     <div class="bk-top">The dresses · ${key ? esc(monthLabel(key)) : 'all time'}</div>
-    <div class="filters wrap bk-chips">
-      ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthLabel(k) : 'All time'}</span>`).join('')}
+    <div class="filters bk-chips">
+      ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthShort(k) : 'All time'}</span>`).join('')}
     </div>
     ${head('Sales', sold, 'in', "go('sales')")}
     ${head('Spending', spent, 'out')}
@@ -1084,6 +1084,12 @@ const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 function monthLabel(m) {
   const [y, mo] = String(m).split('-');
   return `${MONTH_SHORT[Number(mo) - 1] || mo} ${y}`;
+}
+/* Oct 26 rather than Oct 2026: in a row of chips the century is noise, and the
+   row fits on a phone without wrapping onto a second line. */
+function monthShort(m) {
+  const [y, mo] = String(m).split('-');
+  return `${MONTH_SHORT[Number(mo) - 1] || mo} ${String(y).slice(2)}`;
 }
 function monthChips(dates, current, fn) {
   const months = [...new Set(dates.filter(Boolean).map((d) => String(d).slice(0, 7)))].sort().reverse();
