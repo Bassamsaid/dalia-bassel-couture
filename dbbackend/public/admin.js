@@ -331,38 +331,43 @@ function booksTop(books) {
   const chips = ['', ...books.months.slice(0, 11)];
   return `<div class="books">
     <div class="bk-net ${b.net >= 0 ? 'ok' : 'bad'}">
-      <div class="bk-net-k">${b.net >= 0 ? 'Net profit' : 'Net loss'} · ${key ? esc(monthLabel(key)) : 'all time'}</div>
+      <div class="bk-net-k">${b.net >= 0 ? 'Profit' : 'Loss'} · ${key ? esc(monthLabel(key)) : 'all time'}</div>
       <div class="bk-net-v" data-count="${Math.abs(b.net)}" data-fmt="money">${money(0)}</div>
-      <div class="bk-net-m">${b.income ? `${booksPct(b.margin)} of the ${moneyText(b.income)} that came in` : 'Nothing came in yet'}</div>
+      <div class="bk-net-m">${b.income ? `${moneyText(b.income)} came in · ${moneyText(b.cost)} went out` : 'No money came in this period'}</div>
     </div>
     <div class="filters wrap bk-chips">
       ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthLabel(k) : 'All time'}</span>`).join('')}
     </div>
   </div>`;
 }
-/* The sum itself: the two houses, less what the studio costs to run. Set out as
-   a statement so the net profit is the end of a line you can follow, not a
-   number to be taken on trust. */
+/* The sum itself, in the plainest words there are: money in, money out, what is
+   left. Nothing here is a term of art — anybody who can add can check it. */
 function booksSum(books) {
   const { key, b } = booksPeriod(books);
   const w = books.worth;
-  const dressesLeave = b.dresses - b.materials;
-  const line = (ic, label, v, cls, sub) => `<div class="bk-line ${cls || ''}">
-    <span class="bk-ic">${ic}</span>
-    <span class="bk-k">${esc(label)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>
-    <span class="bk-v">${cls === 'out' ? '−' : ''}${money(Math.abs(v))}</span></div>`;
+  const when = key ? monthLabel(key) : 'All time';
+  const head = (label, v, cls) => `<div class="bk-head-line ${cls || ''}">
+    <span class="bk-k">${esc(label)}</span><span class="bk-v">${money(v)}</span></div>`;
+  const sub = (ic, label, v) => `<div class="bk-sub-line">
+    <span class="bk-ic">${ic}</span><span class="bk-k">${esc(label)}</span>
+    <span class="bk-v">${money(v)}</span></div>`;
   return `<div class="books bk-sheet-card">
-    <div class="bk-ttl">The sum · ${key ? esc(monthLabel(key)) : 'all time'}</div>
-    ${line('👗', 'Dresses leave', dressesLeave, dressesLeave < 0 ? 'neg' : '', `${moneyText(b.dresses)} in, ${moneyText(b.materials)} of materials`)}
-    ${line('🎓', 'Academy leaves', b.courses, '', 'course money, no materials against it')}
-    ${line('🏠', 'The studio costs', b.studio, 'out', 'rent, bills, wages')}
-    ${line('', b.net >= 0 ? 'NET PROFIT' : 'NET LOSS', b.net, 'net ' + (b.net >= 0 ? 'ok' : 'bad'))}
+    <div class="bk-ttl">${esc(when)}</div>
+    ${head('Money in', b.income, 'in')}
+    ${sub('👗', 'From the dresses', b.dresses)}
+    ${sub('🎓', 'From the academy', b.courses)}
+    ${head('Money out', b.cost, 'out')}
+    ${sub('🧾', 'Materials for the dresses', b.materials)}
+    ${sub('🏠', 'The studio: rent, bills, wages', b.studio)}
+    <div class="bk-line net ${b.net >= 0 ? 'ok' : 'bad'}">
+      <span class="bk-k">${b.net >= 0 ? 'Profit' : 'Loss'}<i>money in, less money out</i></span>
+      <span class="bk-v">${money(Math.abs(b.net))}</span></div>
     ${!key ? `<div class="bk-owed">
-      <div class="bk-owed-t">Not in the sum above — it has not come in yet</div>
-      <div class="bk-owed-r"><span>👗 Still owed on dresses</span><b>${money(w.dueDresses)}</b></div>
-      <div class="bk-owed-r"><span>🎓 Still owed on courses</span><b>${money(w.dueCourses)}</b></div>
-      <div class="bk-owed-r tot"><span>If every piastre owed comes in</span><b class="${w.net >= 0 ? 'ok' : 'bad'}">${money(w.net)}</b></div>
-    </div>` : `<div class="bk-foot">${esc(monthLabel(key))} is counted on the money that moved — what came in that month, what went out that month.</div>`}
+      <div class="bk-owed-t">Money people still owe us — not counted above, because it has not come in</div>
+      <div class="bk-owed-r"><span>👗 Owed on dresses</span><b>${money(w.dueDresses)}</b></div>
+      <div class="bk-owed-r"><span>🎓 Owed on courses</span><b>${money(w.dueCourses)}</b></div>
+      <div class="bk-owed-r tot"><span>Profit once it is all paid</span><b class="${w.net >= 0 ? 'ok' : 'bad'}">${money(w.net)}</b></div>
+    </div>` : `<div class="bk-foot">${esc(monthLabel(key))} counts only what moved that month — the money that came in, and the money that went out.</div>`}
   </div>`;
 }
 window.setBooksMonth = (k) => { window._booksMonth = k; go('home'); };
@@ -394,9 +399,9 @@ PAGES.home_admin = async (c) => {
       summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
       plWhen: bkWhen,
       pl: [
-        ['Came in', bk.dresses],
+        ['Money in', bk.dresses],
         ['Materials', bk.materials, 'out'],
-        ['Leaves', bk.dresses - bk.materials, 'tot'],
+        ['Profit', bk.dresses - bk.materials, 'tot'],
       ],
       rows: [
         ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
@@ -418,8 +423,7 @@ PAGES.home_admin = async (c) => {
       summary: `${sheet.totals.count} students · ${rounds.length} round${rounds.length === 1 ? '' : 's'} · ${homeworks.length} task${homeworks.length === 1 ? '' : 's'}`,
       plWhen: bkWhen,
       pl: [
-        ['Came in', bk.courses],
-        ['Leaves', bk.courses, 'tot'],
+        ['Money in', bk.courses, 'tot'],
       ],
       rows: [
         ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
@@ -439,15 +443,15 @@ PAGES.home_admin = async (c) => {
     ${brandGroup({
       name: 'The studio', kind: 'What it costs to run', collapse: 'spending',
       c1: '#0f766e', c2: '#14b8a6', glow: '15,118,110',
-      summary: `${moneyText(pTotal + eTotal)} out all told · ${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'}`,
+      summary: `${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'} on record`,
       plWhen: bkWhen,
       // Materials are shown here too, but marked as already counted against the
       // dresses — the same money in two places reads like twice the money
       // otherwise, and the sum at the bottom only takes it off once.
       pl: [
         ['Rent, bills, wages', bk.studio, 'out'],
-        ['Materials · counted against the dresses', bk.materials, 'out note'],
-        ['Everything out', bk.cost, 'tot out'],
+        ['Materials · already counted on the dresses', bk.materials, 'out note'],
+        ['Money out, all of it', bk.cost, 'tot out'],
       ],
       content: spendAccordion([
         { key: 'purchases', page: 'purchases', icon: '🧾', label: 'Purchases',

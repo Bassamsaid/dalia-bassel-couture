@@ -21,7 +21,13 @@ window.mediaUrl = mediaUrl;
 // which otherwise ends up reading "10,000 · المصرى للاقمشه EGP". Anywhere the
 // result is set as text or escaped, the tags would be shown rather than obeyed —
 // so those places take moneyText.
-const moneyText = (n) => `${(Number(n || 0)).toLocaleString('en-US')} ${(window._cfg && window._cfg.currency) || 'EGP'}`;
+// Whole pounds, or two decimals when there really are piastres — never the
+// 203,562.4 that a plain toLocaleString leaves behind.
+const moneyText = (n) => {
+  const v = Number(n || 0);
+  const d = Math.abs(v % 1) > 0.0001 ? 2 : 0;
+  return `${v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })} ${(window._cfg && window._cfg.currency) || 'EGP'}`;
+};
 const money = (n) => `<bdi>${moneyText(n)}</bdi>`;
 const dt = (s) => s ? String(s).slice(0, 10) : '—';
 const initials = (n) => (n || '?').trim().slice(0, 2).toUpperCase();
@@ -390,7 +396,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v154';
+const APP_VERSION = 'v155';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1153,8 +1159,9 @@ function brandGroup(o) {
     ${figs ? `<div class="bg-figs"><div class="fig-row${(o.figures || []).length > 3 ? ' wrap' : ''}"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}`;
   // The house's own slice of the books, set out in the head: what came in, what
   // it cost, what it leaves. The dashboard underneath is the detail behind it.
+  // no minus in front of a nought: "−0 EGP" reads like a mistake, because it is one
   const pl = (o.pl || []).map(([k, v, cls]) => `<div class="bg-pl-r ${cls || ''}">
-      <span>${esc(k)}</span><b>${String(cls || '').includes('out') ? '−' : ''}${money(Math.abs(v))}</b></div>`).join('');
+      <span>${esc(k)}</span><b>${String(cls || '').includes('out') && Math.abs(v) > 0.0001 ? '−' : ''}${money(Math.abs(v))}</b></div>`).join('');
   const head = `<div class="bg-name">${esc(o.name)}</div>
       <div class="bg-kind">${esc(o.kind)}</div>
       ${o.summary ? `<div class="bg-sum">${o.summary}</div>` : ''}
