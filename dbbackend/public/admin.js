@@ -330,6 +330,12 @@ function booksPeriod(books) {
 function booksCard(books) {
   const { key, b } = booksPeriod(books);
   const w = books.worth;
+  // The dresses alone. The academy's money is somewhere else entirely, by the
+  // studio's instruction — it is not what this screen is for. The studio's own
+  // running costs stay against the dresses, which is the cautious reading: the
+  // profit here is never flattered by leaving a cost out.
+  const inc = b.dresses;
+  const net = inc - b.cost;
   const chips = ['', ...books.months.slice(0, 11)];
   const head = (label, v, cls) => `<div class="bk-head-line ${cls || ''}">
     <span class="bk-k">${esc(label)}</span><span class="bk-v">${money(v)}</span></div>`;
@@ -337,23 +343,22 @@ function booksCard(books) {
     <span class="bk-ic">${ic}</span><span class="bk-k">${esc(label)}</span>
     <span class="bk-v">${money(v)}</span></div>`;
   return `<div class="books">
-    <div class="bk-top">The books · ${key ? esc(monthLabel(key)) : 'all time'}</div>
+    <div class="bk-top">The dresses · ${key ? esc(monthLabel(key)) : 'all time'}</div>
     <div class="filters wrap bk-chips">
       ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthLabel(k) : 'All time'}</span>`).join('')}
     </div>
-    ${head('Money in', b.income, 'in')}
-    ${sub('\u{1F457}', 'Dresses', b.dresses)}
-    ${sub('\u{1F393}', 'Academy', b.courses)}
+    ${head('Money in', inc, 'in')}
     ${head('Money out', b.cost, 'out')}
     ${sub('\u{1F9FE}', 'Materials', b.materials)}
     ${sub('\u{1F3E0}', 'Rent, bills, wages', b.studio)}
-    <div class="bk-line net ${b.net >= 0 ? 'ok' : 'bad'}">
-      <span class="bk-k">${b.net >= 0 ? 'Profit' : 'Loss'}</span>
-      <span class="bk-v" data-count="${Math.abs(b.net)}" data-fmt="money">${money(0)}</span></div>
-    ${!key && (w.dueDresses || w.dueCourses) ? `<div class="bk-owed">
-      <div class="bk-owed-r"><span>Still owed to us</span><b>${money(w.dueDresses + w.dueCourses)}</b></div>
-      <div class="bk-owed-r tot"><span>Profit once it is paid</span><b class="${w.net >= 0 ? 'ok' : 'bad'}">${money(w.net)}</b></div>
+    <div class="bk-line net ${net >= 0 ? 'ok' : 'bad'}">
+      <span class="bk-k">${net >= 0 ? 'Profit' : 'Loss'}</span>
+      <span class="bk-v" data-count="${Math.abs(net)}" data-fmt="money">${money(0)}</span></div>
+    ${!key && w.dueDresses ? `<div class="bk-owed">
+      <div class="bk-owed-r"><span>Still owed on the dresses</span><b>${money(w.dueDresses)}</b></div>
+      <div class="bk-owed-r tot"><span>Profit once it is paid</span><b class="${net + w.dueDresses >= 0 ? 'ok' : 'bad'}">${money(net + w.dueDresses)}</b></div>
     </div>` : ''}
+    <div class="bk-foot">The dresses only. The academy's money is kept on its own, under Academy.</div>
   </div>`;
 }
 window.setBooksMonth = (k) => { window._booksMonth = k; go('home'); };
