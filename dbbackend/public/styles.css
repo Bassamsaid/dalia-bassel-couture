@@ -1367,11 +1367,7 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
   text-overflow:ellipsis;white-space:nowrap}
 .dp-sub b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums lining-nums}
 .dp-sub b.ok{color:var(--ok)} .dp-sub b.bad{color:var(--bad)}
-/* the facts on one line, and the way out of it kept small and off to the side */
-.dp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.dp-x{flex:0 0 auto;background:none;border:none;padding:3px 0 3px 6px;cursor:pointer;
-  font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.2px;white-space:nowrap}
-.dp-x:active{color:var(--bad)}
+
 .dp-flag{color:var(--warn);font-weight:700}
 .dp-sub b.bad{color:var(--bad)}
 
@@ -1440,3 +1436,7 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dp-row.off{opacity:.78;background:rgba(0,0,0,.025)}
 .dp-v.muted{color:var(--muted);font-size:13px}
 .dp-bar i.gone{background:repeating-linear-gradient(45deg,rgba(0,0,0,.08),rgba(0,0,0,.08) 4px,transparent 4px,transparent 8px)}
+/* a dress given up on, said on the dress itself */
+.gave-up{border-inline-start:4px solid var(--muted);background:rgba(0,0,0,.025);box-shadow:none;margin:8px 0 0}
+.gave-up .nm{font-weight:800;color:var(--ink);font-size:14px}
+.gave-up .sub{font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.5;margin-top:5px}

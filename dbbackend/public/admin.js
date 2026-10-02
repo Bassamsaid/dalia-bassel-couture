@@ -1818,7 +1818,7 @@ PAGES.sales = async (c) => {
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
           <span class="dp-v ${d.profit >= 0 ? 'ok' : 'bad'}">${money(d.profit)}</span></div>
         <div class="dp-bar"><i class="mat" style="width:${share}%"></i><i class="pro" style="width:${100 - share}%"></i></div>
-        <div class="dp-foot"><span class="dp-sub"><b>${num0(d.sold)}</b> price · <b>${num0(d.spent)}</b> materials${d.spent ? ` · <b class="${d.profit >= 0 ? 'ok' : 'bad'}">${Math.round(d.pct * 100)}%</b>` : ' · <span class="dp-flag">no materials yet</span>'}${d.off ? ` · <span class="dp-flag">${num0(d.forgiven)} given up</span>` : ''}</span></div>
+        <div class="dp-sub"><b>${num0(d.sold)}</b> price · <b>${num0(d.spent)}</b> materials${d.spent ? ` · <b class="${d.profit >= 0 ? 'ok' : 'bad'}">${Math.round(d.pct * 100)}%</b>` : ' · <span class="dp-flag">no materials yet</span>'}${d.off ? ` · <span class="dp-flag">${num0(d.forgiven)} given up</span>` : ''}</div>
       </div>`;
     }).join('') : empty('No dress has a price on it yet', '📈')}`;
 };
@@ -1859,17 +1859,11 @@ PAGES.collections = async (c) => {
      <div class="filters" style="margin:12px 0 10px">${tabs.map(([k, l]) => `<span class="chip ${f === k ? 'active' : ''}" onclick="colFilter('${k}')">${l}</span>`).join('')}</div>
      ${list.length ? list.map((d) => {
       const got = d.price ? Math.max(0, Math.min(100, (d.paid / d.price) * 100)) : 0;
-      const nm = esc(d.customer_name).replace(/'/g, "\\'");
       return `<div class="dp-row${d.off ? ' off' : ''}" onclick="openDress(${d.id})">
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
           <span class="dp-v ${d.off ? 'muted' : d.due ? 'bad' : 'ok'}">${d.off ? '✕ Given up' : d.due ? money(d.due) : 'Paid ✓'}</span></div>
         <div class="dp-bar"><i class="pro" style="width:${got}%"></i><i class="${d.off ? 'gone' : 'owe'}" style="width:${100 - got}%"></i></div>
-        <div class="dp-foot">
-          <span class="dp-sub"><b>${num0(d.price)}</b> price · <b>${num0(d.paid)}</b> paid${d.off ? ` · <span class="dp-flag">${num0(d.forgiven)} given up</span>` : ''}${d.delivery_date ? ' · ' + shortDate(d.delivery_date) : ''}</span>
-          ${d.off
-            ? `<button class="dp-x" onclick="event.stopPropagation();unwriteOff(${d.id},'${nm}')">↩ undo</button>`
-            : d.due ? `<button class="dp-x" onclick="event.stopPropagation();writeOff(${d.id},'${nm}',${d.due})">✕ give up</button>` : ''}
-        </div>
+        <div class="dp-sub"><b>${num0(d.price)}</b> price · <b>${num0(d.paid)}</b> paid${d.off ? ` · <span class="dp-flag">${num0(d.forgiven)} given up</span>` : ''}${d.delivery_date ? ' · ' + shortDate(d.delivery_date) : ''}</div>
       </div>`;
     }).join('') : empty(f === 'due' ? 'Every dress is paid in full ✓' : 'Nothing here', '💵')}`;
 };
@@ -1882,11 +1876,13 @@ window.writeOff = (id, name, due) => formModal(`Give up on ${name}'s money?`, [
 ], async (d) => {
   await PUT('/api/dresses/' + id + '/write-off', { off: 1, note: d.note || null });
   toast('Given up — off what she owes ✓');
-  window._colF = 'off'; go('collections');
+  // back where it was done from: the dress if that is where we are, the list otherwise
+  if (state.page === 'dress') refreshDress(id); else { window._colF = 'off'; go('collections'); }
 }, { hint: `${moneyText(due)} is still to come. Saying it will never come takes it off what she owes and off the sales, so the dress counts as having sold for what she really paid. You can undo it.` });
 window.unwriteOff = (id, name) => confirmDel(`Put ${name}'s money back as owed?`, async () => {
   await PUT('/api/dresses/' + id + '/write-off', { off: 0 });
-  toast('Back as owed ✓'); window._colF = 'due'; go('collections');
+  toast('Back as owed ✓');
+  if (state.page === 'dress') refreshDress(id); else { window._colF = 'due'; go('collections'); }
 });
 /* A payment is taken at the counter, not by going and finding the dress first.
    So it is recorded here, the same way a studio cost is, and lands on the dress
@@ -2118,6 +2114,13 @@ PAGES.dress = async (c) => {
         ${kv('Paid (deposits)', money(d.paid || 0), 'ok')}
         <span id="dRemain_${id}">${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}</span>
       </div>
+      ${d.written_off
+        ? `<div class="card gave-up"><div class="nm">✕ Given up on ${money(d.forgiven || 0)}</div>
+             <div class="sub">${d.written_off_note ? esc(d.written_off_note) + ' · ' : ''}${d.written_off_at ? dt(d.written_off_at) : ''}. It is off what she owes and off the sales — the dress counts as having sold for the ${moneyText(d.paid || 0)} she really paid.</div>
+             <button class="btn sec sm" style="margin-top:10px" onclick="unwriteOff(${id},'${esc(d.customer_name).replace(/'/g, "\\'")}')">↩ No — the money is coming</button></div>`
+        : (d.remaining || 0) > 0
+          ? `<button class="btn ghost sm" style="margin-top:6px" onclick="writeOff(${id},'${esc(d.customer_name).replace(/'/g, "\\'")}',${d.remaining || 0})">✕ No more money coming from her</button>`
+          : ''}
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
       <button class="btn sec sm" style="margin-top:6px" onclick="go('collections')">💵 Payments are written down under Collections ›</button>` : ''}`) : '';
 
