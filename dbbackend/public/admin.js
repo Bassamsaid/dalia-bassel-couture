@@ -1752,6 +1752,16 @@ function dressMoney(d) {
    read, so none of them is allowed to drift into another's job. */
 
 /* a dress, with everything either screen needs worked out once */
+/* 8 Oct, not 2026-10-08. A delivery date beside two money figures should not be
+   the longest thing on the line. */
+/* 100,000 — no currency. The figure beside it on the line above already says
+   EGP, and repeating it three times a row is what pushed the date off the end. */
+const num0 = (n) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
+function shortDate(d) {
+  const s = String(d || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  return `${Number(s.slice(8, 10))} ${MONTH_SHORT[Number(s.slice(5, 7)) - 1] || ''}`;
+}
 function dressRows(dresses) {
   return dresses.filter((d) => d.price > 0).map((d) => {
     const price = d.price || 0, spent = d.material_cost || 0;
@@ -1798,7 +1808,7 @@ PAGES.sales = async (c) => {
   const sorts = [['profit', 'Most profit'], ['pct', 'Best %'], ['price', 'Priciest']];
   c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
     title('Sales', '📈') +
-    `<p class="hint" style="margin:2px 2px 12px">Every dress: its price, what the fabric cost, and what is left over.</p>
+    `<p class="hint" style="margin:2px 2px 10px">Price, fabric, and what each dress leaves.</p>
      ${threeTotals([['Price', price], ['Materials', spent, 'bad'], ['Profit', profit, profit >= 0 ? 'ok' : 'bad', price ? Math.round((profit / price) * 100) + '% of the price' : '']])}
      ${missingNote(dresses, 'sales')}
      <div class="filters" style="margin:12px 0 10px">${sorts.map(([k, l]) => `<span class="chip ${sort === k ? 'active' : ''}" onclick="dpSort('${k}')">${l}</span>`).join('')}</div>
@@ -1808,7 +1818,7 @@ PAGES.sales = async (c) => {
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
           <span class="dp-v ${d.profit >= 0 ? 'ok' : 'bad'}">${money(d.profit)}</span></div>
         <div class="dp-bar"><i class="mat" style="width:${share}%"></i><i class="pro" style="width:${100 - share}%"></i></div>
-        <div class="dp-sub">${money(d.sold)} price · ${money(d.spent)} materials${d.spent ? ` · <b class="${d.profit >= 0 ? '' : 'bad'}">${Math.round(d.pct * 100)}%</b> profit` : ' · <span class="dp-flag">no materials yet</span>'}${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} given up</span>` : ''}</div>
+        <div class="dp-foot"><span class="dp-sub"><b>${num0(d.sold)}</b> price · <b>${num0(d.spent)}</b> materials${d.spent ? ` · <b class="${d.profit >= 0 ? 'ok' : 'bad'}">${Math.round(d.pct * 100)}%</b>` : ' · <span class="dp-flag">no materials yet</span>'}${d.off ? ` · <span class="dp-flag">${num0(d.forgiven)} given up</span>` : ''}</span></div>
       </div>`;
     }).join('') : empty('No dress has a price on it yet', '📈')}`;
 };
@@ -1840,7 +1850,7 @@ PAGES.collections = async (c) => {
     ['all', `All (${rows.length})`]];
   c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
     title('Collections', '💵') +
-    `<p class="hint" style="margin:2px 2px 12px">Every dress: its price, what the client has paid, and what is left. Write every payment down here.</p>
+    `<p class="hint" style="margin:2px 2px 10px">Write every payment from a client down here.</p>
      ${threeTotals([['Price', price], ['Paid', paid, 'ok'], ['Left to pay', due, due ? 'bad' : 'ok']])}
      ${forgiven ? `<div class="card dp-note" style="border-inline-start-color:var(--muted)">
        ✕ <b>${money(forgiven)}</b> on ${offCount} dress${offCount === 1 ? '' : 'es'} will never come, so it is not counted above and not counted as a sale.</div>` : ''}
@@ -1852,12 +1862,14 @@ PAGES.collections = async (c) => {
       const nm = esc(d.customer_name).replace(/'/g, "\\'");
       return `<div class="dp-row${d.off ? ' off' : ''}" onclick="openDress(${d.id})">
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
-          <span class="dp-v ${d.off ? 'muted' : d.due ? 'bad' : 'ok'}">${d.off ? '✕ Given up' : d.due ? money(d.due) : 'Paid in full ✓'}</span></div>
+          <span class="dp-v ${d.off ? 'muted' : d.due ? 'bad' : 'ok'}">${d.off ? '✕ Given up' : d.due ? money(d.due) : 'Paid ✓'}</span></div>
         <div class="dp-bar"><i class="pro" style="width:${got}%"></i><i class="${d.off ? 'gone' : 'owe'}" style="width:${100 - got}%"></i></div>
-        <div class="dp-sub">${money(d.price)} price · ${money(d.paid)} paid${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} given up</span>` : d.due ? ` · <b class="bad">${Math.round(100 - got)}%</b> left` : ''}${d.delivery_date ? ' · delivery ' + dt(d.delivery_date) : ''}</div>
-        ${d.off
-          ? `<button class="btn ghost sm dp-act" onclick="event.stopPropagation();unwriteOff(${d.id},'${nm}')">↩ No — the money is coming</button>`
-          : d.due ? `<button class="btn ghost sm dp-act" onclick="event.stopPropagation();writeOff(${d.id},'${nm}',${d.due})">✕ No more money coming</button>` : ''}
+        <div class="dp-foot">
+          <span class="dp-sub"><b>${num0(d.price)}</b> price · <b>${num0(d.paid)}</b> paid${d.off ? ` · <span class="dp-flag">${num0(d.forgiven)} given up</span>` : ''}${d.delivery_date ? ' · ' + shortDate(d.delivery_date) : ''}</span>
+          ${d.off
+            ? `<button class="dp-x" onclick="event.stopPropagation();unwriteOff(${d.id},'${nm}')">↩ undo</button>`
+            : d.due ? `<button class="dp-x" onclick="event.stopPropagation();writeOff(${d.id},'${nm}',${d.due})">✕ give up</button>` : ''}
+        </div>
       </div>`;
     }).join('') : empty(f === 'due' ? 'Every dress is paid in full ✓' : 'Nothing here', '💵')}`;
 };
