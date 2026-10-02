@@ -1440,3 +1440,19 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .gave-up{border-inline-start:4px solid var(--muted);background:rgba(0,0,0,.025);box-shadow:none;margin:8px 0 0}
 .gave-up .nm{font-weight:800;color:var(--ink);font-size:14px}
 .gave-up .sub{font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.5;margin-top:5px}
+
+/* ===== A list you can search, in place of the phone's own wheel ===== */
+.pick-find{width:100%;margin:6px 0 8px;padding:10px 12px;font-size:15px;font-weight:600}
+.pick-list{max-height:260px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  border:1px solid var(--line);border-radius:14px;background:#fff}
+.pick-list::-webkit-scrollbar{width:0}
+.pick-row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer;transition:background .14s}
+.pick-row:last-child{border-bottom:none}
+.pick-row:active{background:rgba(0,0,0,.05)}
+.pick-row.on{background:linear-gradient(90deg,rgba(124,58,237,.12),rgba(194,24,91,.08))}
+.pick-row.on .pk-n::before{content:"✓ ";color:var(--purple-d);font-weight:800}
+.pk-n{font-size:14.5px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk-m{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--muted);
+  font-variant-numeric:tabular-nums lining-nums}
+.pick-none{padding:10px 2px}
