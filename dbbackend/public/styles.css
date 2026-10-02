@@ -1519,3 +1519,41 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dpane[data-pane="money"] .item .nm{font-size:14.5px}
 .dpane[data-pane="money"] .item .sub{font-size:11.5px}
 .dpane[data-pane="money"] .item .thumb{width:32px !important;height:32px !important}
+
+/* ===== One notch quieter, all round =====
+   Everything was sized for a page read at arm's length: 46px buttons shouting
+   in capitals under a 22px heading, 44px circles beside every name. The sizes
+   below are the same screens with the volume turned down — nothing is removed,
+   and nothing goes under 11px. */
+.page-title{font-size:19px;margin:6px 2px 12px}
+.btn{padding:11px 15px;font-size:11.5px;letter-spacing:.5px;border-radius:10px;
+  box-shadow:0 5px 13px rgba(124,58,237,.17)}
+.btn.sec,.btn.ghost,.btn.danger{box-shadow:none}
+.btn.sm{padding:7px 12px;font-size:10.5px;border-radius:8px}
+/* a small button beside others keeps its own width instead of filling the row */
+.row > .btn.sm{flex:0 0 auto}
+.chip{padding:6px 12px;font-size:11.5px}
+input,select,textarea{padding:10px 12px;font-size:14px;border-radius:10px}
+textarea{min-height:70px}
+label{font-size:10.5px;margin:12px 0 5px}
+.sec-title{font-size:13px;margin:17px 2px 9px}
+.item{padding:11px 0}
+.item .av{width:37px;height:37px;font-size:13.5px}
+.item .main .nm{font-size:14.5px}
+.item .main .sub{font-size:11.5px}
+.card{padding:15px}
+.empty{padding:34px 10px}
+.bottomnav button{padding:9px 10px 7px}
+.bottomnav button .ic{font-size:17px}
+/* A column that cannot be narrower than its longest word pushed the right-hand
+   dress card past the edge of the phone, where it was quietly cut off. */
+.grid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:560px){.grid.g3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* Two cards to a row leaves about 145px of line, so the words give way before
+   the figure does — a price that reads "75,000…" is worse than a short word. */
+.dr-money .dr-row{gap:6px}
+.dr-money .k{font-size:9.5px;letter-spacing:.2px;flex:0 1 auto;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.dr-money .v{flex:0 0 auto;font-size:11.5px;overflow:visible;text-overflow:clip}
+.dr-money .dr-row.profit .v i{font-size:9.5px}
