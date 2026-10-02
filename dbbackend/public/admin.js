@@ -205,28 +205,10 @@ window.confirmDel = confirmDel;
 function dayEn(d) { return { friday: 'Friday', saturday: 'Saturday' }[d] || d || ''; }
 function leaveEn(t) { return { annual: 'Annual', sick: 'Sick', unpaid: 'Unpaid' }[t] || t; }
 
-/* branded hero (uses uploaded cover photo if set, else brand banner) */
-function heroBanner(about, admin) {
-  const inner = about && about.home_image
-    ? `<div class="hero hero-photo" style="background-image:url('${esc(mediaUrl(about.home_image))}')" onclick="lightbox('${esc(mediaUrl(about.home_image))}')"></div>`
-    : `<div class="hero hero-brand"><div class="hero-mark">DB</div><div class="hero-name">Dalia Bassel</div><div class="hero-sub">Haute Couture</div></div>`;
-  const has = !!(about && about.home_image);
-  // Replacing a photo was the only way to be rid of one, which is no help when
-  // what went up should not be there at all: taking it down is its own button.
-  const buttons = admin
-    ? `<div class="hero-actions">
-         ${has ? `<button class="hero-cta" onclick="event.stopPropagation();removeCover()">✕ Remove</button>` : ''}
-         <button class="hero-cta" onclick="event.stopPropagation();uploadCover()">📷 ${has ? 'Change photo' : 'Add photo'}</button>
-       </div>`
-    : '';
-  return `<div style="position:relative">${inner}${buttons}</div>`;
-}
-window.uploadCover = () => pickImage((b64) => cropImage(b64, 16 / 10, async (cropped) => { await PUT('/api/home-cover', { image: cropped }); toast('Cover updated'); go('home'); }));
-window.removeCover = async () => {
-  if (!confirm('Take this photo off the home screen?\n\nThe brand banner goes back in its place.')) return;
-  try { await PUT('/api/home-cover', { image: '' }); toast('Photo removed'); go('home'); }
-  catch (e) { toast(e.message || 'Could not remove the photo', 'error'); }
-};
+/* The home cover photo was the backdrop of a banner the dashboard no longer
+   carries — the top of Home is the books and the two houses now. The photo
+   itself is kept on the server, and the studio's own photo and introduction
+   live on the Dalia screen, so nothing of his is lost by its going. */
 
 /* ============ HOME / DASHBOARD ============ */
 /* What every shop has had out of us. Invoices carry either a vendor on the list
@@ -327,11 +309,69 @@ window.toggleSpend = (k) => {
   window._spendOpen[k] = el.classList.toggle('open');
 };
 
+/* ============ THE BOOKS ============
+   Money in, money out, what is left — set out the way a statement is, so the
+   net profit is not a number to be taken on trust but the end of a sum you can
+   follow line by line.
+
+   A month is counted on the money that MOVED: payments that came in that month,
+   invoices and costs dated to it. That is the only basis the records can carry
+   honestly — a dress is not earned on any one day — so all time carries a second
+   reading beside it: what everything is worth once what is owed comes in. The
+   two answer different questions, and are never added together. */
+const booksPct = (x) => (x * 100).toFixed(Math.abs(x) < 0.1 ? 1 : 0).replace(/\.0$/, '') + '%';
+function booksPeriod(books) {
+  const key = window._booksMonth === undefined ? '' : window._booksMonth; // '' = all time
+  return { key, b: (key && books.by[key]) ? books.by[key] : books.all, when: key ? monthLabel(key) : 'All time' };
+}
+/* The headline and the period it is for. Everything below it — each house's own
+   slice, and the sum at the bottom — is counted for whichever period is chosen. */
+function booksTop(books) {
+  const { key, b } = booksPeriod(books);
+  const chips = ['', ...books.months.slice(0, 11)];
+  return `<div class="books">
+    <div class="bk-net ${b.net >= 0 ? 'ok' : 'bad'}">
+      <div class="bk-net-k">${b.net >= 0 ? 'Net profit' : 'Net loss'} · ${key ? esc(monthLabel(key)) : 'all time'}</div>
+      <div class="bk-net-v" data-count="${Math.abs(b.net)}" data-fmt="money">${money(0)}</div>
+      <div class="bk-net-m">${b.income ? `${booksPct(b.margin)} of the ${moneyText(b.income)} that came in` : 'Nothing came in yet'}</div>
+    </div>
+    <div class="filters wrap bk-chips">
+      ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthLabel(k) : 'All time'}</span>`).join('')}
+    </div>
+  </div>`;
+}
+/* The sum itself: the two houses, less what the studio costs to run. Set out as
+   a statement so the net profit is the end of a line you can follow, not a
+   number to be taken on trust. */
+function booksSum(books) {
+  const { key, b } = booksPeriod(books);
+  const w = books.worth;
+  const dressesLeave = b.dresses - b.materials;
+  const line = (ic, label, v, cls, sub) => `<div class="bk-line ${cls || ''}">
+    <span class="bk-ic">${ic}</span>
+    <span class="bk-k">${esc(label)}${sub ? `<i>${esc(sub)}</i>` : ''}</span>
+    <span class="bk-v">${cls === 'out' ? '−' : ''}${money(Math.abs(v))}</span></div>`;
+  return `<div class="books bk-sheet-card">
+    <div class="bk-ttl">The sum · ${key ? esc(monthLabel(key)) : 'all time'}</div>
+    ${line('👗', 'Dresses leave', dressesLeave, dressesLeave < 0 ? 'neg' : '', `${moneyText(b.dresses)} in, ${moneyText(b.materials)} of materials`)}
+    ${line('🎓', 'Academy leaves', b.courses, '', 'course money, no materials against it')}
+    ${line('🏠', 'The studio costs', b.studio, 'out', 'rent, bills, wages')}
+    ${line('', b.net >= 0 ? 'NET PROFIT' : 'NET LOSS', b.net, 'net ' + (b.net >= 0 ? 'ok' : 'bad'))}
+    ${!key ? `<div class="bk-owed">
+      <div class="bk-owed-t">Not in the sum above — it has not come in yet</div>
+      <div class="bk-owed-r"><span>👗 Still owed on dresses</span><b>${money(w.dueDresses)}</b></div>
+      <div class="bk-owed-r"><span>🎓 Still owed on courses</span><b>${money(w.dueCourses)}</b></div>
+      <div class="bk-owed-r tot"><span>If every piastre owed comes in</span><b class="${w.net >= 0 ? 'ok' : 'bad'}">${money(w.net)}</b></div>
+    </div>` : `<div class="bk-foot">${esc(monthLabel(key))} is counted on the money that moved — what came in that month, what went out that month.</div>`}
+  </div>`;
+}
+window.setBooksMonth = (k) => { window._booksMonth = k; go('home'); };
+
 PAGES.home_admin = async (c) => {
-  const [sheet, rounds, dresses, reminders, about, users, homeworks, quizzes, videos, invoices, expenses] = await Promise.all([
-    GET('/api/finance/sheet'), GET('/api/rounds'), GET('/api/dresses'), GET('/api/reminders'), GET('/api/about'), GET('/api/users'),
+  const [sheet, rounds, dresses, reminders, users, homeworks, quizzes, videos, invoices, expenses, books] = await Promise.all([
+    GET('/api/finance/sheet'), GET('/api/rounds'), GET('/api/dresses'), GET('/api/reminders'), GET('/api/users'),
     GET('/api/homeworks'), GET('/api/quizzes'), GET('/api/videos'),
-    GET('/api/purchases'), GET('/api/expenses'),
+    GET('/api/purchases'), GET('/api/expenses'), GET('/api/books'),
   ]);
   const dueSoon = reminders.filter((r) => !r.done).length;
   const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
@@ -345,12 +385,42 @@ PAGES.home_admin = async (c) => {
   const pTotal = invoices.reduce((a, x) => a + (x.total || 0), 0);
   const eTotal = expenses.reduce((a, x) => a + (x.amount || 0), 0);
   const spendRows = vendorSpendRows(invoices, expenses);
+  const { b: bk, when: bkWhen } = booksPeriod(books);
   c.innerHTML = luxBackdrop() + dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
-    heroBanner(about, true) + `
+    booksTop(books) + `
     ${brandGroup({
-      name: 'Dalia Bassel', kind: 'Academy',
+      name: 'Daliessa', kind: 'Dresses · Couture', collapse: 'dresses',
+      c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
+      summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
+      plWhen: bkWhen,
+      pl: [
+        ['Came in', bk.dresses],
+        ['Materials', bk.materials, 'out'],
+        ['Leaves', bk.dresses - bk.materials, 'tot'],
+      ],
+      rows: [
+        ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
+        ['dressmoney', '💰', 'Dress money', dRem ? `${big(moneyText(dRem))} still due` : `${big(moneyText(dPaid))} collected`, "go('dresses')"],
+        ['dressmargin', '📈', 'Materials & margin', `${big(moneyText(dMat))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} margin`, "go('dresses')"],
+      ],
+      figuresGo: "go('dresses')",
+      figures: [
+        { value: dPaid, label: 'Deposits in', money: true, color: 'var(--ok)' },
+        { value: dRem, label: 'Remaining', money: true, color: dRem ? 'var(--bad)' : 'var(--ok)' },
+        { value: dTotal, label: 'Total value', money: true },
+        { value: dMat, label: 'Materials', money: true, color: 'var(--bad)' },
+        { value: dMargin, label: 'Margin', money: true, color: dMargin >= 0 ? 'var(--ok)' : 'var(--bad)' },
+      ],
+    })}
+    ${brandGroup({
+      name: 'Dalia Bassel', kind: 'Academy', collapse: 'academy',
       c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
       summary: `${sheet.totals.count} students · ${rounds.length} round${rounds.length === 1 ? '' : 's'} · ${homeworks.length} task${homeworks.length === 1 ? '' : 's'}`,
+      plWhen: bkWhen,
+      pl: [
+        ['Came in', bk.courses],
+        ['Leaves', bk.courses, 'tot'],
+      ],
       rows: [
         ['students', '👩‍🎓', 'Students', `${big(sheet.totals.count)} enrolled`],
         ['rounds', '🗓', 'Rounds & groups', `${big(rounds.length)} round${rounds.length === 1 ? '' : 's'}`],
@@ -367,27 +437,18 @@ PAGES.home_admin = async (c) => {
       ],
     })}
     ${brandGroup({
-      name: 'Daliessa', kind: 'Couture',
-      c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
-      summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
-      rows: [
-        ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
-        ['dressmoney', '💰', 'Dress money', dRem ? `${big(moneyText(dRem))} still due` : `${big(moneyText(dPaid))} collected`, "go('dresses')"],
-        ['dressmargin', '📈', 'Materials & margin', `${big(moneyText(dMat))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} margin`, "go('dresses')"],
-      ],
-      figuresGo: "go('dresses')",
-      figures: [
-        { value: dPaid, label: 'Deposits in', money: true, color: 'var(--ok)' },
-        { value: dRem, label: 'Remaining', money: true, color: dRem ? 'var(--bad)' : 'var(--ok)' },
-        { value: dTotal, label: 'Total value', money: true },
-        { value: dMat, label: 'Materials', money: true, color: 'var(--bad)' },
-        { value: dMargin, label: 'Margin', money: true, color: dMargin >= 0 ? 'var(--ok)' : 'var(--bad)' },
-      ],
-    })}
-    ${brandGroup({
-      name: 'Spending', kind: 'Money out',
+      name: 'The studio', kind: 'What it costs to run', collapse: 'spending',
       c1: '#0f766e', c2: '#14b8a6', glow: '15,118,110',
-      summary: `${moneyText(pTotal + eTotal)} out · ${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'}`,
+      summary: `${moneyText(pTotal + eTotal)} out all told · ${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'}`,
+      plWhen: bkWhen,
+      // Materials are shown here too, but marked as already counted against the
+      // dresses — the same money in two places reads like twice the money
+      // otherwise, and the sum at the bottom only takes it off once.
+      pl: [
+        ['Rent, bills, wages', bk.studio, 'out'],
+        ['Materials · counted against the dresses', bk.materials, 'out note'],
+        ['Everything out', bk.cost, 'tot out'],
+      ],
       content: spendAccordion([
         { key: 'purchases', page: 'purchases', icon: '🧾', label: 'Purchases',
           meta: `${big(moneyText(pTotal))} · ${big(invoices.length)} invoice${invoices.length === 1 ? '' : 's'}`,
@@ -406,6 +467,7 @@ PAGES.home_admin = async (c) => {
         { value: pTotal + eTotal, label: 'Total out', money: true },
       ],
     })}
+    ${booksSum(books)}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
         <div class="main"><div class="nm">${esc(r.user_name)}</div><div class="sub">${dt(r.due_date)} · ${money(r.amount)} ${r.note ? '· ' + esc(r.note) : ''}</div></div>
