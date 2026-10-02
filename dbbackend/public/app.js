@@ -346,6 +346,11 @@ async function loadConfig() {
   // the clock the server keeps the attendance by, so a date typed here and a
   // date recorded there are the same day
   try { const c = await GET('/api/clock'); if (c && c.zone) STUDIO_TZ = c.zone; } catch (e) {}
+  // is she carrying any of the studio's cash? the Petty cash tab only exists if so
+  state.hasFloat = false;
+  if (state.user && ['staff', 'manager'].includes(state.user.role)) {
+    try { const f = await GET('/api/floats/' + state.user.id); state.hasFloat = !!(f && f.entries && f.entries.length); } catch (e) {}
+  }
 }
 function isHidden(page) {
   if (!state.user || state.user.role === 'admin') return false;
@@ -383,7 +388,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v144';
+const APP_VERSION = 'v145';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -574,6 +579,7 @@ const GROUPS = {
       ['myoverview', 'Overview', '👤', ['staff', 'manager']],
       ['mysalary', 'Salary', '💵', ['staff', 'manager']],
       ['myrequests', 'Absences', '🗂', ['staff', 'manager']],
+      ['myfloat', 'Petty cash', '🧰', ['staff', 'manager'], () => !!state.hasFloat],
       ['myattendance', 'Attendance', '🕒', ['staff', 'manager']],
     ],
   },
@@ -591,7 +597,10 @@ const GROUPS = {
 function groupTabs(key) {
   const g = GROUPS[key];
   if (!g || !state.user) return [];
-  return g.tabs.filter(([k, l, ic, roles]) => roles.includes(state.user.role) && !isHidden(k));
+  // a tab may also carry a condition: petty cash is not a screen somebody who
+  // has never been handed any should have to look at
+  return g.tabs.filter(([k, l, ic, roles, when]) =>
+    roles.includes(state.user.role) && !isHidden(k) && (typeof when !== 'function' || when()));
 }
 
 /* the merged screen a page lives in, for this user — or nothing, if it stands alone */

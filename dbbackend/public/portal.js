@@ -497,6 +497,47 @@ PAGES.myoverview = async (c) => {
     <p class="hint" style="margin-top:12px">Anything that needs changing here — your hours, your days off, your pay — is set by the studio.</p>`;
 };
 
+/* The studio's cash she is carrying. The same reckoning the studio sees — what
+   was handed over, what it has been spent on, what is still in her hand — so
+   there is never a figure she has to take somebody's word for. Nothing here is
+   hers to change: handing cash over and taking it back are the studio's. */
+PAGES.myfloat = async (c) => {
+  let f = null;
+  try { f = await GET('/api/floats/' + state.user.id); } catch (e) {}
+  if (!f || !f.entries.length) {
+    c.innerHTML = pageHead('Petty cash', '🧰') + empty('No petty cash with you', '🧰');
+    return;
+  }
+  const spending = f.entries.filter((e) => e.kind === 'cost' || e.kind === 'invoice');
+  const cash = f.entries.filter((e) => e.kind === 'handed' || e.kind === 'back');
+  const row = (e) => {
+    const m = FLOAT_ENTRY[e.kind] || FLOAT_ENTRY.cost;
+    return `<div class="item"><div class="av">${m.ic}</div>
+      <div class="main"><div class="nm">${m.label}${e.note ? ' · ' + esc(e.note) : ''}</div>
+        <div class="sub">${e.date ? dt(e.date) : ''}</div></div>
+      <div class="serif" style="font-weight:700;white-space:nowrap;color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
+    </div>`;
+  };
+  c.innerHTML = pageHead('Petty cash', '🧰') +
+    `<div class="grid g3 fl-figs">
+      <div class="stat"><div class="n serif">${money(f.handed)}</div><div class="l">received</div></div>
+      <div class="stat"><div class="n serif" style="color:var(--bad)">${money(f.spent)}</div><div class="l">spent</div></div>
+      <div class="stat fl-left"><div class="n serif" style="color:var(--${f.balance < 0 ? 'bad' : 'ok'})">${money(f.balance)}</div><div class="l">still in your hand</div></div>
+    </div>
+    ${f.back ? `<div class="hint" style="margin:2px 2px 8px">${money(f.back)} of it has been given back.</div>` : ''}
+    ${f.balance < 0 ? `<div class="card" style="border-inline-start:4px solid var(--bad)">
+      <div class="nm" style="color:var(--bad)">You have spent ${money(-f.balance)} of your own</div>
+      <div class="sub muted">The studio owes you the difference.</div></div>` : ''}
+
+    <div class="sec-title">Spent out of it <span class="hint" style="font-weight:400">· ${spending.length}</span></div>
+    ${spending.length ? `<div class="card">${spending.map(row).join('')}</div>`
+      : '<p class="hint">Nothing has been spent from it yet.</p>'}
+
+    <div class="sec-title">The cash itself</div>
+    <div class="card">${cash.map(row).join('')}</div>
+    <p class="hint" style="margin-top:10px">Worked out from what the studio recorded: what you were given, less what you gave back, less what has been spent on it.</p>`;
+};
+
 PAGES.mysalary = async (c) => {
   const month = window._mySalMonth || today().slice(0, 7);
   let sal = null;
