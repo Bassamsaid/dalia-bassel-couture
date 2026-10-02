@@ -1,0 +1,7 @@
+{
+  "_note": "5 and 26 September were recorded as paid leave for Noor on the studio's word, and are absence. Taking the two leave rows away is the whole change: a day with no attendance and no leave against it is counted absent, so the salary works them out as absence on its own.",
+  "exported_at": "2026-10-02T01:00:00Z",
+  "remove": {
+    "leaves": [9301, 9302]
+  }
+}
