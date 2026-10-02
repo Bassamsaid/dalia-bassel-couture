@@ -213,9 +213,9 @@ function videoPoster(file) {
     setTimeout(() => finish(null), 8000);
   });
 }
-async function uploadDataUrl(dataUrl, name) {
+async function uploadDataUrl(dataUrl, name, onProgress) {
   const blob = await (await fetch(dataUrl)).blob();
-  return uploadFile(new File([blob], name || 'still.jpg', { type: 'image/jpeg' }));
+  return uploadFile(new File([blob], name || 'still.jpg', { type: 'image/jpeg' }), onProgress);
 }
 window.videoPoster = videoPoster;
 window.uploadDataUrl = uploadDataUrl;
@@ -383,7 +383,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v141';
+const APP_VERSION = 'v142';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
