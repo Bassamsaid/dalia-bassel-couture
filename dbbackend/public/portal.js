@@ -497,6 +497,22 @@ PAGES.myoverview = async (c) => {
     <p class="hint" style="margin-top:12px">Anything that needs changing here — your hours, your days off, your pay — is set by the studio.</p>`;
 };
 
+/* What she has taken as an advance and how much of it is still to come off her
+   pay. The same card the studio sees, without the ticking — it is the studio
+   that decides an instalment has been taken. */
+PAGES.myadvances = async (c) => {
+  const advances = await GET('/api/advances');
+  const open = advances.filter((a) => !a.complete && (a.status || 'approved') === 'approved');
+  const owing = open.reduce((t, a) => t + (a.total - a.paid_amount), 0);
+  c.innerHTML = pageHead('Advances', '💵') +
+    (owing ? `<div class="card" style="text-align:center">
+       <div class="sub muted" style="letter-spacing:2px;text-transform:uppercase;font-size:11px;font-weight:700">Still to come off your pay</div>
+       <div class="serif" style="font-size:28px;font-weight:700;color:var(--bad);margin-top:2px">${money(owing)}</div></div>`
+      : (advances.length ? '<div class="card" style="text-align:center"><div class="nm" style="color:var(--ok)">Nothing left to pay off</div></div>' : '')) +
+    `<button class="btn sec" style="margin:10px 0" onclick="requestAdvance()">＋ Request an advance</button>` +
+    (advances.length ? advances.map((a) => advanceCard(a, false)).join('') : empty('No advances', '💵'));
+};
+
 /* The studio's cash she is carrying. The same reckoning the studio sees — what
    was handed over, what it has been spent on, what is still in her hand — so
    there is never a figure she has to take somebody's word for. Nothing here is

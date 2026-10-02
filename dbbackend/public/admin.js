@@ -118,11 +118,20 @@ function formModal(heading, fields, onSubmit, opts = {}) {
       <button class="btn" id="wSave" type="submit" ${multi ? 'style="display:none"' : ''}>${esc(opts.submitLabel || 'Save')}</button>
     </div></form>`);
   _wiz = { step: 0, count: steps.length };
-  $('#fm').onsubmit = async (e) => {
-    e.preventDefault();
+  const form = $('#fm');
+  let saving = false;
+  // The form's submit and the button's own click both lead here. A submit event
+  // can be swallowed — by a browser that will not submit while something it
+  // cannot focus is invalid, by anything that stops the event on its way up —
+  // and when it is, a Save button does nothing at all and says nothing either.
+  // The click is the one thing that cannot be missed, so it is listened for too,
+  // and the flag keeps the two from both going.
+  const submitNow = async (e) => {
+    if (e) e.preventDefault();
+    if (saving) return;
     const data = {};
     fields.forEach((f) => {
-      const el = $(`[name="${f.name}"]`, e.target); if (!el) return;
+      const el = $(`[name="${f.name}"]`, form); if (!el) return;
       let val = el.value;
       if (f.type === 'number') val = val === '' ? null : Number(val);
       data[f.name] = val;
@@ -132,6 +141,7 @@ function formModal(heading, fields, onSubmit, opts = {}) {
     // nothing. It says what it is doing, and it cannot be pressed twice.
     const btn = $('#wSave');
     const label = btn ? btn.textContent : '';
+    saving = true;
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
       await onSubmit(data);
@@ -144,8 +154,11 @@ function formModal(heading, fields, onSubmit, opts = {}) {
         if (x.scrollIntoView) x.scrollIntoView({ block: 'nearest' });
       }
       if (btn) { btn.disabled = false; btn.textContent = label; }
-    }
+    } finally { saving = false; }
   };
+  if (form) form.onsubmit = submitNow;
+  const saveBtn = $('#wSave');
+  if (saveBtn) saveBtn.addEventListener('click', submitNow);
 }
 window.wizNav = (dir) => {
   if (!_wiz) return;
