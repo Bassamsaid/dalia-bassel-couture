@@ -394,7 +394,7 @@ PAGES.home_admin = async (c) => {
       ],
     })}
     ${brandGroup({
-      name: 'Dalia Bassel', kind: 'Academy', collapse: 'academy',
+      name: 'Academy', kind: 'Dalia Bassel', collapse: 'academy',
       c1: '#6d28d9', c2: '#a24fd6', glow: '109,40,217',
       summary: `${sheet.totals.count} students · ${rounds.length} round${rounds.length === 1 ? '' : 's'} · ${homeworks.length} task${homeworks.length === 1 ? '' : 's'}`,
       rows: [
