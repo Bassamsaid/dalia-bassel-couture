@@ -254,21 +254,78 @@ function vendorSpendRows(invoices, expenses) {
   });
   return Object.values(by).sort((a, b) => (b.purchases + b.costs) - (a.purchases + a.costs));
 }
-/* The same list drawn as a bar each, so one glance says who takes the most. */
-function vendorSpendPane(rows, pTotal, limit) {
-  const max = rows.reduce((a, r) => Math.max(a, r.purchases + r.costs), 0) || 1;
+/* What the studio's own costs went on, heading by heading. */
+function expenseTypeRows(expenses) {
+  const by = {};
+  (expenses || []).forEach((e) => {
+    const nm = String(e.type || '').trim() || 'Not filed under a type';
+    const g = by[nm] = by[nm] || { name: nm, value: 0, n: 0 };
+    g.value += e.amount || 0; g.n += 1;
+  });
+  return Object.values(by).sort((a, b) => b.value - a.value)
+    .map((g) => ({ name: g.name, value: g.value, sub: `${g.n} entr${g.n === 1 ? 'y' : 'ies'}`, act: "go('expenses')" }));
+}
+/* Materials month by month, newest first — the shape of the buying, not a heap. */
+function purchaseMonthRows(invoices) {
+  const by = {};
+  (invoices || []).forEach((i) => {
+    const m = String(i.invoice_date || i.created_at || '').slice(0, 7);
+    if (!m) return;
+    const g = by[m] = by[m] || { m, value: 0, n: 0 };
+    g.value += i.total || 0; g.n += 1;
+  });
+  return Object.values(by).sort((a, b) => b.m.localeCompare(a.m))
+    .map((g) => ({ name: monthLabel(g.m), value: g.value, sub: `${g.n} invoice${g.n === 1 ? '' : 's'}`, act: "go('purchases')" }));
+}
+/* Vendors in the same shape as the other two, so one drawer reads like the next. */
+function vendorBarRows(rows) {
+  return rows.map((r) => ({
+    name: r.name, value: r.purchases + r.costs,
+    sub: `${r.invoices ? `🧾 ${money(r.purchases)} · ${r.invoices} invoice${r.invoices === 1 ? '' : 's'}` : 'no invoices'}${r.costs ? ` · 🏠 ${money(r.costs)} studio costs` : ''}`,
+    act: r.id ? `openVendorReport(${r.id})` : "go('vendors')",
+  }));
+}
+/* A list drawn as a bar each, so one glance says which takes the most. */
+function spendBars(rows, limit, moreAct, moreLabel, emptyText) {
+  const max = rows.reduce((a, r) => Math.max(a, r.value), 0) || 1;
   const n = limit || 6;
   const show = rows.slice(0, n);
   return `<div class="spend-pane">
-    <div class="sp-ttl">What each vendor has had${pTotal ? ` · ${moneyText(pTotal)} in materials` : ''}</div>
-    ${show.length ? show.map((r) => { const t = r.purchases + r.costs; return `<div class="sp-row" onclick="${r.id ? `openVendorReport(${r.id})` : "go('vendors')"}">
-      <div class="sp-top"><span class="sp-nm">${esc(r.name)}</span><span class="sp-v">${money(t)}</span></div>
-      <div class="sp-bar"><i style="width:${Math.max(3, Math.round((t / max) * 100))}%"></i></div>
-      <div class="sp-sub">${r.invoices ? `🧾 ${money(r.purchases)} · ${r.invoices} invoice${r.invoices === 1 ? '' : 's'}` : 'no invoices'}${r.costs ? ` · 🏠 ${money(r.costs)} studio costs` : ''}</div>
-    </div>`; }).join('') : '<div class="hint" style="padding:4px 2px">Nothing bought yet.</div>'}
-    ${rows.length > n ? `<div class="sp-more" onclick="go('vendors')">＋ ${rows.length - n} more · see every vendor ›</div>` : ''}
+    ${show.length ? show.map((r) => `<div class="sp-row"${r.act ? ` onclick="${r.act}"` : ''}>
+      <div class="sp-top"><span class="sp-nm">${esc(r.name)}</span><span class="sp-v">${money(r.value)}</span></div>
+      <div class="sp-bar"><i style="width:${Math.max(3, Math.round((r.value / max) * 100))}%"></i></div>
+      ${r.sub ? `<div class="sp-sub">${r.sub}</div>` : ''}
+    </div>`).join('') : `<div class="hint" style="padding:4px 2px">${esc(emptyText || 'Nothing yet.')}</div>`}
+    ${rows.length > n ? `<div class="sp-more" onclick="${moreAct}">＋ ${rows.length - n} more · ${esc(moreLabel)} ›</div>` : ''}
   </div>`;
 }
+
+/* The spending rows open where they stand. Tapping one drops its own breakdown
+   under it rather than throwing away the dashboard for another screen — and
+   nothing is spread out until it is asked for. What is open is remembered, so a
+   drawer left open is still open when the screen is drawn again. */
+function spendAccordion(sections) {
+  const open = window._spendOpen || (window._spendOpen = {});
+  return `<div class="nav-list flush">${sections.map((s, i) => `
+    <div class="acc${open[s.key] ? ' open' : ''}" data-k="${s.key}" style="${tintVars(s.page)}">
+      <div class="nav-row" style="${tintVars(s.page)};--d:${(0.05 + i * 0.055).toFixed(3)}s" onclick="toggleSpend('${s.key}')">
+        <span class="rail"></span>
+        <span class="ic">${s.icon}</span>
+        <span class="txt"><span class="nm">${esc(s.label)}</span><span class="meta">${s.meta || ''}</span></span>
+        <span class="chev acc-chev">›</span>
+      </div>
+      <div class="acc-panel">
+        ${s.panel}
+        <div class="acc-open" onclick="go('${s.page}')">Open ${esc(s.label.toLowerCase())} ›</div>
+      </div>
+    </div>`).join('')}</div>`;
+}
+window.toggleSpend = (k) => {
+  const el = document.querySelector(`.acc[data-k="${k}"]`);
+  if (!el) return;
+  window._spendOpen = window._spendOpen || {};
+  window._spendOpen[k] = el.classList.toggle('open');
+};
 
 PAGES.home_admin = async (c) => {
   const [sheet, rounds, dresses, reminders, about, users, homeworks, quizzes, videos, invoices, expenses] = await Promise.all([
@@ -331,11 +388,17 @@ PAGES.home_admin = async (c) => {
       name: 'Spending', kind: 'Money out',
       c1: '#0f766e', c2: '#14b8a6', glow: '15,118,110',
       summary: `${moneyText(pTotal + eTotal)} out · ${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'}`,
-      content: navList([
-        ['purchases', '🧾', 'Purchases', `${big(moneyText(pTotal))} · ${big(invoices.length)} invoice${invoices.length === 1 ? '' : 's'}`],
-        ['expenses', '🏠', 'Studio costs', `${big(moneyText(eTotal))} · ${big(expenses.length)} entr${expenses.length === 1 ? 'y' : 'ies'}`],
-        ['vendors', '🏬', 'Vendors', `${big(spendRows.length)} shop${spendRows.length === 1 ? '' : 's'} supplied us`],
-      ], true) + vendorSpendPane(spendRows, pTotal),
+      content: spendAccordion([
+        { key: 'purchases', page: 'purchases', icon: '🧾', label: 'Purchases',
+          meta: `${big(moneyText(pTotal))} · ${big(invoices.length)} invoice${invoices.length === 1 ? '' : 's'}`,
+          panel: spendBars(purchaseMonthRows(invoices), 6, "go('purchases')", 'see every invoice', 'Nothing bought yet.') },
+        { key: 'expenses', page: 'expenses', icon: '🏠', label: 'Studio costs',
+          meta: `${big(moneyText(eTotal))} · ${big(expenses.length)} entr${expenses.length === 1 ? 'y' : 'ies'}`,
+          panel: spendBars(expenseTypeRows(expenses), 8, "go('expenses')", 'see every cost', 'Nothing spent on the studio yet.') },
+        { key: 'vendors', page: 'vendors', icon: '🏬', label: 'Vendors',
+          meta: `${big(spendRows.length)} shop${spendRows.length === 1 ? '' : 's'} supplied us`,
+          panel: spendBars(vendorBarRows(spendRows), 6, "go('vendors')", 'see every vendor', 'Nobody has supplied us yet.') },
+      ]),
       figuresGo: "go('purchases')",
       figures: [
         { value: pTotal, label: 'Purchases', money: true, color: 'var(--bad)' },
