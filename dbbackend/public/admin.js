@@ -1781,9 +1781,9 @@ function dressMoney(d) {
   return `<div class="dr-money">
     <div class="dr-row"><span class="k">Price</span><span class="v">${money(d.price)}</span></div>
     <div class="dr-row"><span class="k">Paid</span><span class="v ok">${money(d.paid || 0)}</span></div>
-    <div class="dr-row"><span class="k">${left ? 'Remaining' : 'Settled'}</span><span class="v ${left ? 'bad' : 'ok'}">${money(left)}</span></div>
+    <div class="dr-row"><span class="k">${left ? 'Left' : 'Settled'}</span><span class="v ${left ? 'bad' : 'ok'}">${money(left)}</span></div>
     <div class="dr-row"><span class="k">Materials</span><span class="v bad">${money(mat)}</span></div>
-    <div class="dr-row profit"><span class="k">Profit</span><span class="v ${profit >= 0 ? 'ok' : 'bad'}">${money(profit)}${mat ? ` <i>${Math.round((profit / d.price) * 100)}%</i>` : ''}</span></div>
+    <div class="dr-row profit"><span class="k">Profit</span><span class="v ${profit >= 0 ? 'ok' : 'bad'}">${money(profit)}</span></div>
     ${mat ? '' : '<div class="dr-warn">No materials put against it yet</div>'}
   </div>`;
 }
@@ -1954,8 +1954,8 @@ window.takePayment = async (dressId) => {
     // Picking the client already sets this; it is here to be changed, not filled in.
     { name: 'kind', label: 'Deposit or payment', type: 'select', auto: true,
       value: dressId && dresses.find((d) => d.id === dressId) && (dresses.find((d) => d.id === dressId).paid || 0) > 0 ? 'payment' : 'deposit',
-      options: [{ value: 'deposit', label: '🔖 Deposit — the money that books the dress' },
-        { value: 'payment', label: '💰 Payment — more off the price' }] },
+      options: [{ value: 'deposit', label: '🔖 Deposit — books the dress' },
+        { value: 'payment', label: '💰 Payment — off the price' }] },
     { name: 'amount', label: 'How much', type: 'number', required: true },
     { name: 'method', label: 'Cash or transfer', type: 'select', value: 'transfer',
       options: [{ value: 'transfer', label: '🏦 Transfer / Instapay' }, { value: 'cash', label: '💵 Cash' }] },
