@@ -396,7 +396,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v170';
+const APP_VERSION = 'v171';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -577,7 +577,7 @@ const GROUPS = {
     tabs: [
       ['purchases', 'Purchases', '🧾', ['admin', 'manager']],
       ['expenses', 'Studio costs', '🏠', ['admin']],
-      ['floats', 'Floats', '🧰', ['admin']],
+      ['floats', 'Cash with staff', '🧰', ['admin']],
       ['vendors', 'Vendors', '🏬', ['admin']],
     ],
   },
@@ -588,7 +588,7 @@ const GROUPS = {
       ['mysalary', 'Salary', '💵', ['staff', 'manager']],
       ['myrequests', 'Absences', '🗂', ['staff', 'manager']],
       ['myadvances', 'Advances', '💵', ['staff', 'manager'], () => !!state.hasAdvance],
-      ['myfloat', 'Petty cash', '🧰', ['staff', 'manager'], () => !!state.hasFloat],
+      ['myfloat', 'Cash I hold', '🧰', ['staff', 'manager'], () => !!state.hasFloat],
       ['myattendance', 'Attendance', '🕒', ['staff', 'manager']],
     ],
   },
