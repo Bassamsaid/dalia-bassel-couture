@@ -1185,3 +1185,10 @@ input[readonly]:focus, textarea[readonly]:focus{box-shadow:none; border-color:va
   border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:16px;padding:4px 10px;cursor:pointer}
 button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .adv-part.paid .ap-s,.ap-s.on{background:var(--ok);border-color:transparent;color:#fff;cursor:default}
+
+/* ===== A salary waiting to be confirmed: the first thing she should see ===== */
+.pay-wait{text-align:center;border-inline-start:4px solid var(--ok);
+  background:linear-gradient(150deg,rgba(255,255,255,.95),rgba(63,143,102,.07))}
+.pay-wait .pw-k{font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.pay-wait .pw-v{font-family:var(--serif,Georgia,serif);font-size:30px;font-weight:700;color:var(--ok);margin-top:2px}
+.pay-wait .pw-m{font-size:12px;color:var(--muted);font-weight:600;margin-top:4px}
