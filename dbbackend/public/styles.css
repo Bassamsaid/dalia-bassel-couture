@@ -1150,3 +1150,22 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 input[readonly], textarea[readonly], select:disabled{
   background:var(--soft); color:var(--ink); border-style:dashed; cursor:default}
 input[readonly]:focus, textarea[readonly]:focus{box-shadow:none; border-color:var(--line)}
+
+/* ===== A month's pay, worked out line by line ===== */
+.sal-days{display:flex;flex-wrap:wrap;gap:10px 16px;padding-bottom:10px;border-bottom:1px solid var(--line);
+  font-size:12.5px;color:var(--muted);font-weight:600}
+.sal-days b{color:var(--ink);font-size:14px}
+.sal-days .bad b{color:var(--bad)}
+.sal-line{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:7px 0;
+  border-bottom:1px solid var(--line)}
+.sal-line:last-of-type{border-bottom:none}
+.sal-k{min-width:0}
+.sal-k b{font-size:13.5px;font-weight:700;color:var(--ink);display:block}
+.sal-k span{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+.sal-v{flex:0 0 auto;font-weight:800;font-size:13.5px;white-space:nowrap}
+.sal-line.ok .sal-v{color:var(--ok)}
+.sal-line.bad .sal-v{color:var(--bad)}
+.sal-net{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;
+  padding-top:12px;border-top:2px solid var(--purple)}
+.sal-net-k{font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.sal-net-v{font-family:var(--serif,Georgia,serif);font-size:24px;font-weight:700;color:var(--ok)}

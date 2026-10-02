@@ -747,6 +747,22 @@ const ready = (async () => {
     console.warn('Studio hours could not be corrected:', e.message);
   }
 
+  // Somebody should be able to see what they are paid. Their salary screen was
+  // switched off for them before it had anything worth reading on it; now it
+  // carries the month's working and the payslip, and the studio has asked twice
+  // for them to have it. Switched on once — the flag means hiding it again
+  // later stays hidden, because that would be a decision.
+  try {
+    const flag = await db.prepare("SELECT value FROM settings WHERE key = 'own_salary_visible_2026_10'").get();
+    if (!flag) {
+      const r = await db.prepare("DELETE FROM role_perms WHERE page IN ('mysalary','myrequests','me') AND role IN ('staff','manager')").run();
+      await db.prepare("INSERT INTO settings (key,value) VALUES ('own_salary_visible_2026_10',?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(new Date().toISOString());
+      if (r.changes) console.log(`Own salary: ${r.changes} permission(s) cleared — staff can see their own record.`);
+    }
+  } catch (e) {
+    console.warn('Own-salary permission could not be set:', e.message);
+  }
+
   // Two headings the studio spends under that the first list of types did not
   // have. Added once, and the flag means deleting one later keeps it deleted —
   // a type taken off the list is a decision, not something to put back every
