@@ -85,6 +85,10 @@ function normMonth(v) {
   if (m && Number(m[1]) >= 1 && Number(m[1]) <= 12) return `${m[2]}-${String(m[1]).padStart(2, '0')}`;
   m = /^(\d{4})[/](\d{1,2})$/.exec(s) || /^(\d{4})(\d{2})$/.exec(s);
   if (m && Number(m[2]) >= 1 && Number(m[2]) <= 12) return `${m[1]}-${String(m[2]).padStart(2, '0')}`;
+  // A month with a day stuck on the end — 09-2026-01, or 2026-09-15 — is still
+  // that month. Only the first seven characters are tried, so this cannot turn
+  // something unrelated into a month by accident.
+  if (s.length > 7) return normMonth(s.slice(0, 7));
   return null;
 }
 
@@ -875,6 +879,40 @@ const ready = (async () => {
     if (stuck.length) console.warn(`Salaries: ${stuck.length} month(s) in no shape to read: ${stuck.join(', ')}`);
   } catch (e) {
     console.warn('Salary months could not be put right:', e.message);
+  }
+
+  // The same wage, the same month, the same figure to the piastre, entered
+  // twice: that is a second tap on Send, never two payments. Nobody should have
+  // to go and tell the app that one by one, so the earlier one is kept and the
+  // rest go, and the studio cost each wrote goes with it.
+  //
+  // Bounded by a date, not by a flag. A flag is the wrong shape for this: set it
+  // on a boot where the rows were not there to see — a fresh database, a restart
+  // that came first — and the job is closed for good with the duplicates still
+  // in. A cutoff can be run on every boot instead, and is still perfectly safe,
+  // because from the release below a second payment for a month can only be made
+  // on purpose, and nothing made after it is ever touched.
+  const DUP_CUTOFF = '2026-10-03';
+  try {
+    const rows = await db.prepare(`SELECT s.id, s.user_id, s.month, s.amount, s.created_at, u.name
+      FROM salary_payments s JOIN users u ON u.id = s.user_id
+      WHERE s.month IS NOT NULL AND s.month <> '' AND s.created_at < ?
+      ORDER BY s.created_at, s.id`).all(DUP_CUTOFF);
+    const seen = new Map(); const drop = [];
+    for (const r of rows) {
+      // to the piastre, and on the month as it is meant rather than as it is spelt
+      const key = `${r.user_id}|${normMonth(r.month) || r.month}|${Math.round((r.amount || 0) * 100)}`;
+      if (seen.has(key)) drop.push({ ...r, kept: seen.get(key) });
+      else seen.set(key, r.id);
+    }
+    for (const d of drop) {
+      await db.prepare('DELETE FROM salary_payments WHERE id=?').run(d.id);
+      await db.prepare('DELETE FROM expenses WHERE salary_payment_id=?').run(d.id);
+      console.log(`  dropped a repeat of ${d.name}'s ${normMonth(d.month) || d.month} salary (${d.amount}), keeping #${d.kept}`);
+    }
+    if (drop.length) console.log(`Salaries: ${drop.length} salary/salaries entered twice over were cleared.`);
+  } catch (e) {
+    console.warn('Repeated salaries could not be cleared:', e.message);
   }
 
   // Last, deliberately: months kept on paper go in after the old rows have been

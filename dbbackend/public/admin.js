@@ -2481,13 +2481,26 @@ window.setExpPaid = (v) => { window._expPaid = v; go('expenses'); };
    side by side, and one tap to drop the one that should not be there. Which to
    keep is not guessed at: where the two amounts differ, only the studio knows
    which is right, and the screen says so instead of choosing. */
+/* The screen's own reading of a month, so two spellings of one month group
+   together here exactly as they do on the server. */
+function monthKey(v) {
+  const s = String(v || '').trim();
+  let m = /^(\d{4})-(\d{1,2})$/.exec(s);
+  if (m && +m[2] >= 1 && +m[2] <= 12) return `${m[1]}-${String(m[2]).padStart(2, '0')}`;
+  m = /^(\d{1,2})-(\d{4})$/.exec(s);
+  if (m && +m[1] >= 1 && +m[1] <= 12) return `${m[2]}-${String(m[1]).padStart(2, '0')}`;
+  if (s.length > 7) return monthKey(s.slice(0, 7));
+  return null;
+}
 PAGES.dupsalaries = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💼'); return; }
   const pays = await GET('/api/salary-payments');
   const groups = {};
   pays.forEach((p) => {
-    const k = `${p.user_id}|${String(p.month || '—')}`;
-    (groups[k] = groups[k] || { name: p.user_name, month: p.month, rows: [] }).rows.push(p);
+    // two spellings of one month are one month: group on what it means
+    const m = monthKey(p.month);
+    const k = `${p.user_id}|${m || String(p.month || '—')}`;
+    (groups[k] = groups[k] || { name: p.user_name, month: m || p.month, rows: [] }).rows.push(p);
   });
   const dups = Object.values(groups).filter((g) => g.rows.length > 1);
   dups.forEach((g) => g.rows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))));
