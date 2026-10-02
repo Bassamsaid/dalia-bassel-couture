@@ -383,17 +383,9 @@ PAGES.home_admin = async (c) => {
       c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
       summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
       rows: [
-        ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
-        ['dressmoney', '💰', 'Dress money', dRem ? `${big(moneyText(dRem))} still due` : `${big(moneyText(dPaid))} collected`, "go('dresses')"],
-        ['dressmargin', '📈', 'Dress profit', `${big(moneyText(dMargin))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} of the price`, "go('dressprofit')"],
-      ],
-      figuresGo: "go('dresses')",
-      figures: [
-        { value: dPaid, label: 'Deposits in', money: true, color: 'var(--ok)' },
-        { value: dRem, label: 'Remaining', money: true, color: dRem ? 'var(--bad)' : 'var(--ok)' },
-        { value: dTotal, label: 'Total value', money: true },
-        { value: dMat, label: 'Materials', money: true, color: 'var(--bad)' },
-        { value: dMargin, label: 'Margin', money: true, color: dMargin >= 0 ? 'var(--ok)' : 'var(--bad)' },
+        ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} in all`],
+        ['dressmoney', '💰', 'Dress money', `${big(moneyText(dRem))} still owed on them`, "go('dresses')"],
+        ['dressmargin', '📈', 'Dress profit', `${big(moneyText(dMargin))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} of ${moneyText(dTotal)}`, "go('dressprofit')"],
       ],
     })}
     ${brandGroup({
@@ -406,13 +398,7 @@ PAGES.home_admin = async (c) => {
         ['courses', '🎬', 'Courses', `${big(videos.length)} video${videos.length === 1 ? '' : 's'}`],
         ['homework', '✎', 'Tasks', `${big(homeworks.length)} pattern${homeworks.length === 1 ? '' : 's'} set`],
         ['quizzes', '📝', 'Quizzes', `${big(quizzes.length)} quiz${quizzes.length === 1 ? '' : 'zes'}`],
-        ['finance', '💳', 'Course money', sheet.totals.remaining ? `${big(moneyText(sheet.totals.remaining))} still due` : `${big(moneyText(sheet.totals.paid))} collected`],
-      ],
-      figuresGo: "go('finance')",
-      figures: [
-        { value: sheet.totals.paid, label: 'Collected', money: true, color: 'var(--ok)' },
-        { value: sheet.totals.remaining, label: 'Still due', money: true, color: sheet.totals.remaining ? 'var(--bad)' : 'var(--ok)' },
-        { value: sheet.totals.total_fee, label: 'Course fees', money: true },
+        ['finance', '💳', 'Course money', `${big(moneyText(sheet.totals.remaining))} still owed on them`],
       ],
     })}
     ${brandGroup({
@@ -421,21 +407,16 @@ PAGES.home_admin = async (c) => {
       summary: `${invoices.length} invoice${invoices.length === 1 ? '' : 's'} · ${expenses.length} studio cost${expenses.length === 1 ? '' : 's'} on record`,
       content: spendAccordion([
         { key: 'purchases', page: 'purchases', icon: '🧾', label: 'Purchases',
-          meta: `${big(moneyText(pTotal))} · ${big(invoices.length)} invoice${invoices.length === 1 ? '' : 's'}`,
+          meta: `${big(invoices.length)} invoice${invoices.length === 1 ? '' : 's'}, by month`,
           panel: spendBars(purchaseMonthRows(invoices), 6, "go('purchases')", 'see every invoice', 'Nothing bought yet.') },
         { key: 'expenses', page: 'expenses', icon: '🏠', label: 'Studio costs',
-          meta: `${big(moneyText(eTotal))} · ${big(expenses.length)} entr${expenses.length === 1 ? 'y' : 'ies'}`,
+          meta: `${big(expenses.length)} cost${expenses.length === 1 ? '' : 's'}, by type`,
           panel: spendBars(expenseTypeRows(expenses), 8, "go('expenses')", 'see every cost', 'Nothing spent on the studio yet.') },
         { key: 'vendors', page: 'vendors', icon: '🏬', label: 'Vendors',
           meta: `${big(spendRows.length)} shop${spendRows.length === 1 ? '' : 's'} supplied us`,
           panel: spendBars(vendorBarRows(spendRows), 6, "go('vendors')", 'see every vendor', 'Nobody has supplied us yet.') },
       ]),
-      figuresGo: "go('purchases')",
-      figures: [
-        { value: pTotal, label: 'Purchases', money: true, color: 'var(--bad)' },
-        { value: eTotal, label: 'Studio costs', money: true, color: 'var(--bad)' },
-        { value: pTotal + eTotal, label: 'Total out', money: true },
-      ],
+
     })}
     ${dueSoon ? `<div class="card"><div class="sec-title">Payment reminders (${dueSoon})</div>${
       reminders.filter((r) => !r.done).slice(0, 6).map((r) => `<div class="item"><div class="av">◷</div>
