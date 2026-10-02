@@ -1239,3 +1239,20 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
   color:var(--ink);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
 .dress-tot .dt-v.ok{color:var(--ok)} .dress-tot .dt-v.bad{color:var(--bad)}
 .dress-tot .dt-n{font-size:10.5px;color:var(--muted);font-weight:600;margin-top:3px}
+
+/* ===== The spending rows open where they stand ===== */
+.home-lux .acc .acc-panel{display:none}
+.home-lux .acc.open{background:rgba(var(--glow),.035)}
+.home-lux .acc.open .acc-panel{display:block;animation:accIn .26s ease both}
+@keyframes accIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.home-lux .acc.open > .nav-row{background:rgba(var(--glow),.06)}
+.home-lux .acc.open .acc-chev,
+.home-lux .acc.open > .nav-row:hover .acc-chev{transform:rotate(90deg)}
+/* the wrapper, not the row, is now the last thing in the list */
+.home-lux .acc:last-child > .nav-row{border-bottom:none}
+.home-lux .acc.open:last-child > .nav-row{border-bottom:1px solid var(--line)}
+.home-lux .acc .spend-pane{border-top:none;padding:12px 14px 2px}
+.home-lux .acc-open{text-align:center;padding:11px 0 12px;font-size:12.5px;font-weight:700;
+  letter-spacing:.3px;color:var(--c1);cursor:pointer;border-top:1px solid var(--line)}
+.home-lux .acc-open:active{background:rgba(var(--glow),.1)}
+@media (prefers-reduced-motion:reduce){ .home-lux .acc.open .acc-panel{animation:none} }
