@@ -406,7 +406,7 @@ PAGES.home_admin = async (c) => {
       rows: [
         ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} total`],
         ['dressmoney', '💰', 'Dress money', dRem ? `${big(moneyText(dRem))} still due` : `${big(moneyText(dPaid))} collected`, "go('dresses')"],
-        ['dressmargin', '📈', 'Materials & margin', `${big(moneyText(dMat))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} margin`, "go('dresses')"],
+        ['dressmargin', '📈', 'Dress profit', `${big(moneyText(dMargin))} · ${big(dTotal ? Math.round((dMargin / dTotal) * 100) + '%' : '—')} of the price`, "go('dressprofit')"],
       ],
       figuresGo: "go('dresses')",
       figures: [
@@ -1754,22 +1754,76 @@ function dressTotals(list) {
       ${cell('Collected', paid, 'ok')}
       ${cell(rem ? 'Remaining' : 'Settled', rem, rem ? 'bad' : 'ok')}
       ${cell('Materials', mat, 'bad')}
-      ${cell('Margin', margin, margin >= 0 ? 'ok' : 'bad', val ? pct + '% of the price' : '')}
+      ${cell('Profit', margin, margin >= 0 ? 'ok' : 'bad', val ? pct + '% of the price' : '')}
     </div>
+    <div class="dt-more" onclick="go('dressprofit')">📈 Profit, dress by dress ›</div>
   </div>`;
 }
-/* What the dress is worth, what has come in, and what is still owed. Only the
-   admin sees it: the price is hidden from everybody else, here as everywhere. */
+/* What the dress is worth, what has come in, what is still owed — and what it
+   actually leaves once its fabric is paid for. Only the admin sees it: the
+   price is hidden from everybody else, here as everywhere. */
 function dressMoney(d) {
   if (state.user.role !== 'admin') return '';
   if (!d.price) return '<div class="dr-money none">Price not set yet</div>';
   const left = d.remaining || 0;
+  const mat = d.material_cost || 0;
+  const profit = (d.price || 0) - mat;
   return `<div class="dr-money">
     <div class="dr-row"><span class="k">Price</span><span class="v">${money(d.price)}</span></div>
     <div class="dr-row"><span class="k">Paid</span><span class="v ok">${money(d.paid || 0)}</span></div>
     <div class="dr-row"><span class="k">${left ? 'Remaining' : 'Settled'}</span><span class="v ${left ? 'bad' : 'ok'}">${money(left)}</span></div>
+    <div class="dr-row"><span class="k">Materials</span><span class="v bad">${money(mat)}</span></div>
+    <div class="dr-row profit"><span class="k">Profit</span><span class="v ${profit >= 0 ? 'ok' : 'bad'}">${money(profit)}${mat ? ` <i>${Math.round((profit / d.price) * 100)}%</i>` : ''}</span></div>
+    ${mat ? '' : '<div class="dr-warn">No materials put against it yet</div>'}
   </div>`;
 }
+
+/* ============ DRESS PROFIT ============
+   Every dress: what it sold for, what its fabric cost, what it left. One screen
+   that answers "which dresses actually made money" — which the dashboard, built
+   on the money that moved in a month, can never answer on its own, because a
+   dress is paid for over months and its fabric is bought in a lump. */
+PAGES.dressprofit = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '📈'); return; }
+  const dresses = await GET('/api/dresses');
+  window._dresses = dresses; // so opening one from here does not fetch the list again
+  const priced = dresses.filter((d) => d.price > 0);
+  const noPrice = dresses.length - priced.length;
+  const sort = window._dpSort || 'profit';
+  const rows = priced.map((d) => {
+    const mat = d.material_cost || 0;
+    const profit = (d.price || 0) - mat;
+    return { ...d, mat, profit, pct: d.price ? profit / d.price : 0 };
+  });
+  rows.sort((a, b) => sort === 'pct' ? b.pct - a.pct : sort === 'price' ? b.price - a.price : b.profit - a.profit);
+  const val = rows.reduce((a, x) => a + x.price, 0);
+  const mat = rows.reduce((a, x) => a + x.mat, 0);
+  const profit = val - mat;
+  const noMat = rows.filter((x) => !x.mat).length;
+  const sorts = [['profit', 'Most profit'], ['pct', 'Best %'], ['price', 'Priciest']];
+  c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
+    title('Dress profit', '📈') +
+    `<div class="dp-tot">
+       <div class="dp-tot-k">${rows.length} dress${rows.length === 1 ? '' : 'es'} with a price on them</div>
+       <div class="dp-tot-v ${profit >= 0 ? 'ok' : 'bad'}">${money(profit)}</div>
+       <div class="dp-tot-m">${money(val)} in prices, less ${money(mat)} of materials${val ? ` · ${Math.round((profit / val) * 100)}%` : ''}</div>
+     </div>
+     ${noMat || noPrice ? `<div class="card dp-note">
+       ${noMat ? `<div>⚠️ <b>${noMat} dress${noMat === 1 ? '' : 'es'}</b> ${noMat === 1 ? 'has' : 'have'} no materials put against ${noMat === 1 ? 'it' : 'them'} yet, so ${noMat === 1 ? 'its' : 'their'} profit here is the whole price. Put the invoices on ${noMat === 1 ? 'it' : 'them'} under Purchases and this comes right.</div>` : ''}
+       ${noPrice ? `<div>${noMat ? '<br>' : ''}👗 <b>${noPrice} dress${noPrice === 1 ? '' : 'es'}</b> ${noPrice === 1 ? 'has' : 'have'} no price set, so ${noPrice === 1 ? 'it is' : 'they are'} left out of this.</div>` : ''}
+     </div>` : ''}
+     <div class="filters" style="margin:12px 0 10px">${sorts.map(([k, l]) => `<span class="chip ${sort === k ? 'active' : ''}" onclick="dpSort('${k}')">${l}</span>`).join('')}</div>
+     ${rows.length ? rows.map((d) => {
+      const matShare = d.price ? Math.max(0, Math.min(100, (d.mat / d.price) * 100)) : 0;
+      return `<div class="dp-row" onclick="openDress(${d.id})">
+        <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
+          <span class="dp-v ${d.profit >= 0 ? 'ok' : 'bad'}">${money(d.profit)}</span></div>
+        <div class="dp-bar"><i class="mat" style="width:${matShare}%"></i><i class="pro" style="width:${100 - matShare}%"></i></div>
+        <div class="dp-sub">${money(d.price)} price · ${money(d.mat)} materials${d.mat ? ` · <b class="${d.profit >= 0 ? '' : 'bad'}">${Math.round(d.pct * 100)}%</b> profit` : ' · <span class="dp-flag">no materials yet</span>'}</div>
+      </div>`;
+    }).join('') : empty('No dress has a price on it yet', '📈')}`;
+};
+window.dpSort = (k) => { window._dpSort = k; go('dressprofit'); };
 
 window.dressFilter = (k, v) => {
   const f = window._dressF || { status: 'all', month: '', assigned: false };
