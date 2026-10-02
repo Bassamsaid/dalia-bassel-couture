@@ -350,17 +350,17 @@ function booksCard(books, d) {
       ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthShort(k) : 'All time'}</span>`).join('')}
     </div>
     ${head('Sales', sold, 'in', "go('sales')")}
-    ${head('Spending', spent, 'out')}
+    ${head('Costs', spent, 'out')}
     ${sub('\u{1F9FE}', 'Materials', mat)}
     ${sub('\u{1F3E0}', 'Rent, bills, wages', run)}
     <div class="bk-line net ${profit >= 0 ? 'ok' : 'bad'}">
       <span class="bk-k">${profit >= 0 ? 'Profit' : 'Loss'}</span>
       <span class="bk-v" data-count="${Math.abs(profit)}" data-fmt="money">${money(0)}</span></div>
     <div class="bk-owed" onclick="go('collections')" style="cursor:pointer">
-      <div class="bk-owed-r"><span>Collected so far ›</span><b class="ok">${money(paid)}</b></div>
-      <div class="bk-owed-r tot"><span>Still owed to us</span><b class="${due ? 'bad' : 'ok'}">${money(due)}</b></div>
+      <div class="bk-owed-r"><span>Paid so far ›</span><b class="ok">${money(paid)}</b></div>
+      <div class="bk-owed-r tot"><span>Left to collect</span><b class="${due ? 'bad' : 'ok'}">${money(due)}</b></div>
     </div>
-    <div class="bk-foot">The dresses only. The academy's money is kept on its own, under Academy.</div>
+    <div class="bk-foot">Dresses only. Course money is on its own, under Academy.</div>
   </div>`;
 }
 window.setBooksMonth = (k) => { window._booksMonth = k; go('home'); };
@@ -391,8 +391,8 @@ PAGES.home_admin = async (c) => {
       summary: `${dOpen} dress${dOpen === 1 ? '' : 'es'} in progress · ${clients} client${clients === 1 ? '' : 's'}`,
       rows: [
         ['dresses', '👗', 'Dresses', `${big(dOpen)} in progress · ${big(dresses.length)} in all`],
-        ['dressmargin', '📈', 'Sales', 'What each dress sold for, cost and left', "go('sales')"],
-        ['dressmoney', '💵', 'Collections', 'What has come in and what is still owed', "go('collections')"],
+        ['dressmargin', '📈', 'Sales', 'Price, materials and profit for every dress', "go('sales')"],
+        ['dressmoney', '💵', 'Collections', 'What clients paid and what is left', "go('collections')"],
       ],
     })}
     ${brandGroup({
@@ -658,7 +658,7 @@ function studentPayLabel(u, owed, editing) {
   const others = paidByOthers(r, editing);
   const left = r.total_fee - others;
   if (left < 0) return `${u.name} · overpaid by ${money(-left)}`;
-  return left ? `${u.name} · ${money(left)} left` : `${u.name} · paid up`;
+  return left ? `${u.name} · ${money(left)} left` : `${u.name} · paid in full`;
 }
 /* One rule for both forms: a payment may never carry her past her course fee. */
 function guardPayment(d, owed, editing) {
@@ -1798,8 +1798,8 @@ PAGES.sales = async (c) => {
   const sorts = [['profit', 'Most profit'], ['pct', 'Best %'], ['price', 'Priciest']];
   c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
     title('Sales', '📈') +
-    `<p class="hint" style="margin:2px 2px 12px">What each dress sold for, what was spent on it, and what it left.</p>
-     ${threeTotals([['Sold for', price], ['Spent on them', spent, 'bad'], ['Profit', profit, profit >= 0 ? 'ok' : 'bad', price ? Math.round((profit / price) * 100) + '% of the price' : '']])}
+    `<p class="hint" style="margin:2px 2px 12px">Every dress: its price, what the fabric cost, and what is left over.</p>
+     ${threeTotals([['Price', price], ['Materials', spent, 'bad'], ['Profit', profit, profit >= 0 ? 'ok' : 'bad', price ? Math.round((profit / price) * 100) + '% of the price' : '']])}
      ${missingNote(dresses, 'sales')}
      <div class="filters" style="margin:12px 0 10px">${sorts.map(([k, l]) => `<span class="chip ${sort === k ? 'active' : ''}" onclick="dpSort('${k}')">${l}</span>`).join('')}</div>
      ${rows.length ? rows.map((d) => {
@@ -1808,7 +1808,7 @@ PAGES.sales = async (c) => {
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
           <span class="dp-v ${d.profit >= 0 ? 'ok' : 'bad'}">${money(d.profit)}</span></div>
         <div class="dp-bar"><i class="mat" style="width:${share}%"></i><i class="pro" style="width:${100 - share}%"></i></div>
-        <div class="dp-sub">${money(d.sold)} sold · ${money(d.spent)} spent${d.spent ? ` · <b class="${d.profit >= 0 ? '' : 'bad'}">${Math.round(d.pct * 100)}%</b> profit` : ' · <span class="dp-flag">nothing spent yet</span>'}${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} written off</span>` : ''}</div>
+        <div class="dp-sub">${money(d.sold)} price · ${money(d.spent)} materials${d.spent ? ` · <b class="${d.profit >= 0 ? '' : 'bad'}">${Math.round(d.pct * 100)}%</b> profit` : ' · <span class="dp-flag">no materials yet</span>'}${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} given up</span>` : ''}</div>
       </div>`;
     }).join('') : empty('No dress has a price on it yet', '📈')}`;
 };
@@ -1834,17 +1834,17 @@ PAGES.collections = async (c) => {
   const due = rows.reduce((a, x) => a + x.due, 0);
   const forgiven = rows.reduce((a, x) => a + x.forgiven, 0);
   const offCount = rows.filter((d) => d.off).length;
-  const tabs = [['due', `Still owing (${rows.filter((d) => d.due > 0).length})`],
-    ['settled', `Paid up (${rows.filter((d) => !d.due && !d.off).length})`],
-    ...(offCount ? [['off', `Written off (${offCount})`]] : []),
+  const tabs = [['due', `Not paid yet (${rows.filter((d) => d.due > 0).length})`],
+    ['settled', `Paid in full (${rows.filter((d) => !d.due && !d.off).length})`],
+    ...(offCount ? [['off', `Given up (${offCount})`]] : []),
     ['all', `All (${rows.length})`]];
   c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
     title('Collections', '💵') +
-    `<p class="hint" style="margin:2px 2px 12px">What each dress sold for, what has come in, and what is still owed. Every payment from a client is written down here.</p>
-     ${threeTotals([['Sold for', price], ['Received', paid, 'ok'], ['Still owed', due, due ? 'bad' : 'ok']])}
+    `<p class="hint" style="margin:2px 2px 12px">Every dress: its price, what the client has paid, and what is left. Write every payment down here.</p>
+     ${threeTotals([['Price', price], ['Paid', paid, 'ok'], ['Left to pay', due, due ? 'bad' : 'ok']])}
      ${forgiven ? `<div class="card dp-note" style="border-inline-start-color:var(--muted)">
-       ✕ <b>${money(forgiven)}</b> on ${offCount} dress${offCount === 1 ? '' : 'es'} was written off — given up on, so it is out of what is owed above and out of the sales.</div>` : ''}
-     <button class="btn" style="margin-bottom:4px" onclick="takePayment()">＋ Record a payment</button>
+       ✕ <b>${money(forgiven)}</b> on ${offCount} dress${offCount === 1 ? '' : 'es'} will never come, so it is not counted above and not counted as a sale.</div>` : ''}
+     <button class="btn" style="margin-bottom:4px" onclick="takePayment()">＋ Write down a payment</button>
      ${missingNote(dresses, 'collections')}
      <div class="filters" style="margin:12px 0 10px">${tabs.map(([k, l]) => `<span class="chip ${f === k ? 'active' : ''}" onclick="colFilter('${k}')">${l}</span>`).join('')}</div>
      ${list.length ? list.map((d) => {
@@ -1852,27 +1852,27 @@ PAGES.collections = async (c) => {
       const nm = esc(d.customer_name).replace(/'/g, "\\'");
       return `<div class="dp-row${d.off ? ' off' : ''}" onclick="openDress(${d.id})">
         <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
-          <span class="dp-v ${d.off ? 'muted' : d.due ? 'bad' : 'ok'}">${d.off ? '✕ Written off' : d.due ? money(d.due) : 'Paid up ✓'}</span></div>
+          <span class="dp-v ${d.off ? 'muted' : d.due ? 'bad' : 'ok'}">${d.off ? '✕ Given up' : d.due ? money(d.due) : 'Paid in full ✓'}</span></div>
         <div class="dp-bar"><i class="pro" style="width:${got}%"></i><i class="${d.off ? 'gone' : 'owe'}" style="width:${100 - got}%"></i></div>
-        <div class="dp-sub">${money(d.price)} sold · ${money(d.paid)} in${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} given up</span>` : d.due ? ` · <b class="bad">${Math.round(100 - got)}%</b> still owed` : ''}${d.delivery_date ? ' · delivery ' + dt(d.delivery_date) : ''}</div>
+        <div class="dp-sub">${money(d.price)} price · ${money(d.paid)} paid${d.off ? ` · <span class="dp-flag">${moneyText(d.forgiven)} given up</span>` : d.due ? ` · <b class="bad">${Math.round(100 - got)}%</b> left` : ''}${d.delivery_date ? ' · delivery ' + dt(d.delivery_date) : ''}</div>
         ${d.off
           ? `<button class="btn ghost sm dp-act" onclick="event.stopPropagation();unwriteOff(${d.id},'${nm}')">↩ No — the money is coming</button>`
           : d.due ? `<button class="btn ghost sm dp-act" onclick="event.stopPropagation();writeOff(${d.id},'${nm}',${d.due})">✕ No more money coming</button>` : ''}
       </div>`;
-    }).join('') : empty(f === 'due' ? 'Every dress is paid up ✓' : 'Nothing here', '💵')}`;
+    }).join('') : empty(f === 'due' ? 'Every dress is paid in full ✓' : 'Nothing here', '💵')}`;
 };
 window.colFilter = (k) => { window._colF = k; go('collections'); };
 /* Giving up on a balance. Not a deletion and not a quiet edit of the price: the
    price she agreed stays on the dress, what was given up is written beside it,
    and it can be undone the day the money turns up after all. */
-window.writeOff = (id, name, due) => formModal(`Give up on ${name}'s balance?`, [
-  { name: 'note', label: 'Why (kept on the dress)', placeholder: 'She is not paying the rest' },
+window.writeOff = (id, name, due) => formModal(`Give up on ${name}'s money?`, [
+  { name: 'note', label: 'Why (saved on the dress)', placeholder: 'She is not paying the rest' },
 ], async (d) => {
   await PUT('/api/dresses/' + id + '/write-off', { off: 1, note: d.note || null });
-  toast('Written off — out of what is owed ✓');
+  toast('Given up — off what she owes ✓');
   window._colF = 'off'; go('collections');
-}, { hint: `${moneyText(due)} is still owed. Writing it off takes it out of what is owed and out of the sales, so the dress counts as having sold for what actually came in. It can be undone.` });
-window.unwriteOff = (id, name) => confirmDel(`Put ${name}'s balance back as owed?`, async () => {
+}, { hint: `${moneyText(due)} is still to come. Saying it will never come takes it off what she owes and off the sales, so the dress counts as having sold for what she really paid. You can undo it.` });
+window.unwriteOff = (id, name) => confirmDel(`Put ${name}'s money back as owed?`, async () => {
   await PUT('/api/dresses/' + id + '/write-off', { off: 0 });
   toast('Back as owed ✓'); window._colF = 'due'; go('collections');
 });
@@ -1884,23 +1884,23 @@ window.takePayment = async (dressId) => {
   if (!dresses.length) { try { dresses = await GET('/api/dresses'); window._dresses = dresses; } catch (e) {} }
   const owing = dresses.filter((d) => d.price > 0 && Math.max(0, d.price - (d.paid || 0)) > 0);
   const rest = dresses.filter((d) => d.price > 0 && !owing.includes(d));
-  const label = (d) => `${d.customer_name} · ${moneyText(Math.max(0, d.price - (d.paid || 0)))} left`;
-  formModal('Record a payment', [
-    { name: 'dress_id', label: 'Whose dress', type: 'select', required: true, value: dressId || '',
+  const label = (d) => `${d.customer_name} · ${moneyText(Math.max(0, d.price - (d.paid || 0)))} left to pay`;
+  formModal('A payment from a client', [
+    { name: 'dress_id', label: 'Which client', type: 'select', required: true, value: dressId || '',
       options: [{ value: '', label: '—' },
         ...owing.map((d) => ({ value: d.id, label: label(d) })),
-        ...rest.map((d) => ({ value: d.id, label: `${d.customer_name} · paid up` }))] },
+        ...rest.map((d) => ({ value: d.id, label: `${d.customer_name} · paid in full` }))] },
     { name: 'amount', label: 'How much', type: 'number', required: true },
-    { name: 'method', label: 'How', type: 'select', value: 'transfer',
+    { name: 'method', label: 'Cash or transfer', type: 'select', value: 'transfer',
       options: [{ value: 'transfer', label: '🏦 Transfer / Instapay' }, { value: 'cash', label: '💵 Cash' }] },
     { name: 'paid_at', label: 'Date', type: 'date', value: today() },
-    { name: 'note', label: 'Note (deposit, second instalment…)' },
-    { name: 'image', label: 'Receipt (optional)', type: 'image' },
+    { name: 'note', label: 'Note (deposit, second payment…)' },
+    { name: 'image', label: 'Receipt photo (optional)', type: 'image' },
   ], async (d) => {
-    if (!d.dress_id) throw new Error('Whose dress is it for?');
-    if (!(Number(d.amount) > 0)) throw new Error('How much came in?');
+    if (!d.dress_id) throw new Error('Which client paid?');
+    if (!(Number(d.amount) > 0)) throw new Error('How much did she pay?');
     await POST('/api/dresses/' + d.dress_id + '/payments', d);
-    toast('Taken, and put on her dress ✓');
+    toast('Written down on her dress ✓');
     go('collections');
   });
 };
@@ -2107,7 +2107,7 @@ PAGES.dress = async (c) => {
         <span id="dRemain_${id}">${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}</span>
       </div>
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
-      <button class="btn sec sm" style="margin-top:6px" onclick="go('collections')">💵 Payments are taken under Collections ›</button>` : ''}`) : '';
+      <button class="btn sec sm" style="margin-top:6px" onclick="go('collections')">💵 Payments are written down under Collections ›</button>` : ''}`) : '';
 
   const materials = canEdit ? pane('materials', `
     <div id="dmat_${id}"><div class="hint">Loading…</div></div>
@@ -2788,7 +2788,7 @@ PAGES.floats = async (c) => {
   const { rows, staff } = await GET('/api/floats');
   window._floatStaff = staff; window._floatHolders = rows;
   const out = rows.reduce((a, r) => a + r.balance, 0);
-  c.innerHTML = pageHead('Floats', '🧰') +
+  c.innerHTML = pageHead('Cash with staff', '🧰') +
     `<p class="hint" style="margin:2px 2px 10px">Cash handed to somebody to keep at the studio and spend from. What she holds is what you gave her, less what she gave back, less what she has spent.</p>
     <div class="grid g2" style="margin-bottom:10px">
       <div class="stat"><div class="n serif" style="color:${out ? 'var(--warn)' : 'var(--ok)'}">${money(out)}</div><div class="l">out of the drawer</div></div>

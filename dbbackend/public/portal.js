@@ -521,7 +521,7 @@ PAGES.myfloat = async (c) => {
   let f = null;
   try { f = await GET('/api/floats/' + state.user.id); } catch (e) {}
   if (!f || !f.entries.length) {
-    c.innerHTML = pageHead('Petty cash', '🧰') + empty('No petty cash with you', '🧰');
+    c.innerHTML = pageHead('Cash I hold', '🧰') + empty('You are not holding any of the studio\'s cash', '🧰');
     return;
   }
   const spending = f.entries.filter((e) => e.kind === 'cost' || e.kind === 'invoice');
@@ -534,7 +534,7 @@ PAGES.myfloat = async (c) => {
       <div class="serif" style="font-weight:700;white-space:nowrap;color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
     </div>`;
   };
-  c.innerHTML = pageHead('Petty cash', '🧰') +
+  c.innerHTML = pageHead('Cash I hold', '🧰') +
     `<div class="grid g3 fl-figs">
       <div class="stat"><div class="n serif">${money(f.handed)}</div><div class="l">received</div></div>
       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(f.spent)}</div><div class="l">spent</div></div>
