@@ -2159,28 +2159,29 @@ PAGES.dress = async (c) => {
   // The money is the admin's alone — the tab itself does not exist for anybody
   // else, rather than existing and being empty.
   const moneyPane = isAdmin ? pane('money', `
-    ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
+    ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only)</span></label>
       <input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" oninput="dressPriceLive(${id})" />
       <div class="row" id="dPriceSave_${id}" style="display:none;margin-top:10px">
         <button class="btn sm" onclick="saveDressPrice(${id})">Save the price</button>
         <button class="btn ghost sm" onclick="undoDressPrice(${id})">Undo</button>
       </div>
-      <div class="sec-title">Pricing & deposits 💰</div>
-      <div class="card" style="box-shadow:none;margin:0 0 8px">
-        ${kv('Material cost', money(d.material_cost || 0), 'bad')}
-        <span id="dProfit_${id}">${kv('Profit', money(d.profit || 0), (d.profit || 0) >= 0 ? 'ok' : 'bad')}</span>
-        ${kv('Paid (deposits)', money(d.paid || 0), 'ok')}
-        <span id="dRemain_${id}">${kv('Remaining', money(d.remaining || 0), (d.remaining || 0) ? 'bad' : 'ok')}</span>
+      <div class="sec-title">What this dress makes 💰</div>
+      <div class="fee-list">
+        ${feeRow('Spent on materials', d.material_cost || 0, 'bad')}
+        <div id="dProfit_${id}">${feeRow('Profit', d.profit || 0, (d.profit || 0) >= 0 ? 'ok' : 'bad', true)}</div>
+        ${feeRow('Paid so far', d.paid || 0, 'ok')}
+        <div id="dRemain_${id}">${feeRow('Still to come', d.remaining || 0, (d.remaining || 0) ? 'bad' : 'ok')}</div>
       </div>
       ${d.written_off
         ? `<div class="card gave-up"><div class="nm">✕ Given up on ${money(d.forgiven || 0)}</div>
              <div class="sub">${d.written_off_note ? esc(d.written_off_note) + ' · ' : ''}${d.written_off_at ? dt(d.written_off_at) : ''}. It is off what she owes and off the sales — the dress counts as having sold for the ${moneyText(d.paid || 0)} she really paid.</div>
              <button class="btn sec sm" style="margin-top:10px" onclick="unwriteOff(${id},'${esc(d.customer_name).replace(/'/g, "\\'")}')">↩ No — the money is coming</button></div>`
         : (d.remaining || 0) > 0
-          ? `<button class="btn ghost sm" style="margin-top:6px" onclick="writeOff(${id},'${esc(d.customer_name).replace(/'/g, "\\'")}',${d.remaining || 0})">✕ No more money coming from her</button>`
+          ? `<button class="btn ghost sm quiet" onclick="writeOff(${id},'${esc(d.customer_name).replace(/'/g, "\\'")}',${d.remaining || 0})">✕ No more money coming from her</button>`
           : ''}
+      <div class="sec-title sm">What she has paid</div>
       <div id="dpay_${id}"><div class="hint">Loading…</div></div>
-      <button class="btn sec sm" style="margin-top:6px" onclick="go('collections')">💵 Payments are written down under Collections ›</button>` : ''}`) : '';
+      <button class="btn sec sm quiet" style="margin-top:8px" onclick="go('collections')">💵 Write a payment down ›</button>` : ''}`) : '';
 
   const materials = canEdit ? pane('materials', `
     <div id="dmat_${id}"><div class="hint">Loading…</div></div>
@@ -2352,8 +2353,8 @@ window.dressPriceLive = (id) => {
   const remaining = Math.max(0, price - (d.paid || 0));
   const p = document.getElementById('dProfit_' + id);
   const r = document.getElementById('dRemain_' + id);
-  if (p) p.innerHTML = kv('Profit', money(profit), profit >= 0 ? 'ok' : 'bad');
-  if (r) r.innerHTML = kv('Remaining', money(remaining), remaining ? 'bad' : 'ok');
+  if (p) p.innerHTML = feeRow('Profit', profit, profit >= 0 ? 'ok' : 'bad', true);
+  if (r) r.innerHTML = feeRow('Still to come', remaining, remaining ? 'bad' : 'ok');
   const save = document.getElementById('dPriceSave_' + id);
   if (save) save.style.display = price === (d.price || 0) ? 'none' : '';
 };
@@ -3556,6 +3557,13 @@ window.openStaff = (id) => { window._staffId = id; window._staffTab2 = 'overview
 window.staffTab2 = (t) => { window._staffTab2 = t; go('staffmember'); };
 window.setSalMonth = (m) => { window._salMonth = m; go('staffmember'); };
 function kv(label, val, cls) { return `<div class="item"><div class="main"><div class="sub">${esc(label)}</div><div class="nm" ${cls ? `style="color:var(--${cls})"` : ''}>${val}</div></div></div>`; }
+/* A line of the dress's money: the words on the left, the figure on the right,
+   one line each. The old pair stacked the two and made four tall boxes of what
+   is really a four-line sum. */
+function feeRow(label, v, cls, strong) {
+  return `<div class="fee-row${strong ? ' big' : ''}"><span class="fee-k">${esc(label)}</span>
+    <span class="fee-v" style="color:var(--${cls || 'ink'})">${money(v)}</span></div>`;
+}
 
 /* per-staff detail: overview / salary (auto) / absences / advances / attendance */
 PAGES.staffmember = async (c) => {
