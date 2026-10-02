@@ -851,25 +851,28 @@ const ready = (async () => {
   // was dated to the day it was sent rather than the month it was for, and her
   // own salary screen could not find it. Turned round once, with the cost it
   // wrote put right beside it.
+  // Deliberately NOT behind a flag. Turning a month round is idempotent — one
+  // already the right way round maps to itself and is skipped — so running it
+  // every start makes it self-healing: a row that arrives wrong by any route,
+  // or one a single pass missed, is put right on the next boot rather than
+  // staying wrong for good because a flag said the job was done.
   try {
-    const flag = await db.prepare("SELECT value FROM settings WHERE key = 'salary_month_format_2026_10'").get();
-    if (!flag) {
-      const rows = await db.prepare(`SELECT s.id, s.month, s.user_id, u.name
-        FROM salary_payments s JOIN users u ON u.id = s.user_id
-        WHERE s.month IS NOT NULL AND s.month <> ''`).all();
-      let fixed = 0;
-      for (const r of rows) {
-        const m = normMonth(r.month);
-        if (!m || m === r.month) continue;
-        await db.prepare('UPDATE salary_payments SET month=? WHERE id=?').run(m, r.id);
-        const date = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);
-        await db.prepare('UPDATE expenses SET date=?, note=? WHERE salary_payment_id=?')
-          .run(date, `${r.name} · ${m} salary`, r.id);
-        fixed += 1;
-      }
-      await db.prepare("INSERT INTO settings (key,value) VALUES ('salary_month_format_2026_10',?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(new Date().toISOString());
-      if (fixed) console.log(`Salaries: ${fixed} month(s) written the wrong way round were turned round.`);
+    const rows = await db.prepare(`SELECT s.id, s.month, s.user_id, u.name
+      FROM salary_payments s JOIN users u ON u.id = s.user_id
+      WHERE s.month IS NOT NULL AND s.month <> ''`).all();
+    let fixed = 0; const stuck = [];
+    for (const r of rows) {
+      const m = normMonth(r.month);
+      if (!m) { stuck.push(`${r.name}: "${r.month}"`); continue; }
+      if (m === r.month) continue;
+      await db.prepare('UPDATE salary_payments SET month=? WHERE id=?').run(m, r.id);
+      const date = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).toISOString().slice(0, 10);
+      await db.prepare('UPDATE expenses SET date=?, note=? WHERE salary_payment_id=?')
+        .run(date, `${r.name} · ${m} salary`, r.id);
+      fixed += 1;
     }
+    if (fixed) console.log(`Salaries: ${fixed} month(s) written the wrong way round were turned round.`);
+    if (stuck.length) console.warn(`Salaries: ${stuck.length} month(s) in no shape to read: ${stuck.join(', ')}`);
   } catch (e) {
     console.warn('Salary months could not be put right:', e.message);
   }

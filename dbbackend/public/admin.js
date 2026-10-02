@@ -2443,7 +2443,8 @@ PAGES.expenses = async (c) => {
       </div>
       ${dupNotes.length ? `<div class="card dup-warn" style="margin-top:12px">
         <div class="nm">⚠️ ${dupNotes.length} salar${dupNotes.length === 1 ? 'y was' : 'ies were'} sent more than once</div>
-        <div class="sub">${dupNotes.map(esc).join(' · ')}. That is ${money(dupTotal)} counted here, where only part of it was really paid. Tap 💼 on the one to drop and it comes off the salary record and off these costs together.</div>
+        <div class="sub">${money(dupTotal)} is counted here, where only part of it was really paid out.</div>
+        <button class="btn" style="margin-top:10px" onclick="go('dupsalaries')">Sort these out ›</button>
       </div>` : ''}
       <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item${dupNotes.includes(e.note) ? ' dup' : ''}">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : `<div class="av">${e.salary_payment_id ? '💼' : '💸'}</div>`}
@@ -2474,6 +2475,52 @@ PAGES.expenses = async (c) => {
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
 window.setExpPaid = (v) => { window._expPaid = v; go('expenses'); };
+/* ============ SALARIES SENT MORE THAN ONCE ============
+   Naming the duplicates was not enough: they were still sitting there. This is
+   the screen that clears them — every month that was paid twice, its payments
+   side by side, and one tap to drop the one that should not be there. Which to
+   keep is not guessed at: where the two amounts differ, only the studio knows
+   which is right, and the screen says so instead of choosing. */
+PAGES.dupsalaries = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💼'); return; }
+  const pays = await GET('/api/salary-payments');
+  const groups = {};
+  pays.forEach((p) => {
+    const k = `${p.user_id}|${String(p.month || '—')}`;
+    (groups[k] = groups[k] || { name: p.user_name, month: p.month, rows: [] }).rows.push(p);
+  });
+  const dups = Object.values(groups).filter((g) => g.rows.length > 1);
+  dups.forEach((g) => g.rows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))));
+  const over = dups.reduce((a, g) => a + g.rows.slice(1).reduce((x, r) => x + (r.amount || 0), 0), 0);
+  c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
+    title('Sent more than once', '💼') +
+    (dups.length ? `<div class="card dup-warn">
+      <div class="nm">${dups.length} month${dups.length === 1 ? '' : 's'} ${dups.length === 1 ? 'was' : 'were'} paid more than once</div>
+      <div class="sub">Up to ${money(over)} of this was never really paid out. Keep the one that is right and drop the rest — dropping takes the payment off her salary record and off the studio costs together.</div>
+    </div>
+    ${dups.map((g) => {
+      const same = g.rows.every((r) => Math.abs((r.amount || 0) - (g.rows[0].amount || 0)) < 0.005);
+      return `<div class="card dsg">
+        <div class="dsg-h">${esc(g.name)} · ${esc(g.month ? monthLabel(g.month) : 'no month on it')}</div>
+        ${g.rows.map((r, i) => `<div class="dsg-r">
+          <div class="dsg-m"><b>${money(r.amount)}</b>
+            <span>sent ${dt(r.created_at)}${r.status === 'confirmed' ? ' · she confirmed it ✓' : ' · not confirmed'}${i === 0 ? ' · the first one' : ''}</span></div>
+          <button class="btn sec sm" onclick="dropDupSalary(${r.id},'${esc(g.name).replace(/'/g, "\\'")}','${esc(g.month ? monthLabel(g.month) : '')}',${r.amount || 0})">Drop this</button>
+        </div>`).join('')}
+        <div class="dsg-n ${same ? '' : 'warn'}">${same
+          ? 'Both are for the same amount, so they are the same payment entered twice — drop either one.'
+          : '⚠️ These are for different amounts, so only you know which is the right one. Nothing here is guessed.'}</div>
+      </div>`;
+    }).join('')}`
+    : empty('Nothing has been paid twice. The salaries are clean.', '✓'));
+};
+window.dropDupSalary = (payId, name, month, amount) => {
+  if (!confirm(`Drop this salary?\n\n${name} · ${month}\n${moneyText(amount)}\n\nIt comes off her salary record AND off the studio costs, together. This cannot be undone.`)) return;
+  DEL('/api/salary-payments/' + payId)
+    .then(() => { toast('Dropped ✓'); go('dupsalaries'); })
+    .catch((e) => toast(e.message || 'Could not drop it', 'error'));
+};
+
 /* A salary cost is the salary: taking it off here takes the payment off her
    record too, which is the only way the two can stay telling the same story. */
 window.dropSalaryCost = (payId, label) => {
