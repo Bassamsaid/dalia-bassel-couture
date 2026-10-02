@@ -506,19 +506,7 @@ PAGES.mysalary = async (c) => {
   c.innerHTML = pageHead('My Salary', '💵') +
     `<div class="filters"><input type="month" value="${month}" onchange="setMySalMonth(this.value)" style="width:auto;padding:8px" /></div>` +
     (sal ? '<button class="btn sec sm" style="margin-bottom:10px" onclick="openPayslip(window._mySal)">🖨 Print my payslip</button>' : '') +
-    (sal ? `<div class="card">
-      ${kv('Base salary', money(sal.base))}
-      ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
-      ${kv('Absent days', sal.absent_days + ' day(s)')}
-      ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
-      ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
-      ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
-      ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
-      ${kv('− Deductions', money(sal.deductions || 0), 'bad')}
-      ${kv('− Advances this month', money(sal.advances), 'bad')}
-      <div class="divider"></div>
-      <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
-    </div>` : empty('No salary info yet', '💵')) +
+    (sal ? salaryBreakdown(sal, month) : empty('No salary info yet', '💵')) +
     `<div class="sec-title">Salary sent to me</div>
      <div class="card">${pays.length ? pays.map((p) => `<div class="item">
         ${p.image ? `<div class="av"><img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/></div>` : '<div class="av">💵</div>'}
@@ -526,6 +514,42 @@ PAGES.mysalary = async (c) => {
         ${p.status === 'confirmed' ? '<span class="badge ok">Confirmed ✓</span>' : `<button class="btn sm" onclick="confirmSalary(${p.id})">Confirm received</button>`}</div>`).join('') : empty('No salary sent yet', '💵')}</div>`;
 };
 window.setMySalMonth = (m) => { window._mySalMonth = m; go('mysalary'); };
+
+/* The month's working, not a column of figures. What was earned, what came off,
+   and the arithmetic behind each one — so a number that looks wrong can be
+   argued with rather than wondered about. */
+function salaryBreakdown(s, month) {
+  const line = (label, detail, amount, cls) => `<div class="sal-line ${cls || ''}">
+    <div class="sal-k"><b>${esc(label)}</b>${detail ? `<span>${detail}</span>` : ''}</div>
+    <div class="sal-v">${amount}</div></div>`;
+  const earned = [line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, money(s.base))];
+  if (s.overtime_minutes) earned.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h`, '+ ' + money(s.overtime_pay), 'ok'));
+  if (s.extra_hours) earned.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, '+ ' + money(s.extra_task_pay), 'ok'));
+  if (s.bonus) earned.push(line('Bonus', '', '+ ' + money(s.bonus), 'ok'));
+
+  const off = [];
+  if (s.absent_days) off.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'bad'));
+  if (s.late_minutes) off.push(line('Lateness', `${s.late_minutes} min past the grace period`, '− ' + money(s.late_deduction), 'bad'));
+  if (s.deductions) off.push(line('Deductions', '', '− ' + money(s.deductions), 'bad'));
+  if (s.advances) off.push(line('Advances taken', 'already in hand', '− ' + money(s.advances), 'bad'));
+
+  return `<div class="card">
+    <div class="sal-days">
+      <span><b>${s.present_days}</b> present</span>
+      ${s.paid_leave_days ? `<span><b>${s.paid_leave_days}</b> paid leave</span>` : ''}
+      <span><b>${s.off_days}</b> day(s) off</span>
+      ${s.absent_days ? `<span class="bad"><b>${s.absent_days}</b> absent</span>` : ''}
+    </div>
+    <div class="sec-title">What the month earned</div>
+    ${earned.join('')}
+    ${off.length ? `<div class="sec-title">What came off it</div>${off.join('')}` : ''}
+    <div class="sal-net">
+      <div class="sal-net-k">Net for ${esc(month)}</div>
+      <div class="sal-net-v">${money(s.net)}</div>
+    </div>
+    <p class="hint" style="margin:10px 2px 0">An hour is ${moneyText(s.hourly)} — the month's salary over ${s.owed_days} working day(s) of ${s.work_hours} hours. A day is ${moneyText(s.daily)}.</p>
+  </div>`;
+}
 window.confirmSalary = async (id) => { await PUT('/api/salary-payments/' + id + '/confirm', {}); toast('Confirmed ✓'); go('mysalary'); };
 
 /* ============ STAFF SELF-SERVICE: report absence / request advance ============ */
