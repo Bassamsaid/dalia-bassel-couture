@@ -396,7 +396,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v166';
+const APP_VERSION = 'v167';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1083,7 +1083,9 @@ function runCounters(root) {
     const step = (t) => {
       if (t0 === null) t0 = t;
       const p = Math.min(1, (t - t0) / dur);
-      el.textContent = fmt(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      // the last frame lands on the figure itself, not a rounded one: a profit
+      // that reads 342,278 under a sum that makes 342,278.03 is wrong
+      el.textContent = fmt(p >= 1 ? to : Math.round(to * (1 - Math.pow(1 - p, 3))));
       if (p < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);

@@ -1295,12 +1295,12 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .home-lux .bk-owed-t{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;font-weight:800;
   color:var(--muted);margin-bottom:9px}
 .home-lux .bk-owed-r{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
-  font-size:12.5px;font-weight:600;color:var(--muted);padding:4px 0}
-.home-lux .bk-owed-r b{color:var(--ink);font-family:var(--sans);font-weight:800;
+  font-size:14px;font-weight:600;color:var(--muted);padding:6px 0}
+.home-lux .bk-owed-r b{color:var(--ink);font-family:var(--sans);font-weight:800;font-size:16px;
   font-variant-numeric:tabular-nums lining-nums}
 .home-lux .bk-owed-r.tot{border-top:1px solid var(--line);margin-top:7px;padding-top:9px;color:var(--ink);font-weight:700}
 .home-lux .bk-owed-r.tot b.ok{color:var(--ok)} .home-lux .bk-owed-r.tot b.bad{color:var(--bad)}
-.home-lux .bk-foot{padding:12px 16px 14px;font-size:11.5px;color:var(--muted);font-weight:600;
+.home-lux .bk-foot{padding:13px 16px 15px;font-size:12.5px;color:var(--muted);font-weight:600;
   border-top:1px dashed var(--line)}
 
 /* ===== A house opens from its own head ===== */
@@ -1315,19 +1315,19 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 
 /* ===== The sum in plain words: money in, money out, what is left ===== */
 .home-lux .bk-head-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-  padding:13px 16px 9px;border-top:1px solid var(--line)}
+  padding:16px 16px 11px;border-top:1px solid var(--line)}
 .home-lux .bk-head-line:first-of-type{border-top:none}
-.home-lux .bk-head-line .bk-k{font-size:11px;letter-spacing:1.8px;text-transform:uppercase;font-weight:800;
+.home-lux .bk-head-line .bk-k{font-size:13px;letter-spacing:1.6px;text-transform:uppercase;font-weight:800;
   color:var(--muted)}
-.home-lux .bk-head-line .bk-v{font-family:var(--sans);font-size:17px;font-weight:800;letter-spacing:-.3px;
+.home-lux .bk-head-line .bk-v{font-family:var(--sans);font-size:clamp(19px,5.6vw,24px);font-weight:800;letter-spacing:-.5px;
   font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;color:var(--ink)}
 .home-lux .bk-head-line.in .bk-v{color:var(--ok)}
 .home-lux .bk-head-line.out .bk-v{color:var(--bad)}
-.home-lux .bk-sub-line{display:flex;align-items:baseline;gap:10px;padding:6px 16px 6px 20px}
+.home-lux .bk-sub-line{display:flex;align-items:baseline;gap:11px;padding:8px 16px 8px 20px}
 .home-lux .bk-sub-line:last-of-type{padding-bottom:12px}
-.home-lux .bk-sub-line .bk-ic{flex:0 0 auto;width:20px;font-size:13px}
-.home-lux .bk-sub-line .bk-k{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--muted)}
-.home-lux .bk-sub-line .bk-v{flex:0 0 auto;font-family:var(--sans);font-size:13.5px;font-weight:700;
+.home-lux .bk-sub-line .bk-ic{flex:0 0 auto;width:22px;font-size:15px}
+.home-lux .bk-sub-line .bk-k{flex:1;min-width:0;font-size:14.5px;font-weight:600;color:var(--muted)}
+.home-lux .bk-sub-line .bk-v{flex:0 0 auto;font-family:var(--sans);font-size:16px;font-weight:700;
   font-variant-numeric:tabular-nums lining-nums;white-space:nowrap;color:var(--ink)}
 
 /* ===== Profit, dress by dress ===== */
@@ -1400,20 +1400,23 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .bulk-row .br-x{position:absolute;top:6px;inset-inline-end:6px}
 
 /* ===== One card, read top to bottom, ending in the profit ===== */
-.home-lux .bk-top{padding:15px 16px 4px;font-size:10px;letter-spacing:2.4px;text-transform:uppercase;
+.home-lux .bk-top{padding:17px 16px 5px;font-size:11.5px;letter-spacing:2.2px;text-transform:uppercase;
   font-weight:800;color:var(--muted)}
-.home-lux .bk-line.net{border-top:2px solid var(--ink);padding:16px 16px 18px}
-.home-lux .bk-line.net .bk-v{font-size:28px;font-family:var(--serif);font-weight:700}
-.home-lux .bk-line.net .bk-k{font-size:12px}
+.home-lux .bk-line.net{border-top:2px solid var(--ink);padding:19px 16px 21px}
+.home-lux .bk-line.net .bk-v{font-size:clamp(28px,8.6vw,38px);font-family:var(--serif);font-weight:700;letter-spacing:-.5px}
+.home-lux .bk-line.net .bk-k{font-size:14.5px;letter-spacing:1.8px}
 
 /* ===== The three figures that head Sales and Collections ===== */
 .t3{display:flex;background:rgba(255,255,255,.8);border:1px solid var(--line);border-radius:18px;
   box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px}
-.t3-c{flex:1;min-width:0;text-align:center;padding:14px 8px 15px;position:relative}
+.t3-c{flex:1;min-width:0;text-align:center;padding:14px 4px 15px;position:relative}
 .t3-c + .t3-c::before{content:"";position:absolute;inset-inline-start:0;top:14%;height:72%;width:1px;background:var(--line)}
-.t3-k{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;font-weight:800;color:var(--muted)}
-.t3-v{font-family:var(--sans);font-size:15px;font-weight:800;letter-spacing:-.4px;margin-top:6px;
+.t3-k{font-size:clamp(9px,2.8vw,11.5px);letter-spacing:.9px;text-transform:uppercase;font-weight:800;color:var(--muted)}
+.t3-v{font-family:var(--sans);font-size:clamp(13px,3.9vw,19px);font-weight:800;letter-spacing:-.6px;margin-top:7px;
   color:var(--ink);font-variant-numeric:tabular-nums lining-nums;white-space:nowrap}
+/* a seven-figure total on the narrowest phone: the currency steps back so the
+   number itself stays the size it was asked to be */
+@media (max-width:400px){ .t3-v{letter-spacing:-.8px} }
 .t3-v.ok{color:var(--ok)} .t3-v.bad{color:var(--bad)}
 .t3-n{font-size:10px;color:var(--muted);font-weight:600;margin-top:4px}
 .dp-bar i.owe{background:rgba(0,0,0,.1)}
