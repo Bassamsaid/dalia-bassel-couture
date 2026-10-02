@@ -2314,15 +2314,16 @@ PAGES.float = async (c) => {
     ${f.back ? `<div class="hint" style="margin:2px 2px 8px">${money(f.back)} of it was given back.</div>` : ''}
     ${f.balance < 0 ? `<div class="card" style="border-inline-start:4px solid var(--bad)"><div class="nm" style="color:var(--bad)">She has spent ${money(-f.balance)} of her own</div>
       <div class="sub muted">Hand that over to settle it, or take the spending off this float.</div></div>` : ''}
-    <div class="row" style="margin-top:10px">
-      <button class="btn sm" onclick="handFloat(${f.user.id})">＋ Hand over more</button>
+    <button class="btn" style="margin-top:10px" onclick="spendFromFloat(${f.user.id})">＋ Record something she spent</button>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sec sm" onclick="handFloat(${f.user.id})">＋ Hand over more</button>
       <button class="btn sec sm" onclick="returnFloat(${f.user.id})">↩ Take cash back</button>
       <button class="btn ghost sm" onclick="openFloatSheet()">🖨 Settlement</button>
     </div>
 
     <div class="sec-title">Spent out of it <span class="hint" style="font-weight:400">· ${spending.length}</span></div>
     ${spending.length ? `<div class="card">${spending.map((e) => floatRow(e, f.user.id)).join('')}</div>`
-      : `<p class="hint">Nothing has been spent from this float yet. A studio cost or an invoice comes onto it by choosing <b>${esc(f.user.name)}'s float</b> under <b>Paid from</b> when it is recorded.</p>`}
+      : `<p class="hint">Nothing has been spent from this float yet. Use the button above, or choose <b>${esc(f.user.name)}'s float</b> under <b>Paid from</b> when recording a studio cost or an invoice.</p>`}
 
     <div class="sec-title">The cash itself</div>
     <div class="card">${f.entries.filter((e) => e.kind === 'handed' || e.kind === 'back').map((e) => floatRow(e, f.user.id)).join('')}</div>`;
@@ -2356,6 +2357,33 @@ window.editFloatMove = (id, userId) => {
   ], async (d) => {
     await PUT('/api/floats/' + id, { ...d, kind: out ? 'out' : 'in' });
     toast('Saved ✓'); window._floatId = userId; go('float');
+  });
+};
+
+/* Recording what the cash went on, from the float itself. It was always
+   possible — a studio cost with her float chosen under Paid from — but only if
+   you knew to go to the other screen and look for the choice. Here the float is
+   already chosen and the form opens on her. */
+window.spendFromFloat = async (userId) => {
+  await loadFloatHolders();
+  let types = (window._expRef && window._expRef.types) || [];
+  let vendors = (window._expRef && window._expRef.vendors) || [];
+  if (!types.length) {
+    try { [types, vendors] = await Promise.all([GET('/api/expense-types'), GET('/api/vendors')]); window._expRef = { types, vendors }; } catch (e) {}
+  }
+  const holders = window._floatHolders || [];
+  const her = holders.find((h) => h.id === userId);
+  formModal(her ? `Spent from ${her.name}'s float` : 'Spent from the float', [
+    { name: 'amount', label: 'How much', type: 'number', required: true },
+    { name: 'type', label: 'What for', type: 'select', options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
+    { name: 'vendor_id', label: 'Vendor (optional)', type: 'select', options: [{ value: '', label: '— none —' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
+    { name: 'date', label: 'Date', type: 'date', value: today() },
+    { name: 'note', label: 'Note' },
+    { name: 'image', label: 'Receipt photo (optional)', type: 'image' },
+  ], async (d) => {
+    await POST('/api/expenses', { ...d, paid_by: userId });
+    toast('On her float ✓');
+    window._floatId = userId; go('float');
   });
 };
 
