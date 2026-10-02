@@ -21,6 +21,19 @@ function fmField(f) {
   const req = f.required ? ' data-req="1"' : '';
   if (f.type === 'select') return `<label>${f.label}${f.required ? ' *' : ''}</label><select name="${f.name}"${req}>${
     (f.options || []).map((o) => `<option value="${esc(o.value)}" ${String(o.value) === String(v) ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}</select>`;
+  // A list you can search, instead of the phone's own wheel: with two dozen
+  // clients that wheel is a scroll through wrapped text with no way to find a
+  // name. Rows are ours, so they stay one line each and carry what is owed.
+  if (f.type === 'pick') return `<label>${f.label}${f.required ? ' *' : ''}</label>
+    <input type="hidden" name="${f.name}" id="pk_${f.name}" value="${esc(v)}"${req} />
+    <input class="pick-find" type="search" inputmode="search" placeholder="🔍 Type a name"
+      oninput="pickFind('${f.name}', this.value)" />
+    <div class="pick-list" id="pl_${f.name}">${(f.options || []).map((o) => `
+      <div class="pick-row${String(o.value) === String(v) ? ' on' : ''}" data-v="${esc(o.value)}"
+        data-s="${esc(String(o.label).toLowerCase())}" onclick="pickOne('${f.name}','${esc(o.value)}')">
+        <span class="pk-n">${esc(o.label)}</span>${o.meta ? `<span class="pk-m">${esc(o.meta)}</span>` : ''}
+      </div>`).join('')}</div>
+    <div class="hint pick-none" id="pn_${f.name}" style="display:none">No name like that.</div>`;
   if (f.type === 'textarea') return `<label>${f.label}${f.required ? ' *' : ''}</label><textarea name="${f.name}"${req} ${f.rows ? `style="min-height:${f.rows * 22}px"` : ''}>${esc(v)}</textarea>`;
   if (f.type === 'image' || f.type === 'file') return `<label>${f.label}</label>
     <div class="row"><button type="button" class="btn ghost sm" onclick="pickForField('${f.name}','${f.type}','${f.accept || ''}')">📷 Choose ${f.type === 'file' ? 'file' : 'image'}</button>
@@ -38,6 +51,27 @@ function fmField(f) {
     : input;
   return `<label>${f.label}${f.required ? ' *' : ''}</label>${body}`;
 }
+window.pickOne = (name, value) => {
+  const box = document.getElementById('pl_' + name);
+  const hid = document.getElementById('pk_' + name);
+  if (!box || !hid) return;
+  hid.value = value;
+  box.querySelectorAll('.pick-row').forEach((r) => r.classList.toggle('on', r.dataset.v === String(value)));
+  const err = document.getElementById('fmErr'); if (err) err.classList.add('hidden');
+};
+window.pickFind = (name, q) => {
+  const box = document.getElementById('pl_' + name);
+  if (!box) return;
+  const t = String(q || '').trim().toLowerCase();
+  let shown = 0;
+  box.querySelectorAll('.pick-row').forEach((r) => {
+    const hit = !t || r.dataset.s.includes(t);
+    r.style.display = hit ? '' : 'none';
+    if (hit) shown += 1;
+  });
+  const none = document.getElementById('pn_' + name);
+  if (none) none.style.display = shown ? 'none' : '';
+};
 function canPickContacts() { return !!(window.ContactsManager && navigator.contacts && navigator.contacts.select); }
 
 /* A phone number is read off a client's WhatsApp and typed in by hand, which is
@@ -1892,12 +1926,12 @@ window.takePayment = async (dressId) => {
   if (!dresses.length) { try { dresses = await GET('/api/dresses'); window._dresses = dresses; } catch (e) {} }
   const owing = dresses.filter((d) => d.price > 0 && Math.max(0, d.price - (d.paid || 0)) > 0);
   const rest = dresses.filter((d) => d.price > 0 && !owing.includes(d));
-  const label = (d) => `${d.customer_name} · ${moneyText(Math.max(0, d.price - (d.paid || 0)))} left to pay`;
+  const left = (d) => Math.max(0, d.price - (d.paid || 0));
   formModal('A payment from a client', [
-    { name: 'dress_id', label: 'Which client', type: 'select', required: true, value: dressId || '',
-      options: [{ value: '', label: '—' },
-        ...owing.map((d) => ({ value: d.id, label: label(d) })),
-        ...rest.map((d) => ({ value: d.id, label: `${d.customer_name} · paid in full` }))] },
+    { name: 'dress_id', label: 'Which client', type: 'pick', required: true, value: dressId || '',
+      options: [
+        ...owing.map((d) => ({ value: d.id, label: d.customer_name, meta: `${num0(left(d))} left` })),
+        ...rest.map((d) => ({ value: d.id, label: d.customer_name, meta: 'paid in full' }))] },
     { name: 'amount', label: 'How much', type: 'number', required: true },
     { name: 'method', label: 'Cash or transfer', type: 'select', value: 'transfer',
       options: [{ value: 'transfer', label: '🏦 Transfer / Instapay' }, { value: 'cash', label: '💵 Cash' }] },
