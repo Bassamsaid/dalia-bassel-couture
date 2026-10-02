@@ -1422,3 +1422,6 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dp-bar i.owe{background:rgba(0,0,0,.1)}
 .home-lux .bk-head-line[onclick]:active{background:rgba(0,0,0,.04)}
 .home-lux .bk-owed[onclick]:active{background:rgba(0,0,0,.05)}
+/* the months above the books: one row, small, and it slides if there are many */
+.home-lux .bk-chips{margin:0;padding:9px 12px 10px;gap:6px;flex-wrap:nowrap}
+.home-lux .bk-chips .chip{padding:5px 11px;font-size:11.5px;border-width:1.2px;letter-spacing:.2px}
