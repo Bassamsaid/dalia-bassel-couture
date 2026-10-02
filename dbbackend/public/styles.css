@@ -1351,8 +1351,8 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dp-note{font-size:12.5px;font-weight:600;color:var(--muted);line-height:1.5;
   border-inline-start:4px solid var(--warn)}
 .dp-note b{color:var(--ink)}
-.dp-row{background:rgba(255,255,255,.78);border:1px solid var(--line);border-radius:16px;
-  padding:12px 14px;margin-bottom:9px;cursor:pointer;box-shadow:var(--shadow-sm);
+.dp-row{background:rgba(255,255,255,.82);border:1px solid var(--line);border-radius:14px;
+  padding:11px 13px 10px;margin-bottom:8px;cursor:pointer;box-shadow:var(--shadow-sm);
   transition:transform .15s,box-shadow .15s}
 .dp-row:active{transform:scale(.99)}
 .dp-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -1360,11 +1360,18 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dp-v{font-family:var(--sans);font-weight:800;font-size:15px;flex:0 0 auto;
   font-variant-numeric:tabular-nums lining-nums}
 .dp-v.ok{color:var(--ok)} .dp-v.bad{color:var(--bad)}
-.dp-bar{display:flex;height:7px;border-radius:99px;overflow:hidden;margin:9px 0 7px;background:rgba(0,0,0,.06)}
+.dp-bar{display:flex;height:6px;border-radius:99px;overflow:hidden;margin:8px 0 7px;background:rgba(0,0,0,.06)}
 .dp-bar i.mat{background:linear-gradient(90deg,#c2185b,#e8639a)}
 .dp-bar i.pro{background:linear-gradient(90deg,#1f9d6b,#5ed4a8)}
-.dp-sub{font-size:11.5px;color:var(--muted);font-weight:600}
-.dp-sub b{color:var(--ok);font-weight:800}
+.dp-sub{font-size:12.5px;color:var(--muted);font-weight:600;min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.dp-sub b{color:var(--ink);font-weight:800;font-variant-numeric:tabular-nums lining-nums}
+.dp-sub b.ok{color:var(--ok)} .dp-sub b.bad{color:var(--bad)}
+/* the facts on one line, and the way out of it kept small and off to the side */
+.dp-foot{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dp-x{flex:0 0 auto;background:none;border:none;padding:3px 0 3px 6px;cursor:pointer;
+  font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.2px;white-space:nowrap}
+.dp-x:active{color:var(--bad)}
 .dp-flag{color:var(--warn);font-weight:700}
 .dp-sub b.bad{color:var(--bad)}
 
@@ -1433,4 +1440,3 @@ button.ap-s:hover{border-color:var(--purple);color:var(--purple-d)}
 .dp-row.off{opacity:.78;background:rgba(0,0,0,.025)}
 .dp-v.muted{color:var(--muted);font-size:13px}
 .dp-bar i.gone{background:repeating-linear-gradient(45deg,rgba(0,0,0,.08),rgba(0,0,0,.08) 4px,transparent 4px,transparent 8px)}
-.dp-act{margin-top:9px;width:100%}
