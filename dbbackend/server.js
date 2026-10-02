@@ -2027,6 +2027,68 @@ api['DELETE /api/salary-payments/:id'] = async (req, res, user, url, params) => 
   send(res, 200, { ok: true });
 };
 
+// ================= THE BOOKS (money in against money out) =================
+// One statement for the whole place: the two houses on the income side, the
+// materials and the studio's own costs on the other, and what is left.
+//
+// Month by month it is counted the way a studio counts — on the money that
+// moved: a payment belongs to the month it came in, an invoice and a cost to
+// the month they are dated. That is the only basis the records can carry
+// honestly, because a dress is not earned on any one day.
+//
+// Beside it, what everything is WORTH: the full price of every dress and every
+// course fee, whether or not it has been paid for yet, less the same costs. The
+// two answer different questions and are never mixed into one number.
+api['GET /api/books'] = async (req, res, user) => {
+  if (!requireAdmin(user, res)) return;
+  const m = (d) => String(d || '').slice(0, 7);
+  const bucket = {};
+  const at = (k) => (bucket[k] = bucket[k] || { dresses: 0, courses: 0, materials: 0, studio: 0 });
+  const add = (rows, field) => rows.forEach((r) => { const k = m(r.d); if (/^\d{4}-\d{2}$/.test(k)) at(k)[field] += Number(r.v) || 0; });
+
+  add(await db.prepare('SELECT amount v, COALESCE(paid_at,created_at) d FROM dress_payments').all(), 'dresses');
+  add(await db.prepare('SELECT amount v, COALESCE(paid_at,created_at) d FROM payments').all(), 'courses');
+  add(await db.prepare(`SELECT COALESCE(i.invoice_date,i.created_at) d,
+    (SELECT COALESCE(SUM(amount),0) FROM purchase_lines WHERE invoice_id=i.id) v FROM purchase_invoices i`).all(), 'materials');
+  add(await db.prepare('SELECT amount v, COALESCE(date,created_at) d FROM expenses').all(), 'studio');
+
+  const shape = (b) => {
+    const income = b.dresses + b.courses;
+    const cost = b.materials + b.studio;
+    return { ...b, income, cost, net: income - cost, margin: income ? (income - cost) / income : 0 };
+  };
+  const months = Object.keys(bucket).sort().reverse();
+  const by = {};
+  for (const k of months) by[k] = shape(bucket[k]);
+  const sum = months.reduce((a, k) => {
+    for (const f of ['dresses', 'courses', 'materials', 'studio']) a[f] += bucket[k][f];
+    return a;
+  }, { dresses: 0, courses: 0, materials: 0, studio: 0 });
+
+  // What is still owed is worked out per dress and per student: somebody who
+  // overpaid must not cancel out somebody who has not paid at all.
+  const dressRows = await db.prepare(`SELECT COALESCE(d.price,0) price,
+    COALESCE((SELECT SUM(amount) FROM dress_payments WHERE dress_id=d.id),0) paid FROM dresses d`).all();
+  const courseRows = await db.prepare(`SELECT COALESCE(e.total_fee,0) fee,
+    COALESCE((SELECT SUM(amount) FROM payments p WHERE p.user_id=u.id),0) paid
+    FROM users u LEFT JOIN enrollments e ON e.user_id=u.id WHERE u.role='trainee'`).all();
+  const dressValue = dressRows.reduce((a, r) => a + r.price, 0);
+  const dueDresses = dressRows.reduce((a, r) => a + Math.max(0, r.price - r.paid), 0);
+  const courseFees = courseRows.reduce((a, r) => a + r.fee, 0);
+  const dueCourses = courseRows.reduce((a, r) => a + Math.max(0, r.fee - r.paid), 0);
+  const worthIncome = dressValue + courseFees;
+  const worthCost = sum.materials + sum.studio;
+
+  send(res, 200, {
+    months, by, all: shape(sum),
+    worth: {
+      dresses: dressValue, courses: courseFees, dueDresses, dueCourses,
+      income: worthIncome, materials: sum.materials, studio: sum.studio, cost: worthCost,
+      net: worthIncome - worthCost, margin: worthIncome ? (worthIncome - worthCost) / worthIncome : 0,
+    },
+  });
+};
+
 // ================= EXPENSES (vendors, types, entries) =================
 // Each vendor carries its unified spend = material purchases + general expenses.
 // An invoice belongs to a vendor either because it was picked from the list, or

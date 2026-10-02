@@ -390,7 +390,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v153';
+const APP_VERSION = 'v154';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1140,22 +1140,42 @@ function navList(rows, flush) {
     </div>`).join('')}</div>`;
 }
 
-/* One of the two houses: a branded block that holds its own sections and figures.
-   o = { name, kind, summary, c1, c2, glow, rows, figures } */
+/* One of the houses: a branded block that holds its own sections and figures.
+   o = { name, kind, summary, c1, c2, glow, rows, figures, collapse }
+   With `collapse` set, the coloured head is the handle: tapping it drops the
+   whole dashboard underneath, so the top of the screen stays a short list of
+   the houses rather than everything at once. */
 function brandGroup(o) {
   const figs = (o.figures || []).map((f) => `<div class="fig">
       <div class="v"${f.color ? ` style="color:${f.color}"` : ''} data-count="${f.value}"${f.money ? ' data-fmt="money"' : ''}>${f.money ? money(0) : 0}</div>
       <div class="k">${esc(f.label)}</div></div>`).join('');
-  return `<div class="brand-group" style="--c1:${o.c1};--c2:${o.c2};--glow:${o.glow}">
-    <div class="bg-head">
-      <div class="bg-name">${esc(o.name)}</div>
+  const body = `${o.content !== undefined ? `<div class="bg-body">${o.content}</div>` : navList(o.rows, true)}
+    ${figs ? `<div class="bg-figs"><div class="fig-row${(o.figures || []).length > 3 ? ' wrap' : ''}"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}`;
+  // The house's own slice of the books, set out in the head: what came in, what
+  // it cost, what it leaves. The dashboard underneath is the detail behind it.
+  const pl = (o.pl || []).map(([k, v, cls]) => `<div class="bg-pl-r ${cls || ''}">
+      <span>${esc(k)}</span><b>${String(cls || '').includes('out') ? '−' : ''}${money(Math.abs(v))}</b></div>`).join('');
+  const head = `<div class="bg-name">${esc(o.name)}</div>
       <div class="bg-kind">${esc(o.kind)}</div>
       ${o.summary ? `<div class="bg-sum">${o.summary}</div>` : ''}
-    </div>
-    ${o.content !== undefined ? `<div class="bg-body">${o.content}</div>` : navList(o.rows, true)}
-    ${figs ? `<div class="bg-figs"><div class="fig-row${(o.figures || []).length > 3 ? ' wrap' : ''}"${o.figuresGo ? ` onclick="${o.figuresGo}"` : ''}>${figs}</div></div>` : ''}
+      ${pl ? `<div class="bg-pl">${o.plWhen ? `<div class="bg-pl-w">${esc(o.plWhen)}</div>` : ''}${pl}</div>` : ''}`;
+  const vars = `--c1:${o.c1};--c2:${o.c2};--glow:${o.glow}`;
+  if (!o.collapse) {
+    return `<div class="brand-group" style="${vars}"><div class="bg-head">${head}</div>${body}</div>`;
+  }
+  const open = (window._bgOpen || {})[o.collapse];
+  return `<div class="brand-group bg-acc${open ? ' open' : ''}" data-k="${o.collapse}" style="${vars}">
+    <div class="bg-head" onclick="toggleBrand('${o.collapse}')">${head}<span class="bg-chev">›</span></div>
+    <div class="bg-panel">${body}</div>
   </div>`;
 }
+window.toggleBrand = (k) => {
+  const el = document.querySelector(`.bg-acc[data-k="${k}"]`);
+  if (!el) return;
+  window._bgOpen = window._bgOpen || {};
+  window._bgOpen[k] = el.classList.toggle('open');
+  if (window._bgOpen[k]) runCounters(el); // the figures count up the first time they are seen
+};
 const big = (v) => `<b>${typeof v === 'number' ? v.toLocaleString('en-US') : esc(String(v))}</b>`;
 window.luxBackdrop = luxBackdrop;
 window.tilesHtml = tilesHtml;
