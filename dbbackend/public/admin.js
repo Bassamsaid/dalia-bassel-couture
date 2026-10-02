@@ -127,7 +127,24 @@ function formModal(heading, fields, onSubmit, opts = {}) {
       if (f.type === 'number') val = val === '' ? null : Number(val);
       data[f.name] = val;
     });
-    try { await onSubmit(data); closeModal(); } catch (err) { const x = $('#fmErr'); x.textContent = err.message; x.classList.remove('hidden'); }
+    // Sending a transfer screenshot takes seconds on a phone, and a button that
+    // sits there saying Save through all of it looks like a button that did
+    // nothing. It says what it is doing, and it cannot be pressed twice.
+    const btn = $('#wSave');
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+    try {
+      await onSubmit(data);
+      closeModal();
+    } catch (err) {
+      const x = $('#fmErr');
+      if (x) {
+        x.textContent = err && err.message ? err.message : 'That did not save. Try again.';
+        x.classList.remove('hidden');
+        if (x.scrollIntoView) x.scrollIntoView({ block: 'nearest' });
+      }
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
   };
 }
 window.wizNav = (dir) => {
@@ -147,8 +164,27 @@ window.wizNav = (dir) => {
   if (next) next.style.display = last ? 'none' : '';
   if (save) save.style.display = last ? '' : 'none';
 };
-window.pickForField = (name, type, accept) => pickImage((b64) => {
-  $(`#fi_${name}`).value = b64; $(`#fh_${name}`).textContent = 'Selected ✓';
+/* The file goes up the moment it is chosen, as bytes, and the form carries only
+   the name it was stored under. It used to ride inside the form as base64 — a
+   third bigger than the file — so a transfer screenshot left Save sitting there
+   for the best part of a minute on a phone and looked like a button that did
+   nothing. If sending it fails, it falls back to the old way rather than losing
+   the picture. */
+window.pickForField = (name, type, accept) => pickImage(async (b64) => {
+  const inp = $(`#fi_${name}`), hint = $(`#fh_${name}`);
+  if (!inp) return;
+  // a 'file' field is for video and already goes up its own way; this is the
+  // photo case, which is the one that was riding inside the form
+  if (type === 'file') { inp.value = b64; if (hint) hint.textContent = 'Selected ✓'; return; }
+  try {
+    if (hint) hint.textContent = 'Sending…';
+    const up = await uploadDataUrl(b64, 'photo.jpg',
+      (pc) => { if (hint) hint.textContent = `Sending… ${Math.round(pc * 100)}%`; });
+    inp.value = up.file;
+  } catch (e) {
+    inp.value = b64;
+  }
+  if (hint) hint.textContent = 'Selected ✓';
 }, accept || (type === 'file' ? 'video/*,image/*' : 'image/*'), type === 'file'); // file fields upload raw (HD, no compression)
 
 function confirmDel(msg, fn) { if (confirm(msg || 'Delete this?')) fn(); }
