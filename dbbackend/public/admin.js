@@ -1678,7 +1678,7 @@ PAGES.dress = async (c) => {
 
   const details = pane('details', `
     <label>Client name</label><input id="dName_${id}" value="${esc(d.customer_name || '')}"${ro} />
-    <label>Phone</label>${phoneField(`dPhone_${id}`, d.phone, { name: `dName_${id}`, readonly: !!ro })}
+    ${isAdmin ? `<label>Phone</label>${phoneField(`dPhone_${id}`, d.phone, { name: `dName_${id}`, readonly: !!ro })}` : ''}
     <label>Delivery date</label><input id="dDate_${id}" type="date" value="${d.delivery_date ? String(d.delivery_date).slice(0, 10) : ''}"${ro} />
     <label>Notes</label><textarea id="dNote_${id}"${ro}>${esc(d.note || '')}</textarea>
     <label>Status</label>
@@ -1734,7 +1734,9 @@ PAGES.dress = async (c) => {
       <button class="btn ghost sm" onclick="addDressVideoLink(${id})">🔗 Video link</button>
       ${d.cover_image ? `<button class="btn ghost sm" onclick="adjustCover(${id})">⛶ Adjust preview</button>` : ''}</div>` : ''}`);
 
-  const moneyPane = canEdit ? pane('money', `
+  // The money is the admin's alone — the tab itself does not exist for anybody
+  // else, rather than existing and being empty.
+  const moneyPane = isAdmin ? pane('money', `
     ${isAdmin ? `<label>Price 🔒 <span class="hint">(admin only — hidden from others)</span></label>
       <input id="dPrice_${id}" type="number" inputmode="decimal" value="${d.price || 0}" oninput="dressPriceLive(${id})" />
       <div class="row" id="dPriceSave_${id}" style="display:none;margin-top:10px">
@@ -1894,7 +1896,7 @@ window.saveDressDetails = async (id) => {
   if (!name) return toast('Client name is required');
   const body = {
     customer_name: name,
-    phone: document.getElementById('dPhone_' + id).value,
+    ...(document.getElementById('dPhone_' + id) ? { phone: document.getElementById('dPhone_' + id).value } : {}),
     delivery_date: document.getElementById('dDate_' + id).value,
     note: document.getElementById('dNote_' + id).value,
   };
