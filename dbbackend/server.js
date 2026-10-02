@@ -1004,6 +1004,10 @@ api['GET /api/dresses'] = async (req, res, user) => {
   else list = await db.prepare(base + ' WHERE d.customer_user_id=? ORDER BY d.id DESC').all(user.id);
   const studioSide = ['admin', 'manager', 'staff'].includes(user.role);
   for (const d of list) {
+    // A client's phone number is the studio's to hold, not the workroom's. Taking
+    // the field off the screen is not enough on its own — it has to stop being
+    // sent, or it is simply read somewhere else instead.
+    if (user.role !== 'admin' && user.role !== 'customer') delete d.phone;
     try { d.brief = d.brief ? JSON.parse(d.brief) : null; } catch (e) { d.brief = null; }
     // does her own account exist, and has she used it?
     if (studioSide && d.customer_user_id) {
