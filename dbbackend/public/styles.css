@@ -1575,3 +1575,5 @@ label{font-size:10.5px;margin:12px 0 5px}
 .dress-tot .fee-v{font-size:14.5px}
 .dress-tot .fee-row.big .fee-v{font-size:17px}
 .dress-tot .dt-more{padding:8px 0 9px}
+/* a heading with a hint beside it wraps as a line, not as two columns */
+.sec-title{flex-wrap:wrap}
