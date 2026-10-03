@@ -2132,20 +2132,20 @@ PAGES.dress = async (c) => {
   // be part of either, so they sit under their own heading as players.
   const files = d.images.filter((im) => im.image);
   const links = d.images.filter((im) => !im.image && im.video_url);
-  // Counting links as "photos" put a count above a pane reading "No photos yet".
-  const mediaTab = links.length
-    ? (files.length ? `Photos (${files.length}) · 🎬 ${links.length}` : `Videos (${links.length})`)
-    : `Photos${files.length ? ' (' + files.length + ')' : ''}`;
+  // One word for both: photos and videos live in the same pane and are picked
+  // out of the same gallery, so the tab counts everything that is on the dress.
+  const mediaCount = files.length + links.length;
+  const mediaTab = `Media${mediaCount ? ' (' + mediaCount + ')' : ''}`;
   const photos = pane('photos', `
     ${files.length ? gallery(files.map((im) => ({ file: im.image, kind: isVideoFile(im.image) ? 'video' : 'image' }))) : ''}
-    <div class="sec-title">All photos ${(canEdit && files.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
+    <div class="sec-title">All media ${(canEdit && files.length > 1) ? '<span class="hint" style="font-weight:400">· drag to reorder · first = cover</span>' : ''}</div>
     <div class="dphotos" id="dphotos_${id}">${files.map((im, i) => `<div class="dphoto" data-id="${im.id}">
       ${isVideoFile(im.image)
         ? `<video class="thumb" style="aspect-ratio:3/4;object-fit:cover;${canEdit ? 'pointer-events:none' : ''}" src="${esc(mediaUrl(im.image))}" muted playsinline preload="metadata"></video>
            <span class="cover-badge" style="left:6px;right:auto">▶ Video</span>`
         : `<img class="thumb" style="aspect-ratio:3/4;${canEdit ? 'pointer-events:none' : 'cursor:zoom-in'}" src="${esc(mediaUrl(im.image))}"${canEdit ? '' : ` onclick="lightbox('${esc(mediaUrl(im.image))}')"`} />
            ${i === 0 ? '<span class="cover-badge">★ Cover</span>' : ''}`}
-      ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">No photos yet</div>'}</div>
+      ${canEdit ? `<button class="dphoto-del" onclick="delDressImg(${im.id},${id})">✕</button>` : ''}</div>`).join('') || '<div class="hint">Nothing added yet</div>'}</div>
     ${links.length ? `<div class="sec-title">Videos 🎬</div>
       ${links.map((im) => `<div style="margin-bottom:12px">
         ${linkedVideo(im.video_url, { title: im.caption || 'Dress video' })}
@@ -2154,8 +2154,7 @@ PAGES.dress = async (c) => {
           ${canEdit ? `<button class="btn-icon" onclick="delDressImg(${im.id},${id})">🗑</button>` : ''}</div>
       </div>`).join('')}` : ''}
     ${canEdit ? `<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
-      <button class="btn ghost sm" onclick="addDressImg(${id})">＋ Photo</button>
-      <button class="btn ghost sm" onclick="addDressVideo(${id})">🎬 Video</button>
+      <button class="btn ghost sm" onclick="addDressMedia(${id})">＋ From the gallery</button>
       <button class="btn ghost sm" onclick="addDressVideoLink(${id})">🔗 Video link</button>
       ${d.cover_image ? `<button class="btn ghost sm" onclick="adjustCover(${id})">⛶ Adjust preview</button>` : ''}</div>` : ''}`);
 
@@ -2208,12 +2207,12 @@ PAGES.dress = async (c) => {
   // money, no status, and every pane below drops its controls for them.
   const tabs = isStaff ? [
     ['occasion', '✨', 'Occasion'],
-    ['photos', '📷', mediaTab],
+    ['photos', '🖼', mediaTab],
     ['measure', '📐', 'Measurements'],
   ] : [
     ['details', '📋', 'Client info'],
     ['occasion', '✨', 'Occasion'],
-    ['photos', '📷', mediaTab],
+    ['photos', '🖼', mediaTab],
     ['measure', '📐', 'Measurements'],
     ...(moneyPane ? [['money', '💰', 'Fees']] : []),
     ...(materials ? [['materials', '🧵', 'Purchases']] : []),
@@ -3417,23 +3416,28 @@ window.addFitting = (id) => formModal('Fitting date', [
   { name: 'note', label: 'Note' },
 ], async (d) => { await POST(`/api/dresses/${id}/fittings`, d); toast('Added'); closeModal(); refreshDress(id); });
 window.delFitting = async (fid, id) => { await DEL('/api/fittings/' + fid); refreshDress(id); };
-window.addDressImg = (id) => pickImages(async (b64) => { await POST(`/api/dresses/${id}/images`, { image: b64 }); toast('Photo added'); refreshDress(id); });
-/* A clip off the phone goes up as a file — streamed, never squeezed through a
-   data URL like the photos, because a fitting video is tens of megabytes. */
-window.addDressVideo = (id) => {
-  const inp = document.createElement('input');
-  inp.type = 'file'; inp.accept = 'video/*';
-  inp.onchange = async () => {
-    const f = inp.files[0]; if (!f) return;
-    toast('Uploading the video…');
+/* Photos and videos out of the same picker, as many as he wants at once: the
+   phone opens its whole gallery, not a camera. Each one is uploaded as it is
+   chosen; the dress is redrawn once the last has landed, not five times. */
+window.addDressMedia = (id) => {
+  let added = 0, step = -1;
+  pickMedia(async (m) => {
     try {
-      const up = await uploadFile(f, (p) => { if (p < 1) toast(`Uploading… ${Math.round(p * 100)}%`); });
-      await POST(`/api/dresses/${id}/images`, { image: up.file });
-      toast('Video added ✓'); refreshDress(id);
+      await POST(`/api/dresses/${id}/images`, { image: m.file });
+      added += 1;
+      clearTimeout(window._dMediaT);
+      window._dMediaT = setTimeout(() => {
+        toast(added === 1 ? 'Added ✓' : `${added} added ✓`);
+        refreshDress(id);
+      }, 450);
     } catch (e) { toast(e.message, 'error'); }
-  };
-  inp.click();
+  }, (pct) => {
+    // a video takes a while; say so every tenth, not every frame
+    const s10 = Math.floor(pct * 10);
+    if (pct < 1 && s10 !== step) { step = s10; toast(`Uploading… ${s10 * 10}%`); }
+  });
 };
+window.addDressImg = (id) => addDressMedia(id); // old notification links
 /* A video that already lives on Instagram, YouTube or TikTok is linked, not
    re-uploaded — it plays inside the app from its own address. */
 window.addDressVideoLink = (id) => formModal('Add a video link', [
