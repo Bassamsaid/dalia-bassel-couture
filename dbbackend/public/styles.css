@@ -1577,3 +1577,15 @@ label{font-size:10.5px;margin:12px 0 5px}
 .dress-tot .dt-more{padding:8px 0 9px}
 /* a heading with a hint beside it wraps as a line, not as two columns */
 .sec-title{flex-wrap:wrap}
+
+/* ===== Two small actions side by side, sharing the row ===== */
+.act2{display:flex;gap:8px;margin:10px 0 2px}
+.act2 .btn{flex:1;width:auto;padding:9px 10px;font-size:10.5px;letter-spacing:.4px;
+  white-space:nowrap;border-radius:9px;box-shadow:none}
+/* a two-cell version of the totals bar */
+.t3.t2 .t3-c{padding:11px 4px 12px}
+.t3.t2 .t3-v{font-size:clamp(15px,4.6vw,20px);margin-top:5px}
+.t3.t2 .t3-k{font-size:10px;letter-spacing:.8px}
+/* the chip rows on a filtered list stay one line each and scroll */
+.filters{flex-wrap:nowrap}
+.filters.wrap{flex-wrap:wrap}
