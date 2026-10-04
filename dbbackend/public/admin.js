@@ -1147,7 +1147,7 @@ function monthChips(dates, current, fn) {
   if (months.length < 2) return '';
   return `<div class="filters" style="margin-top:12px">
     <span class="chip ${current ? '' : 'active'}" onclick="${fn}('')">All</span>
-    ${months.map((m) => `<span class="chip ${current === m ? 'active' : ''}" onclick="${fn}('${m}')">${monthLabel(m)}</span>`).join('')}</div>`;
+    ${months.map((m) => `<span class="chip ${current === m ? 'active' : ''}" onclick="${fn}('${m}')">${monthShort(m)}</span>`).join('')}</div>`;
 }
 
 /* ============ HOMEWORK / TASKS ============ */
@@ -2563,6 +2563,20 @@ window.setPurchaseVendor = async (id, vid) => { await PUT('/api/purchases/' + id
 window.addPurchaseImg = (id) => pickImage(async (b64) => { await PUT('/api/purchases/' + id, { image: b64 }); toast('Invoice photo saved'); window._purchases = await GET('/api/purchases'); openPurchase(id); });
 
 /* ============ EXPENSES (entries · analysis · vendors · types) ============ */
+/* A salary's note carries the month it is for — "نور عادل · 2026-09 salary" —
+   and the date beside it on the line already says the same thing. Shown whole,
+   every wage in the list ran to two lines. The stored note is left alone: the
+   duplicate check reads it. */
+function costNote(e) {
+  if (!e.note) return '';
+  if (!e.salary_payment_id) return e.note;
+  return String(e.note)
+    .replace(/\d{4}-\d{2}|\d{2}-\d{4}/g, '')
+    .replace(/\bsalary\b/i, '')
+    .replace(/\s*·\s*·\s*/g, ' · ')
+    .replace(/^[\s·]+|[\s·]+$/g, '')
+    .trim();
+}
 PAGES.expenses = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💸'); return; }
   const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases'), loadFloatHolders()]);
@@ -2590,17 +2604,23 @@ PAGES.expenses = async (c) => {
     expenses.forEach((e) => { if (e.salary_payment_id && e.note) salCount[e.note] = (salCount[e.note] || 0) + 1; });
     const dupNotes = Object.keys(salCount).filter((k) => salCount[k] > 1);
     const dupTotal = expenses.filter((e) => dupNotes.includes(e.note)).reduce((a, e) => a + (e.amount || 0), 0);
-    inner = `<div class="grid g2" style="margin-bottom:10px">
-        <div class="stat"><div class="n serif" style="color:var(--bad)">${money(etotal)}</div><div class="l">${ef ? monthLabel(ef) : 'All-time'} spent</div></div>
-        <div class="stat"><div class="n serif">${elist.length}</div><div class="l">cost${elist.length === 1 ? '' : 's'} recorded</div></div>
+    // One bar for the two figures, two small buttons under it, and the two rows
+    // of chips kept to one line each: the head of this screen was taller than
+    // the costs it was heading.
+    inner = `<div class="t3 t2">
+        <div class="t3-c"><div class="t3-k">${ef ? esc(monthLabel(ef)) : 'All time'} spent</div>
+          <div class="t3-v bad">${money(etotal)}</div></div>
+        <div class="t3-c"><div class="t3-k">Costs recorded</div>
+          <div class="t3-v">${elist.length}</div></div>
       </div>
-      <div class="row"><button class="btn" onclick="addExpense()">＋ New studio cost</button>
-        <button class="btn sec" onclick="go('bulkcosts')">🧾 Several at once</button></div>
+      <div class="act2">
+        <button class="btn sm" onclick="addExpense()">＋ New cost</button>
+        <button class="btn sec sm" onclick="go('bulkcosts')">🧾 Several at once</button></div>
       ${monthChips(expenses.map((e) => e.date || e.created_at), ef, 'setExpMonth')}
-      <div class="filters wrap" style="margin-top:8px">
-        <span class="chip ${pf === '' ? 'active' : ''}" onclick="setExpPaid('')">Paid from: any</span>
-        <span class="chip ${pf === 'bank' ? 'active' : ''}" onclick="setExpPaid('bank')">🏦 The bank · ${moneyText(sumWhere((e) => !e.paid_by))}</span>
-        ${holders.map((h) => `<span class="chip ${String(pf) === String(h.id) ? 'active' : ''}" onclick="setExpPaid('${h.id}')">🧰 ${esc(h.name)} · ${moneyText(sumWhere((e) => String(e.paid_by) === String(h.id)))}</span>`).join('')}
+      <div class="filters" style="margin-top:7px">
+        <span class="chip ${pf === '' ? 'active' : ''}" onclick="setExpPaid('')">From anywhere</span>
+        <span class="chip ${pf === 'bank' ? 'active' : ''}" onclick="setExpPaid('bank')">🏦 Bank · ${num0(sumWhere((e) => !e.paid_by))}</span>
+        ${holders.map((h) => `<span class="chip ${String(pf) === String(h.id) ? 'active' : ''}" onclick="setExpPaid('${h.id}')">🧰 ${esc(h.name)} · ${num0(sumWhere((e) => String(e.paid_by) === String(h.id)))}</span>`).join('')}
       </div>
       ${dupNotes.length ? `<div class="card dup-warn" style="margin-top:12px">
         <div class="nm">⚠️ ${dupNotes.length} salar${dupNotes.length === 1 ? 'y was' : 'ies were'} sent more than once</div>
@@ -2609,7 +2629,7 @@ PAGES.expenses = async (c) => {
       </div>` : ''}
       <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item${dupNotes.includes(e.note) ? ' dup' : ''}">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : `<div class="av">${e.salary_payment_id ? '💼' : '💸'}</div>`}
-        <div class="main"><div class="nm">${money(e.amount)} · ${esc(e.type || '—')}</div><div class="sub">${e.vendor_name ? esc(e.vendor_name) + ' · ' : ''}${e.date ? dt(e.date) : dt(e.created_at)}${e.note ? ' · ' + esc(e.note) : ''} · ${e.paid_by_name ? `🧰 <bdi>${esc(e.paid_by_name)}</bdi>'s float` : '🏦 the bank'}</div></div>
+        <div class="main"><div class="nm">${money(e.amount)}</div><div class="sub">${esc(e.type || '—')} · ${shortDate(e.date || e.created_at) || dt(e.date || e.created_at)} · ${e.paid_by_name ? `🧰 <bdi>${esc(e.paid_by_name)}</bdi>` : '🏦'}${e.vendor_name ? ' · ' + esc(e.vendor_name) : ''}${costNote(e) ? ' · ' + esc(costNote(e)) : ''}</div></div>
         ${e.salary_payment_id
           ? `<button class="btn-icon" title="Drop this salary record" onclick="dropSalaryCost(${e.salary_payment_id},'${esc(String(e.note || 'this salary')).replace(/'/g, "\\'")}')">💼</button>`
           : `<div class="row" style="gap:2px">
@@ -2631,7 +2651,7 @@ PAGES.expenses = async (c) => {
       <div class="card">${types.length ? types.map((t) => `<div class="item"><div class="av">🏷️</div><div class="main"><div class="nm">${esc(t.name)}</div></div><button class="btn-icon" onclick="delExpType(${t.id})">🗑</button></div>`).join('') : empty('No types yet')}</div>`;
   }
   c.innerHTML = pageHead('Studio costs', '🏠') +
-    `<p class="hint" style="margin:2px 2px 10px">What the studio itself costs — rent, bills, marketing, anything that is not materials for a dress. Materials go on an invoice under Purchases.</p>
+    `<p class="hint" style="margin:2px 2px 10px">Rent, bills, wages — not fabric for a dress.</p>
      <div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="expTab('${k}')">${l}</span>`).join('')}</div>` + inner;
 };
 window.expTab = (t) => { window._expTab = t; go('expenses'); };
