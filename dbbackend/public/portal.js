@@ -540,7 +540,7 @@ PAGES.myfloat = async (c) => {
       : m.ic}</div>
       <div class="main">
         <div class="nm">${esc(head)}</div>
-        <div class="sub">${[e.date ? shortDate(e.date) || dt(e.date) : '', rest, e.mine ? 'you wrote this down' : '',
+        <div class="sub">${[e.date ? shortDate(e.date) || dt(e.date) : '', rest,
           (e.kind === 'cost' && !e.image && e.mine) ? 'no invoice' : ''].filter(Boolean).map(esc).join(' · ')}</div></div>
       <div class="fl-amt" style="color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
       ${e.can_remove ? `<button class="btn-icon" title="Take this one off" onclick="undoMyFloatSpend(${e.id})">🗑</button>` : ''}
@@ -557,8 +557,7 @@ PAGES.myfloat = async (c) => {
       <div class="nm" style="color:var(--bad)">You have spent ${money(-f.balance)} of your own</div>
       <div class="sub muted">The studio owes you the difference.</div></div>` : ''}
 
-    ${f.can_spend ? `<button class="btn" onclick="myFloatSpend()">＋ Write down what I bought</button>
-      <p class="hint" style="margin:7px 2px 2px">Every time you buy something out of this money, write it down here with a photo of the invoice. It comes off what you are holding at once, and Dalia sees it.</p>` : ''}
+    ${f.can_spend ? '<button class="btn" onclick="myFloatSpend()">＋ Write down what I bought</button>' : ''}
 
     <div class="sec-title">Spent out of it <span class="hint" style="font-weight:400">· ${spending.length}</span></div>
     ${spending.length ? `<div class="card fl-list">${spending.map(row).join('')}</div>`
@@ -566,7 +565,7 @@ PAGES.myfloat = async (c) => {
 
     <div class="sec-title">The cash itself</div>
     <div class="card fl-list">${cash.map(row).join('')}</div>
-    <p class="hint" style="margin-top:10px">Worked out from what the studio recorded: what you were given, less what you gave back, less what has been spent on it.</p>`;
+`;
 };
 
 /* She settles her own float: what she bought, what it cost, and the invoice.
@@ -576,16 +575,16 @@ window.myFloatSpend = () => {
   const f = window._myFloat || {};
   const types = (f.types || []).filter(Boolean);
   formModal('What did you buy?', [
-    { name: 'type', label: 'What was it for', type: 'select', required: true,
+    { name: 'type', label: 'What for', type: 'select', required: true,
       options: [...types.map((t) => ({ value: t, label: t })), { value: '__other', label: 'Something else…' }] },
-    { name: 'other', label: 'If something else, what?' },
-    { name: 'amount', label: 'How much did it cost', type: 'number', required: true },
+    { name: 'other', label: 'Other', placeholder: 'name it yourself' },
+    { name: 'amount', label: 'Amount', type: 'number', required: true },
     // the shops the studio already deals with; anything else goes in the note
-    { name: 'vendor_id', label: 'Which shop', type: 'select',
+    { name: 'vendor_id', label: 'Shop', type: 'select',
       options: [{ value: '', label: '— not one of ours —' }, ...(f.vendors || []).map((v) => ({ value: v.id, label: v.name }))] },
-    { name: 'date', label: 'The day you bought it', type: 'date', value: today() },
-    { name: 'note', label: 'The shop, if it is not on the list — or anything worth saying' },
-    { name: 'image', label: 'Photo of the invoice', type: 'image' },
+    { name: 'date', label: 'Date', type: 'date', value: today() },
+    { name: 'note', label: 'Note', placeholder: 'a shop not on the list' },
+    { name: 'image', label: 'Invoice', type: 'image' },
   ], async (d) => {
     const type = d.type === '__other' ? String(d.other || '').trim() : d.type;
     if (!type) throw new Error('What was it for?');

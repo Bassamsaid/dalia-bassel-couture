@@ -1629,3 +1629,22 @@ label{font-size:10.5px;margin:12px 0 5px}
    and a note. Two lines is the most any of it gets; the rest is trimmed rather
    than pushing every row of the list taller. */
 .exp-list .item .sub{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* ===== The add forms, a size smaller =====
+   A sheet that fills the phone for four questions feels heavier than the work
+   it is doing. Nothing is removed — the label names the field, the spacing
+   round it is what comes down. */
+.modal{padding:18px}
+.modal h3{font-size:16.5px;margin:0 0 10px}
+.modal .close{font-size:21px;top:-18px}
+.wdots{margin:0 0 12px}
+#fm label{font-size:10px;margin:11px 0 4px;letter-spacing:.7px}
+#fm .wstep > label:first-child{margin-top:2px}
+#fm input,#fm select,#fm textarea{padding:9px 11px;font-size:13.5px;border-radius:9px}
+#fm textarea{min-height:58px}
+#fm .hint{font-size:11px}
+.wnav{margin-top:14px}
+.wnav .btn{padding:10px 14px;font-size:11px}
+/* a heading that fits its column, and at most two lines under it */
+.fl-list .item .nm{font-size:13.5px;line-height:1.3}
+.fl-list .item .sub{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
