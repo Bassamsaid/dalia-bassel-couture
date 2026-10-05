@@ -1246,6 +1246,22 @@ api['GET /api/attendance'] = async (req, res, user, url) => {
   }
   send(res, 200, await db.prepare('SELECT * FROM attendance WHERE user_id=? ORDER BY date DESC').all(user.id));
 };
+/* The attendance book: who came in and who went home, day by day, for the whole
+   studio. The owner's alone — a manager can see her own hours and a staff
+   member hers, but the comings and goings of everybody is not theirs to read. */
+api['GET /api/attendance/log'] = async (req, res, user, url) => {
+  if (!requireAdmin(user, res)) return;
+  const from = String(url.searchParams.get('from') || '').slice(0, 10);
+  const to = String(url.searchParams.get('to') || '').slice(0, 10);
+  const ymd = /^\d{4}-\d{2}-\d{2}$/;
+  if (!ymd.test(from) || !ymd.test(to)) return send(res, 400, { error: 'from and to are needed, as YYYY-MM-DD' });
+  const rows = await db.prepare(`SELECT a.id,a.user_id,a.date,a.check_in,a.check_out,a.note,
+      u.name user_name, u.job_title, u.role
+    FROM attendance a JOIN users u ON u.id=a.user_id
+    WHERE u.role IN ('staff','manager') AND a.date >= ? AND a.date <= ?
+    ORDER BY a.date DESC, u.name`).all(from, to);
+  send(res, 200, rows);
+};
 function haversine(lat1, lon1, lat2, lon2) { // metres between two lat/lng points
   const R = 6371000, toR = (d) => d * Math.PI / 180;
   const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
