@@ -3641,8 +3641,12 @@ PAGES.staff = async (c) => {
   const staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   window._staff = staff;
   const month = window._payrollMonth || today().slice(0, 7);
+  const isAdmin = state.user.role === 'admin';
   c.innerHTML = title('Staff', '') +
-    `<button class="btn" onclick="addStaff()">＋ Staff member</button>
+    `<div class="act2" style="margin:0 0 2px">
+       <button class="btn sm" onclick="addStaff()">＋ Staff member</button>
+       ${isAdmin ? `<button class="btn sec sm" onclick="go('attlog')">🕒 Who came in when</button>` : ''}
+     </div>
     <div class="filters" style="margin-top:12px"><input type="month" value="${month}" onchange="setPayrollMonth(this.value)" style="width:auto;padding:8px" /></div>
     <div id="payroll"><div class="card"><div class="hint" style="margin:0">Working out the month…</div></div></div>
     <div class="card">${staff.length ? staff.map((s) => `<div class="item" style="cursor:pointer" onclick="openStaff(${s.id})">
@@ -3680,6 +3684,77 @@ async function payrollFor(staff, month) {
           <div class="sub">${r.x.present_days} present${r.x.absent_days ? ' · ' + r.x.absent_days + ' absent' : ''}${r.x.advances ? ' · ' + moneyText(r.x.advances) + ' advance' : ''}</div></div>
         <div class="serif" style="font-weight:700;white-space:nowrap">${money(r.x.net)}</div></div>`).join('')}</div>`;
 }
+/* ============ WHO CAME IN WHEN ============
+   The attendance book, the way a manager reads one: a person, then her days,
+   each with the time she came in, the time she went home and what that comes
+   to. Today, this week, this month — the week starting Saturday, as it does
+   here. The owner's screen alone. */
+function rangeFor(which) {
+  const t = today();
+  const d = new Date(t + 'T12:00:00');
+  if (which === 'month') return { from: t.slice(0, 8) + '01', to: t, label: 'this month' };
+  if (which === 'week') {
+    // Saturday starts the week in Egypt, and that is the week this app counts
+    const back = (d.getDay() + 1) % 7;
+    const sat = new Date(d.getTime() - back * 86400000);
+    return { from: sat.toISOString().slice(0, 10), to: t, label: 'this week' };
+  }
+  return { from: t, to: t, label: 'today' };
+}
+/* "9:05 → 17:30" and what lies between them. A day with no going-home time is
+   somebody still in, or somebody who forgot — it is said, not guessed at. */
+function hoursBetween(a, b) {
+  const m = (x) => { const p = String(x || '').match(/^(\d{1,2}):(\d{2})/); return p ? Number(p[1]) * 60 + Number(p[2]) : null; };
+  const i = m(a), o = m(b);
+  if (i === null || o === null) return null;
+  return Math.max(0, o - i);
+}
+const hhmm = (mins) => mins === null ? '' : `${Math.floor(mins / 60)}h${mins % 60 ? ' ' + (mins % 60) + 'm' : ''}`;
+PAGES.attlog = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '🕒'); return; }
+  const which = window._attRange || 'today';
+  const r = rangeFor(which);
+  const [rows, users] = await Promise.all([
+    GET(`/api/attendance/log?from=${r.from}&to=${r.to}`), GET('/api/users')]);
+  const staff = users.filter((u) => u.role === 'staff' || u.role === 'manager');
+  // everybody on the payroll shows, even the one who did not come at all —
+  // that absence is the thing he is looking for
+  const per = staff.map((u) => {
+    const days = rows.filter((x) => x.user_id === u.id)
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const mins = days.reduce((a, x) => a + (hoursBetween(x.check_in, x.check_out) || 0), 0);
+    const open = days.filter((x) => x.check_in && !x.check_out).length;
+    return { u, days, mins, open };
+    // whoever came is read first; whoever did not is a short line at the foot
+  }).sort((a, b) => (b.days.length > 0) - (a.days.length > 0)
+    || b.mins - a.mins || String(a.u.name).localeCompare(String(b.u.name)));
+  const chips = [['today', 'Today'], ['week', 'This week'], ['month', 'This month']];
+  const totalDays = rows.length;
+  const totalMins = per.reduce((a, x) => a + x.mins, 0);
+  c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
+    title('Who came in when', '🕒') +
+    `<p class="hint" style="margin:2px 2px 10px">Every staff member's day — in, out, and what it came to. Only you can see this.</p>
+     <div class="filters">${chips.map(([k, l]) => `<span class="chip ${which === k ? 'active' : ''}" onclick="setAttRange('${k}')">${l}</span>`).join('')}</div>
+     <div class="t3 t2" style="margin-top:10px">
+       <div class="t3-c"><div class="t3-k">Days worked</div><div class="t3-v">${totalDays}</div></div>
+       <div class="t3-c"><div class="t3-k">Hours in all</div><div class="t3-v">${hhmm(totalMins) || '0h'}</div></div>
+     </div>
+     <div class="hint" style="margin:8px 2px 10px">${r.from === r.to ? dt(r.from) : dt(r.from) + ' → ' + dt(r.to)}</div>
+     ${per.length ? per.map((x) => `<div class="att-card${x.days.length ? '' : ' none'}">
+       <div class="att-head"><span class="att-nm">${esc(x.u.name)}${x.u.role === 'manager' ? ' <span class="badge">Manager</span>' : ''}</span>
+         <span class="att-tot">${x.days.length
+          ? `${x.days.length} day${x.days.length === 1 ? '' : 's'} · ${x.mins ? hhmm(x.mins) : ''}${x.open ? (x.mins ? ' · ' : '') + 'still in' : (x.mins ? '' : '—')}`
+          : 'did not come'}</span></div>
+       ${x.days.length ? x.days.map((d) => {
+        const mins = hoursBetween(d.check_in, d.check_out);
+        return `<div class="att-day">
+          <span class="att-d">${esc(shortDate(d.date) || d.date)}</span>
+          <span class="att-t">${d.check_in ? esc(d.check_in) : '—'} <i>→</i> ${d.check_out ? esc(d.check_out) : '<b class="att-open">still in</b>'}</span>
+          <span class="att-h">${mins === null ? '' : hhmm(mins)}</span></div>`;
+      }).join('') : ''}
+     </div>`).join('') : empty('Nobody on the payroll yet', '🕒')}`;
+};
+window.setAttRange = (k) => { window._attRange = k; go('attlog'); };
 window.openStaff = (id) => { window._staffId = id; window._staffTab2 = 'overview'; go('staffmember'); };
 window.staffTab2 = (t) => { window._staffTab2 = t; go('staffmember'); };
 window.setSalMonth = (m) => { window._salMonth = m; go('staffmember'); };
