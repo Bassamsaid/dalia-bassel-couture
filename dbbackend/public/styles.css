@@ -1589,3 +1589,11 @@ label{font-size:10.5px;margin:12px 0 5px}
 /* the chip rows on a filtered list stay one line each and scroll */
 .filters{flex-wrap:nowrap}
 .filters.wrap{flex-wrap:wrap}
+
+/* ===== All dresses · Being made now ===== */
+.home-lux .books .work-tabs{margin:0;padding:11px 12px 1px;gap:6px}
+.home-lux .books .work-tabs .chip{padding:6px 12px;font-size:11.5px}
+.work-tabs .chip{cursor:pointer}
+/* this list carries more on its line than the Sales one, so it is allowed the
+   second line rather than ending every row in "…" */
+.dp-row.work .dp-sub{white-space:normal;overflow:visible;line-height:1.55}
