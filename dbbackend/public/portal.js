@@ -524,14 +524,26 @@ PAGES.myfloat = async (c) => {
     c.innerHTML = pageHead('Cash I hold', '🧰') + empty('You are not holding any of the studio\'s cash', '🧰');
     return;
   }
+  window._myFloat = f;
   const spending = f.entries.filter((e) => e.kind === 'cost' || e.kind === 'invoice');
   const cash = f.entries.filter((e) => e.kind === 'handed' || e.kind === 'back');
   const row = (e) => {
     const m = FLOAT_ENTRY[e.kind] || FLOAT_ENTRY.cost;
-    return `<div class="item"><div class="av">${m.ic}</div>
-      <div class="main"><div class="nm">${m.label}${e.note ? ' · ' + esc(e.note) : ''}</div>
-        <div class="sub">${e.date ? dt(e.date) : ''}</div></div>
-      <div class="serif" style="font-weight:700;white-space:nowrap;color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
+    // what it was for leads the line; the shop and the rest go under it, or a
+    // phone gives "Fabric & materials · صلاح سواريه" three lines of its own
+    const bits = String(e.note || '').split(' · ').filter(Boolean);
+    const spend = e.kind === 'cost' || e.kind === 'invoice';
+    const head = spend && bits.length ? bits[0] : m.label;
+    const rest = spend ? bits.slice(1).join(' · ') : (e.note || '');
+    return `<div class="item"><div class="av">${e.image
+      ? `<img class="thumb" style="width:34px;height:34px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')" />`
+      : m.ic}</div>
+      <div class="main">
+        <div class="nm">${esc(head)}</div>
+        <div class="sub">${[e.date ? shortDate(e.date) || dt(e.date) : '', rest, e.mine ? 'you wrote this down' : '',
+          (e.kind === 'cost' && !e.image && e.mine) ? 'no invoice' : ''].filter(Boolean).map(esc).join(' · ')}</div></div>
+      <div class="fl-amt" style="color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
+      ${e.can_remove ? `<button class="btn-icon" title="Take this one off" onclick="undoMyFloatSpend(${e.id})">🗑</button>` : ''}
     </div>`;
   };
   c.innerHTML = pageHead('Cash I hold', '🧰') +
@@ -545,15 +557,46 @@ PAGES.myfloat = async (c) => {
       <div class="nm" style="color:var(--bad)">You have spent ${money(-f.balance)} of your own</div>
       <div class="sub muted">The studio owes you the difference.</div></div>` : ''}
 
+    ${f.can_spend ? `<button class="btn" onclick="myFloatSpend()">＋ Write down what I bought</button>
+      <p class="hint" style="margin:7px 2px 2px">Every time you buy something out of this money, write it down here with a photo of the invoice. It comes off what you are holding at once, and Dalia sees it.</p>` : ''}
+
     <div class="sec-title">Spent out of it <span class="hint" style="font-weight:400">· ${spending.length}</span></div>
-    ${spending.length ? `<div class="card">${spending.map(row).join('')}</div>`
+    ${spending.length ? `<div class="card fl-list">${spending.map(row).join('')}</div>`
       : '<p class="hint">Nothing has been spent from it yet.</p>'}
 
     <div class="sec-title">The cash itself</div>
-    <div class="card">${cash.map(row).join('')}</div>
+    <div class="card fl-list">${cash.map(row).join('')}</div>
     <p class="hint" style="margin-top:10px">Worked out from what the studio recorded: what you were given, less what you gave back, less what has been spent on it.</p>`;
 };
 
+/* She settles her own float: what she bought, what it cost, and the invoice.
+   The headings are the studio's own, with "something else" for what does not
+   fit one — she can write a cost down without being able to change the list. */
+window.myFloatSpend = () => {
+  const f = window._myFloat || {};
+  const types = (f.types || []).filter(Boolean);
+  formModal('What did you buy?', [
+    { name: 'type', label: 'What was it for', type: 'select', required: true,
+      options: [...types.map((t) => ({ value: t, label: t })), { value: '__other', label: 'Something else…' }] },
+    { name: 'other', label: 'If something else, what?' },
+    { name: 'amount', label: 'How much did it cost', type: 'number', required: true },
+    { name: 'date', label: 'The day you bought it', type: 'date', value: today() },
+    { name: 'note', label: 'From which shop, or anything worth saying' },
+    { name: 'image', label: 'Photo of the invoice', type: 'image' },
+  ], async (d) => {
+    const type = d.type === '__other' ? String(d.other || '').trim() : d.type;
+    if (!type) throw new Error('What was it for?');
+    if (!(Number(d.amount) > 0)) throw new Error('How much did it cost?');
+    const r = await POST('/api/floats/spend', { type, amount: Number(d.amount), date: d.date, note: d.note, image: d.image });
+    toast(`Written down ✓ · ${moneyText(r.balance)} left in your hand`);
+    go('myfloat');
+  }, { submitLabel: 'Write it down' });
+};
+window.undoMyFloatSpend = (id) => confirmDel('Take this one off again?', async () => {
+  await DEL('/api/floats/spend/' + id);
+  toast('Taken off');
+  go('myfloat');
+});
 PAGES.mysalary = async (c) => {
   const pays = await GET('/api/salary-payments'); // own
   // Arriving from the notification about a particular payment: open the month

@@ -744,6 +744,10 @@ const ready = (async () => {
   // instalment against the price. The studio says which when it writes the
   // payment down.
   await tryExec("ALTER TABLE dress_payments ADD COLUMN kind TEXT"); // deposit | payment
+  // who wrote a studio cost down: the owner, or the person holding the float it
+  // came out of. A float holder may take back only what she herself recorded,
+  // and only on the day she recorded it.
+  await tryExec('ALTER TABLE expenses ADD COLUMN recorded_by INTEGER');
   // Payments written down before there was a word for it: the first money on a
   // dress is its deposit, the rest are instalments. Only rows that have no word
   // yet are touched, so this is safe to run on every boot and needs no flag —

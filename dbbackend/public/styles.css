@@ -1619,3 +1619,9 @@ label{font-size:10.5px;margin:12px 0 5px}
 .att-card.none{padding:9px 13px;opacity:.72}
 .att-card.none .att-head{border-bottom:none;padding-bottom:0}
 .att-card.none .att-nm{font-weight:700}
+/* her own float, on a phone: the figure gives the words room to read */
+.fl-amt{flex:0 0 auto;font-family:var(--sans);font-weight:800;font-size:13.5px;white-space:nowrap;
+  font-variant-numeric:tabular-nums lining-nums}
+.fl-list .item{gap:9px}
+.fl-list .item .av{width:32px;height:32px;font-size:14px}
+.fl-list .fl-amt{font-size:13px}
