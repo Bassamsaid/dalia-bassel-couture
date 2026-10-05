@@ -2694,8 +2694,16 @@ function costNote(e) {
 PAGES.expsum = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💰'); return; }
   const [invoices, costs] = await Promise.all([GET('/api/purchases'), GET('/api/expenses')]);
-  const key = window._expSumMonth || '';
-  const inM = (d) => !key || String(d || '').slice(0, 7) === key;
+  // today, this week, a month, or the whole book — today unless he says otherwise
+  const key = window._expSumMonth === undefined ? 'today' : window._expSumMonth;
+  const r = (key === 'today' || key === 'week') ? rangeFor(key === 'week' ? 'week' : 'today') : null;
+  const inM = (d) => {
+    const day = String(d || '').slice(0, 10);
+    if (r) return day >= r.from && day <= r.to;
+    if (!key) return true;                       // all time
+    return day.slice(0, 7) === key;              // one month
+  };
+  const when = key === 'today' ? 'Today' : key === 'week' ? 'This week' : key ? monthLabel(key) : 'All time';
   const invs = invoices.filter((i) => inM(i.invoice_date || i.created_at));
   const exps = costs.filter((e) => inM(e.date || e.created_at));
   const sum = (rows, f) => rows.reduce((a, x) => a + (f(x) || 0), 0);
@@ -2722,22 +2730,25 @@ PAGES.expsum = async (c) => {
   const bar = (v) => total ? Math.max(1, Math.round((v / total) * 100)) : 0;
   c.innerHTML = `<p class="hint" style="margin:2px 2px 10px">Everything the studio spent — dress materials and the studio's own costs together.</p>
     <div class="filters">
-      <span class="chip ${key ? '' : 'active'}" onclick="setExpSumMonth('')">All</span>
+      <span class="chip ${key === 'today' ? 'active' : ''}" onclick="setExpSumMonth('today')">Today</span>
+      <span class="chip ${key === 'week' ? 'active' : ''}" onclick="setExpSumMonth('week')">This week</span>
       ${months.slice(0, 11).map((m) => `<span class="chip ${key === m ? 'active' : ''}" onclick="setExpSumMonth('${m}')">${monthShort(m)}</span>`).join('')}
+      <span class="chip ${key ? '' : 'active'}" onclick="setExpSumMonth('')">All time</span>
     </div>
     <div class="fee-list" style="margin-top:10px">
-      <div class="fee-row big"><span class="fee-k">${key ? esc(monthLabel(key)) : 'All time'}</span>
-        <span class="fee-v" style="color:var(--bad)">${money0(total)}</span></div>
+      <div class="fee-row big"><span class="fee-k">${esc(when)}</span>
+        <span class="fee-v" style="color:var(--${total ? 'bad' : 'muted'})">${money0(total)}</span></div>
       <div class="fee-row"><span class="fee-k">🏦 From the bank</span>
         <span class="fee-v">${money0(bank)} <i>${bar(bank)}%</i></span></div>
       <div class="fee-row cash"><span class="fee-k">🧰 Cash in hand</span>
         <span class="fee-v">${money0(cash)} <i>${bar(cash)}%</i></span></div>
     </div>
+    ${r ? `<div class="hint" style="margin:7px 2px 0">${r.from === r.to ? esc(dt(r.from)) : esc(dt(r.from)) + ' → ' + esc(dt(r.to))}</div>` : ''}
     <div class="sec-title sm">What it went on</div>
     ${rows.length ? `<div class="fee-list">${rows.map(([t, v]) => `
       <div class="fee-row"><span class="fee-k">${esc(t)}</span>
         <span class="fee-v">${money0(v)} <i>${bar(v)}%</i></span></div>`).join('')}</div>`
-    : '<p class="hint">Nothing spent in this stretch.</p>'}
+    : `<p class="hint">Nothing spent ${key === 'today' ? 'today' : key === 'week' ? 'this week' : 'in this stretch'}.</p>`}
     ${hands.length ? `<div class="sec-title sm">Whose cash it was</div>
       <div class="fee-list">${hands.map(([n, v]) => `
         <div class="fee-row"><span class="fee-k">🧰 ${esc(n)}</span><span class="fee-v">${money0(v)}</span></div>`).join('')}</div>` : ''}
