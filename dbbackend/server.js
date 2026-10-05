@@ -2312,7 +2312,8 @@ api['GET /api/floats/:id'] = async (req, res, user, url, params) => {
         && String(e.created_at || '').slice(0, 10) === new Date().toISOString().slice(0, 10) })),
     // which dress the materials went on is the thing somebody checking a float
     // actually wants to read, so it leads the line
-    ...invoices.map((i) => ({ kind: 'invoice', id: i.id, amount: i.total || 0, date: when(i.invoice_date || i.created_at), note: [i.dress_names ? '👗 ' + i.dress_names : null, i.vendor_name || i.shop, i.note].filter(Boolean).join(' · ') })),
+    ...invoices.map((i) => ({ kind: 'invoice', id: i.id, amount: i.total || 0, date: when(i.invoice_date || i.created_at), image: i.image,
+      note: [i.dress_names ? '👗 ' + i.dress_names : null, i.vendor_name || i.shop, i.note].filter(Boolean).join(' · ') })),
   ].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
   // the headings a cost can be filed under, so she can settle hers without
   // being able to read or change the list itself
@@ -2355,7 +2356,7 @@ api['POST /api/floats/spend'] = async (req, res, user) => {
     type: 'float',
     title: `${user.name} spent ${money0(amount)} out of her float`,
     body: `${type}${vendorId ? ' · ' + ((await db.prepare('SELECT name FROM vendors WHERE id=?').get(vendorId)) || {}).name : ''}${b.note ? ' · ' + b.note : ''} · ${date}${img ? ' · invoice attached' : ' · no invoice'} · ${money0(after.balance)} left in her hand`,
-    link_page: 'floats', actor_name: user.name,
+    link_page: 'floatcost', link_id: r.lastInsertRowid, actor_name: user.name,
   }, user.id);
   send(res, 200, { id: r.lastInsertRowid, balance: after.balance });
 };
@@ -2420,6 +2421,26 @@ api['POST /api/expenses'] = async (req, res, user) => {
   const img = await maybeImage(b.image);
   const r = await db.prepare('INSERT INTO expenses (vendor_id,type,amount,date,note,image,paid_by) VALUES (?,?,?,?,?,?,?)').run(b.vendor_id || null, b.type || null, b.amount, b.date || null, b.note || null, img, b.paid_by || null);
   send(res, 200, { id: r.lastInsertRowid });
+};
+/* Putting a cost right — a figure typed wrong, the wrong heading, the wrong
+   float. A wage's cost is not editable here: it is the wage, and it changes on
+   the salary record or not at all. */
+api['PUT /api/expenses/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const cur = await db.prepare('SELECT * FROM expenses WHERE id=?').get(params.id);
+  if (!cur) return send(res, 404, { error: 'not found' });
+  if (cur.salary_payment_id) return send(res, 400, { error: 'This is a salary that was sent. Change it on the staff member\'s salary record.' });
+  const b = await readBody(req);
+  const img = (b.image && String(b.image).startsWith('data:')) ? await maybeImage(b.image) : (b.image ?? cur.image);
+  const amount = b.amount === undefined || b.amount === null || b.amount === '' ? cur.amount : Number(b.amount);
+  if (!(amount > 0)) return send(res, 400, { error: 'amount required' });
+  await db.prepare('UPDATE expenses SET vendor_id=?, type=?, amount=?, date=?, note=?, image=?, paid_by=? WHERE id=?')
+    .run(b.vendor_id === undefined ? cur.vendor_id : (b.vendor_id || null),
+      b.type === undefined ? cur.type : (b.type || null), amount,
+      b.date === undefined ? cur.date : (b.date || null),
+      b.note === undefined ? cur.note : (b.note || null), img,
+      b.paid_by === undefined ? cur.paid_by : (b.paid_by || null), params.id);
+  send(res, 200, { ok: true });
 };
 api['DELETE /api/expenses/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;

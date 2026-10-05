@@ -3074,8 +3074,7 @@ PAGES.floats = async (c) => {
   window._floatStaff = staff; window._floatHolders = rows;
   const out = rows.reduce((a, r) => a + r.balance, 0);
   c.innerHTML = pageHead('Cash with staff', '🧰') +
-    `<p class="hint" style="margin:2px 2px 10px">Cash handed to somebody to keep at the studio and spend from. What she holds is what you gave her, less what she gave back, less what she has spent.</p>
-    <div class="grid g2" style="margin-bottom:10px">
+    `<div class="grid g2 fl-figs" style="margin:2px 0 10px">
       <div class="stat"><div class="n serif" style="color:${out ? 'var(--warn)' : 'var(--ok)'}">${money(out)}</div><div class="l">out of the drawer</div></div>
       <div class="stat"><div class="n serif">${rows.length}</div><div class="l">holding a float</div></div>
     </div>
@@ -3141,10 +3140,8 @@ PAGES.float = async (c) => {
       <div class="stat"><div class="n serif" style="color:var(--bad)">${money(f.spent)}</div><div class="l">spent</div></div>
       <div class="stat fl-left"><div class="n serif" style="color:var(--${f.balance < 0 ? 'bad' : 'ok'})">${money(f.balance)}</div><div class="l">still in hand</div></div>
     </div>
-    ${f.spent ? `<div class="hint" style="margin:2px 2px 8px">Of what she spent: <b>${money(f.invoices)}</b> on dresses · <b>${money(f.costs)}</b> on the studio.</div>` : ''}
-    ${f.back ? `<div class="hint" style="margin:2px 2px 8px">${money(f.back)} of it was given back.</div>` : ''}
-    ${f.balance < 0 ? `<div class="card" style="border-inline-start:4px solid var(--bad)"><div class="nm" style="color:var(--bad)">She has spent ${money(-f.balance)} of her own</div>
-      <div class="sub muted">Hand that over to settle it, or take the spending off this float.</div></div>` : ''}
+    ${f.spent ? `<div class="hint" style="margin:2px 2px 8px">👗 ${money(f.invoices)} · 🏠 ${money(f.costs)}${f.back ? ` · ↩ ${money(f.back)} back` : ''}</div>` : ''}
+    ${f.balance < 0 ? `<div class="card" style="border-inline-start:4px solid var(--bad);padding:11px 13px"><div class="nm" style="color:var(--bad)">She is owed ${money(-f.balance)}</div></div>` : ''}
     <button class="btn" style="margin-top:10px" onclick="spendFromFloat(${f.user.id})">＋ Record something she spent</button>
     <div class="row" style="margin-top:8px">
       <button class="btn sec sm" onclick="handFloat(${f.user.id})">＋ Hand over more</button>
@@ -3154,7 +3151,7 @@ PAGES.float = async (c) => {
 
     <div class="sec-title">Spent out of it <span class="hint" style="font-weight:400">· ${spending.length}</span></div>
     ${spending.length ? `<div class="card">${spending.map((e) => floatRow(e, f.user.id)).join('')}</div>`
-      : `<p class="hint">Nothing has been spent from this float yet. Use the button above, or choose <b>${esc(f.user.name)}'s float</b> under <b>Paid from</b> when recording a studio cost or an invoice.</p>`}
+      : '<p class="hint">Nothing spent from it yet.</p>'}
 
     <div class="sec-title">The cash itself</div>
     <div class="card">${f.entries.filter((e) => e.kind === 'handed' || e.kind === 'back').map((e) => floatRow(e, f.user.id)).join('')}</div>`;
@@ -3164,18 +3161,94 @@ PAGES.float = async (c) => {
    can be put right; a cost or an invoice is corrected where it was recorded. */
 function floatRow(e, userId) {
   const m = FLOAT_ENTRY[e.kind] || FLOAT_ENTRY.cost;
-  const cash = e.kind === 'handed' || e.kind === 'back';
-  return `<div class="item">
-    <div class="av">${m.ic}</div>
-    <div class="main"><div class="nm">${m.label}${e.note ? ' · ' + esc(e.note) : ''}</div>
-      <div class="sub">${e.date ? dt(e.date) : ''}</div></div>
-    <div style="text-align:end;display:flex;flex-direction:column;align-items:flex-end;gap:2px">
-      <div class="serif" style="font-weight:700;color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
-      ${cash ? `<div class="row" style="gap:2px">
-        <button class="btn-icon" onclick="editFloatMove(${e.id},${userId})">✏️</button>
-        <button class="btn-icon" onclick="delFloatMove(${e.id},${userId})">🗑</button></div>` : ''}</div>
+  // the heading leads the line, the rest goes under it, and the whole row opens
+  // the movement itself — its invoice, its detail, and the way to put it right
+  const bits = String(e.note || '').split(' · ').filter(Boolean);
+  const spend = e.kind === 'cost' || e.kind === 'invoice';
+  const head = spend && bits.length ? bits[0] : m.label;
+  const rest = spend ? bits.slice(1).join(' · ') : (e.note || '');
+  return `<div class="item fl-i" onclick="openFloatEntry('${e.kind}',${e.id},${userId})">
+    <div class="av">${e.image
+      ? `<img class="thumb" style="width:32px;height:32px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" />`
+      : m.ic}</div>
+    <div class="main"><div class="nm">${esc(head)}</div>
+      <div class="sub">${[e.date ? shortDate(e.date) || dt(e.date) : '', rest].filter(Boolean).map(esc).join(' · ')}${e.kind === 'cost' && !e.image ? ' · no invoice' : ''}</div></div>
+    <div class="fl-amt" style="color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${m.sign} ${money(e.amount)}</div>
+    <span class="muted" style="font-size:17px">›</span>
   </div>`;
 }
+/* One movement, on its own: what it was, when, how much, the invoice itself —
+   and, for a studio cost, the way to put it right or take it off. */
+window.openFloatEntry = async (kind, id, userId) => {
+  const f = window._float || {};
+  const e = (f.entries || []).find((x) => x.kind === kind && x.id === id);
+  if (!e) return;
+  const m = FLOAT_ENTRY[kind] || FLOAT_ENTRY.cost;
+  let extra = '';
+  if (kind === 'cost') {
+    // the record behind the line, so the sheet can say the heading, the shop
+    // and who wrote it down rather than one joined string
+    try {
+      const all = await GET('/api/expenses');
+      const x = all.find((r) => r.id === id);
+      if (x) {
+        window._floatCost = x;
+        extra = `${kv('What for', esc(x.type || '—'))}${x.vendor_name ? kv('Shop', esc(x.vendor_name)) : ''}
+          ${x.note ? kv('Note', esc(x.note)) : ''}${x.salary_payment_id ? kv('', '<span class="hint">A wage — it changes on her salary record.</span>') : ''}`;
+      }
+    } catch (err) {}
+  }
+  modal(`<h3>${esc(m.label)}</h3>
+    <div class="fee-list" style="margin:2px 0 10px">
+      <div class="fee-row big"><span class="fee-k">${esc(m.sign === '+' ? 'Handed over' : 'Amount')}</span>
+        <span class="fee-v" style="color:var(--${m.cls === 'muted' ? 'muted' : m.cls})">${money(e.amount)}</span></div>
+      <div class="fee-row"><span class="fee-k">Date</span><span class="fee-v">${e.date ? dt(e.date) : '—'}</span></div>
+    </div>
+    ${extra || (e.note ? kv('Detail', esc(e.note)) : '')}
+    ${e.image ? `<img class="thumb" style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:12px;margin-top:10px"
+        src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')" />`
+      : `<p class="hint" style="margin-top:10px">No invoice on this one.</p>`}
+    <div class="act2" style="margin-top:12px">
+      ${kind === 'cost' ? `<button class="btn sm" onclick="editFloatCost(${id},${userId})">✏️ Edit</button>
+        <button class="btn danger sm" onclick="delFloatCost(${id},${userId})">🗑 Delete</button>`
+      : kind === 'invoice' ? `<button class="btn sm" onclick="closeModal();openPurchase(${id})">🧾 Open the invoice</button>`
+      : `<button class="btn sm" onclick="closeModal();editFloatMove(${id},${userId})">✏️ Edit</button>
+        <button class="btn danger sm" onclick="closeModal();delFloatMove(${id},${userId})">🗑 Delete</button>`}
+    </div>`);
+};
+/* Putting a cost right: the same questions it was written down with. */
+window.editFloatCost = async (id, userId) => {
+  const x = window._floatCost;
+  if (!x) return;
+  const ref = window._expRef || {};
+  let vendors = ref.vendors, types = ref.types;
+  if (!vendors || !types) {
+    [vendors, types] = await Promise.all([GET('/api/vendors'), GET('/api/expense-types')]);
+    window._expRef = { vendors, types };
+  }
+  await loadFloatHolders();
+  formModal('Put this right', [
+    { name: 'amount', label: 'Amount', type: 'number', required: true, value: x.amount },
+    { name: 'type', label: 'What for', type: 'select', value: x.type || '',
+      options: [{ value: '', label: '—' }, ...types.map((t) => ({ value: t.name, label: t.name }))] },
+    { name: 'vendor_id', label: 'Shop', type: 'select', value: x.vendor_id || '',
+      options: [{ value: '', label: '— none —' }, ...vendors.map((v) => ({ value: v.id, label: v.name }))] },
+    { name: 'paid_by', label: 'Paid from', type: 'select', value: x.paid_by || '', options: paidFromOptions() },
+    { name: 'date', label: 'Date', type: 'date', value: x.date || today() },
+    { name: 'note', label: 'Note', value: x.note || '' },
+    { name: 'image', label: 'Invoice', type: 'image', value: x.image || '' },
+  ], async (d) => {
+    await PUT('/api/expenses/' + id, d);
+    toast('Saved');
+    window._floatId = userId; go('float');
+  }, { submitLabel: 'Save', perStep: 4 });
+};
+window.delFloatCost = (id, userId) => confirmDel('Take this cost off her float?', async () => {
+  await DEL('/api/expenses/' + id);
+  toast('Taken off');
+  closeModal();
+  window._floatId = userId; go('float');
+});
 
 window.editFloatMove = (id, userId) => {
   const e = ((window._float || {}).entries || []).find((x) => x.id === id && (x.kind === 'handed' || x.kind === 'back'));

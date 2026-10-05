@@ -1648,3 +1648,17 @@ label{font-size:10.5px;margin:12px 0 5px}
 /* a heading that fits its column, and at most two lines under it */
 .fl-list .item .nm{font-size:13.5px;line-height:1.3}
 .fl-list .item .sub{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* ===== The float screens and the notifications, a size down ===== */
+.fl-figs .stat{padding:12px 10px}
+.fl-figs .stat .n{font-size:18px}
+.fl-figs .stat .l{font-size:9.5px;letter-spacing:.8px;margin-top:3px}
+.fl-i{cursor:pointer}
+.fl-i:active{background:rgba(0,0,0,.03)}
+.fl-i .main .nm{font-size:13.5px;line-height:1.3}
+.fl-i .main .sub{font-size:11.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fl-i .av{width:32px;height:32px;font-size:14px}
+.notif{padding:10px 0}
+.notif .av{width:32px;height:32px;font-size:15px}
+.notif .main .nm{font-size:13.5px;line-height:1.35}
+.notif .main .sub{font-size:11.5px}
