@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v191';
+const APP_VERSION = 'v192';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1350,6 +1350,18 @@ window.openNotif = (page, id) => {
     if (['admin', 'manager', 'staff'].includes(state.user.role)) { window._dressId = id; return go('dress'); }
     window._openDressAfter = id;
     go('mydresses');
+    return;
+  }
+  // a float spend: straight to the movement itself, on the holder's own float
+  if (page === 'floatcost' && id) {
+    (async () => {
+      try {
+        const all = await GET('/api/expenses');
+        const e = all.find((x) => x.id === id);
+        if (e && e.paid_by) { window._floatId = e.paid_by; window._floatEntry = { kind: 'cost', id }; return go('float'); }
+      } catch (err) {}
+      go(PAGES.floats ? 'floats' : 'notifications');
+    })();
     return;
   }
   if (page === 'homework' && id) window._openTaskAfter = id; // land on that task's hand-in list
