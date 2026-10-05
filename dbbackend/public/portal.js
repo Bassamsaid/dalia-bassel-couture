@@ -580,17 +580,20 @@ window.myFloatSpend = () => {
       options: [...types.map((t) => ({ value: t, label: t })), { value: '__other', label: 'Something else…' }] },
     { name: 'other', label: 'If something else, what?' },
     { name: 'amount', label: 'How much did it cost', type: 'number', required: true },
+    // the shops the studio already deals with; anything else goes in the note
+    { name: 'vendor_id', label: 'Which shop', type: 'select',
+      options: [{ value: '', label: '— not one of ours —' }, ...(f.vendors || []).map((v) => ({ value: v.id, label: v.name }))] },
     { name: 'date', label: 'The day you bought it', type: 'date', value: today() },
-    { name: 'note', label: 'From which shop, or anything worth saying' },
+    { name: 'note', label: 'The shop, if it is not on the list — or anything worth saying' },
     { name: 'image', label: 'Photo of the invoice', type: 'image' },
   ], async (d) => {
     const type = d.type === '__other' ? String(d.other || '').trim() : d.type;
     if (!type) throw new Error('What was it for?');
     if (!(Number(d.amount) > 0)) throw new Error('How much did it cost?');
-    const r = await POST('/api/floats/spend', { type, amount: Number(d.amount), date: d.date, note: d.note, image: d.image });
+    const r = await POST('/api/floats/spend', { type, amount: Number(d.amount), date: d.date, note: d.note, image: d.image, vendor_id: d.vendor_id || null });
     toast(`Written down ✓ · ${moneyText(r.balance)} left in your hand`);
     go('myfloat');
-  }, { submitLabel: 'Write it down' });
+  }, { submitLabel: 'Write it down', perStep: 4 });
 };
 window.undoMyFloatSpend = (id) => confirmDel('Take this one off again?', async () => {
   await DEL('/api/floats/spend/' + id);

@@ -1625,3 +1625,7 @@ label{font-size:10.5px;margin:12px 0 5px}
 .fl-list .item{gap:9px}
 .fl-list .item .av{width:32px;height:32px;font-size:14px}
 .fl-list .fl-amt{font-size:13px}
+/* A cost can carry its heading, its shop, its date, whose float it came out of
+   and a note. Two lines is the most any of it gets; the rest is trimmed rather
+   than pushing every row of the list taller. */
+.exp-list .item .sub{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

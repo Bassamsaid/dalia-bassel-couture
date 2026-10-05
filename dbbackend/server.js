@@ -2317,7 +2317,11 @@ api['GET /api/floats/:id'] = async (req, res, user, url, params) => {
   // the headings a cost can be filed under, so she can settle hers without
   // being able to read or change the list itself
   const types = (await db.prepare('SELECT name FROM expense_types ORDER BY name').all()).map((t) => t.name);
-  send(res, 200, { user: who, ...(await floatFor(id)), entries, types, can_spend: user.id === id });
+  // and the suppliers the studio deals with, so she can name the shop she
+  // bought from instead of writing it out — names only, nothing of what the
+  // studio spends with them
+  const vendors = await db.prepare('SELECT id,name FROM vendors ORDER BY name').all();
+  send(res, 200, { user: who, ...(await floatFor(id)), entries, types, vendors, can_spend: user.id === id });
 };
 
 /* The woman holding the float settles it herself: what she bought, what it
@@ -2336,13 +2340,21 @@ api['POST /api/floats/spend'] = async (req, res, user) => {
   if (!type) return send(res, 400, { error: 'What was it for?' });
   const img = await maybeImage(b.image);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : studioNow().date;
-  const r = await db.prepare('INSERT INTO expenses (type,amount,date,note,image,paid_by,recorded_by) VALUES (?,?,?,?,?,?,?)')
-    .run(type, amount, date, b.note || null, img, user.id, user.id);
+  // a supplier she names has to be one the studio already deals with; a shop
+  // that is not on the list is written in the note and stays the owner's to add
+  let vendorId = null;
+  if (b.vendor_id) {
+    const v = await db.prepare('SELECT id FROM vendors WHERE id=?').get(b.vendor_id);
+    if (!v) return send(res, 400, { error: 'That supplier is not on the studio\'s list' });
+    vendorId = v.id;
+  }
+  const r = await db.prepare('INSERT INTO expenses (vendor_id,type,amount,date,note,image,paid_by,recorded_by) VALUES (?,?,?,?,?,?,?,?)')
+    .run(vendorId, type, amount, date, b.note || null, img, user.id, user.id);
   const after = await floatFor(user.id);
   await notifyRoles('admin', {
     type: 'float',
     title: `${user.name} spent ${money0(amount)} out of her float`,
-    body: `${type}${b.note ? ' · ' + b.note : ''} · ${date}${img ? ' · invoice attached' : ' · no invoice'} · ${money0(after.balance)} left in her hand`,
+    body: `${type}${vendorId ? ' · ' + ((await db.prepare('SELECT name FROM vendors WHERE id=?').get(vendorId)) || {}).name : ''}${b.note ? ' · ' + b.note : ''} · ${date}${img ? ' · invoice attached' : ' · no invoice'} · ${money0(after.balance)} left in her hand`,
     link_page: 'floats', actor_name: user.name,
   }, user.id);
   send(res, 200, { id: r.lastInsertRowid, balance: after.balance });

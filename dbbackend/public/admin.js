@@ -2736,7 +2736,7 @@ PAGES.expenses = async (c) => {
         <div class="sub">${money(dupTotal)} is counted here, where only part of it was really paid out.</div>
         <button class="btn" style="margin-top:10px" onclick="go('dupsalaries')">Sort these out ›</button>
       </div>` : ''}
-      <div class="card" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item${dupNotes.includes(e.note) ? ' dup' : ''}">
+      <div class="card exp-list" style="margin-top:12px">${elist.length ? elist.map((e) => `<div class="item${dupNotes.includes(e.note) ? ' dup' : ''}">
         ${e.image ? `<div class="av"><img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(e.image))}" onclick="lightbox('${esc(mediaUrl(e.image))}')"/></div>` : `<div class="av">${e.salary_payment_id ? '💼' : '💸'}</div>`}
         <div class="main"><div class="nm">${money(e.amount)}</div><div class="sub">${esc(e.type || '—')} · ${shortDate(e.date || e.created_at) || dt(e.date || e.created_at)} · ${e.paid_by_name ? `🧰 <bdi>${esc(e.paid_by_name)}</bdi>` : '🏦'}${e.vendor_name ? ' · ' + esc(e.vendor_name) : ''}${costNote(e) ? ' · ' + esc(costNote(e)) : ''}</div></div>
         ${e.salary_payment_id
