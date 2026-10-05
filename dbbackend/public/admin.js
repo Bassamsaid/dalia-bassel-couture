@@ -381,10 +381,13 @@ function booksCard(books, d) {
   const per = key && books.by[key] ? books.by[key] : books.all;
   // sales belong to the month a dress is delivered; spending to the month it is dated
   const inMonth = (x) => !key || String(x.delivery_date || '').slice(0, 7) === key;
-  const rows = d.dresses.filter((x) => x.price > 0 && inMonth(x));
-  const sold = rows.reduce((a, x) => a + (x.price || 0), 0);
-  const paid = rows.reduce((a, x) => a + (x.paid || 0), 0);
-  const due = rows.reduce((a, x) => a + Math.max(0, (x.price || 0) - (x.paid || 0)), 0);
+  // the same reckoning the Sales screen uses, so the two never disagree: a dress
+  // given up on sold for what really came in, and owes nothing more
+  const rows = dressRows(d.dresses.filter(inMonth));
+  const sold = rows.reduce((a, x) => a + x.sold, 0);
+  const paid = rows.reduce((a, x) => a + x.paid, 0);
+  const due = rows.reduce((a, x) => a + x.due, 0);
+  const given = rows.reduce((a, x) => a + x.forgiven, 0);
   const mat = per.materials, run = per.studio, spent = mat + run;
   const profit = sold - spent;
   const chips = ['', ...books.months.slice(0, 11)];
@@ -411,6 +414,7 @@ function booksCard(books, d) {
     <div class="bk-owed" onclick="go('collections')" style="cursor:pointer">
       <div class="bk-owed-r"><span>Paid so far ›</span><b class="ok">${money0(paid)}</b></div>
       <div class="bk-owed-r tot"><span>Left to collect</span><b class="${due ? 'bad' : 'ok'}">${money0(due)}</b></div>
+      ${given ? `<div class="bk-owed-r"><span>Given up on</span><b class="bad">${money0(given)}</b></div>` : ''}
     </div>
     <div class="bk-foot">Dresses only · course money is under Academy</div>
   </div>`;
@@ -536,6 +540,8 @@ PAGES.students = async (c) => {
          <span class="muted" style="font-size:20px">›</span>
        </div>`).join('') : empty('No students yet')}</div>`;
   if (window._stSearch) liveSearch(window._stSearch, '#studentsList');
+  // arriving here to look at one student — from the money owed, say
+  if (window._openStudent) { const id = window._openStudent; window._openStudent = null; viewStudent(id); }
 };
 window.viewStudent = async (id) => {
   const { rounds, groups } = window._students;
@@ -1754,6 +1760,9 @@ function dressTotals(list) {
   const paid = list.reduce((a, x) => a + (x.paid || 0), 0);
   const rem = list.reduce((a, x) => a + (x.remaining || 0), 0);
   const mat = list.reduce((a, x) => a + (x.material_cost || 0), 0);
+  // a balance given up on is neither collected nor still owed, so without this
+  // line the three figures do not add up to the price agreed
+  const given = dressRows(list).reduce((a, x) => a + x.forgiven, 0);
   const margin = val - mat;
   const pct = val ? Math.round((margin / val) * 100) : 0;
   // The same four lines the Home card reads in, in the same order: what the
@@ -1769,6 +1778,7 @@ function dressTotals(list) {
         <span class="fee-v" style="color:var(--${margin >= 0 ? 'ok' : 'bad'})">${money(margin)}${val ? ` <i>${pct}%</i>` : ''}</span></div>
       ${feeRow('Collected', paid, 'ok', false, 'cash')}
       ${feeRow(rem ? 'Left to collect' : 'Settled', rem, rem ? 'bad' : 'ok')}
+      ${given ? feeRow('Given up on', given, 'bad') : ''}
     </div>
     <div class="dt-more" onclick="go('dressprofit')">📈 Profit, dress by dress ›</div>
   </div>`;
@@ -1892,8 +1902,53 @@ function workTabs(which, n) {
   return `<div class="filters work-tabs">
     <span class="chip ${which === 'all' ? 'active' : ''}"${which === 'all' ? '' : ` onclick="go('home')"`}>All dresses</span>
     <span class="chip ${which === 'open' ? 'active' : ''}"${which === 'open' ? '' : ` onclick="go('openwork')"`}>Being made now${n ? ' (' + n + ')' : ''}</span>
+    <span class="chip ${which === 'owed' ? 'active' : ''}"${which === 'owed' ? '' : ` onclick="go('owed')"`}>Owed to us</span>
   </div>`;
 }
+/* ============ THE MONEY OWED TO US ============
+   Two sides of the same question: a client who has not finished paying for her
+   dress, and a student who has not finished paying for her course. Both are
+   money promised and not in the bank, so they are counted in one place and
+   named one by one. Nobody's overpayment cancels anybody's debt — each is
+   counted from zero up. A dress given up on owes nothing: it is a loss, not a
+   debt, and it is already written off the sales. */
+PAGES.owed = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💰'); return; }
+  const [dresses, sheet] = await Promise.all([GET('/api/dresses'), GET('/api/finance/sheet')]);
+  window._dresses = dresses;
+  const dressDebts = dressRows(dresses).filter((d) => d.due > 0).map((d) => ({
+    kind: 'dress', id: d.id, name: d.customer_name, due: d.due, price: d.price, paid: d.paid,
+    when: d.delivery_date, open: isOpenDress(d) }));
+  const courseDebts = (sheet.rows || []).filter((r) => r.remaining > 0).map((r) => ({
+    kind: 'course', id: r.id, name: r.name, due: r.remaining, price: r.total_fee, paid: r.paid }));
+  const all = [...dressDebts, ...courseDebts].sort((a, b) => b.due - a.due);
+  const fromDresses = dressDebts.reduce((a, x) => a + x.due, 0);
+  const fromCourses = courseDebts.reduce((a, x) => a + x.due, 0);
+  const given = dressRows(dresses).filter((d) => d.off).reduce((a, d) => a + d.forgiven, 0);
+  c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
+    title('Owed to us', '💰') +
+    `<p class="hint" style="margin:2px 2px 10px">Money promised and not in the bank yet — clients and students both.</p>
+     ${workTabs('owed')}
+     <div class="fee-list" style="margin-top:10px">
+       ${feeRow(`From dresses · ${dressDebts.length}`, fromDresses, fromDresses ? 'bad' : 'ok')}
+       ${feeRow(`From the academy · ${courseDebts.length}`, fromCourses, fromCourses ? 'bad' : 'ok')}
+       ${feeRow(`Total owed · ${all.length}`, fromDresses + fromCourses, (fromDresses + fromCourses) ? 'bad' : 'ok', true)}
+     </div>
+     ${given ? `<div class="card dp-note"><div>✕ <b>${moneyText(given)}</b> was given up on and is not counted here — it is off the sales as a loss.</div></div>` : ''}
+     ${all.length ? all.map((x) => {
+      const done = x.price ? Math.max(0, Math.min(100, (x.paid / x.price) * 100)) : 0;
+      const go2 = x.kind === 'dress' ? `openDress(${x.id})` : `openOwedStudent(${x.id})`;
+      return `<div class="dp-row work" onclick="${go2}">
+        <div class="dp-top"><span class="dp-nm">${x.kind === 'dress' ? '👗' : '🎓'} ${esc(x.name)}</span>
+          <span class="dp-v bad">${money(x.due)}</span></div>
+        <div class="dp-bar"><i class="pro" style="width:${done}%"></i><i class="mat" style="width:${100 - done}%;background:var(--line)"></i></div>
+        <div class="dp-sub"><b>${num0(x.price)}</b> ${x.kind === 'dress' ? 'price' : 'fees'} · <b>${num0(x.paid)}</b> paid${x.kind === 'dress' ? (x.when ? ' · ' + shortDate(x.when) : '') + (x.open ? '' : ' · <span class="dp-flag">delivered</span>') : ' · course'}</div>
+      </div>`;
+    }).join('') : empty('Nobody owes anything — every dress and every course is paid up', '🎉')}`;
+};
+/* Her record opens on the students screen, which is where everything about her
+   lives; this only says which one to open when it gets there. */
+window.openOwedStudent = (id) => { window._openStudent = id; go('students'); };
 PAGES.sales = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '📈'); return; }
   const dresses = await GET('/api/dresses');
