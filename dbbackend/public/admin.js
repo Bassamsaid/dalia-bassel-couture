@@ -1139,6 +1139,15 @@ PAGES.spending = groupPage('spending');
    An empty <input type="month"> reads as a broken field — "-------- ----" —
    and these are the only months there is anything to look at anyway. */
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/* The name of the day a date fell on. Read at noon UTC so the day cannot slip
+   to the one before it on a phone set behind us. */
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+function weekdayOf(d) {
+  const s = String(d || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  const t = new Date(s + 'T12:00:00Z');
+  return isNaN(t) ? '' : (DAY_SHORT[t.getUTCDay()] || '');
+}
 function monthLabel(m) {
   const [y, mo] = String(m).split('-');
   return `${MONTH_SHORT[Number(mo) - 1] || mo} ${y}`;
@@ -3748,7 +3757,7 @@ PAGES.attlog = async (c) => {
        ${x.days.length ? x.days.map((d) => {
         const mins = hoursBetween(d.check_in, d.check_out);
         return `<div class="att-day">
-          <span class="att-d">${esc(shortDate(d.date) || d.date)}</span>
+          <span class="att-d">${esc(((weekdayOf(d.date) + ' ') + (shortDate(d.date) || d.date)).trim())}</span>
           <span class="att-t">${d.check_in ? esc(d.check_in) : '—'} <i>→</i> ${d.check_out ? esc(d.check_out) : '<b class="att-open">still in</b>'}</span>
           <span class="att-h">${mins === null ? '' : hhmm(mins)}</span></div>`;
       }).join('') : ''}

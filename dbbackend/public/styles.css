@@ -1609,7 +1609,7 @@ label{font-size:10.5px;margin:12px 0 5px}
   font-variant-numeric:tabular-nums lining-nums}
 .att-day{display:flex;align-items:baseline;gap:9px;padding:7px 0;border-bottom:1px solid var(--line)}
 .att-day:last-child{border-bottom:none}
-.att-d{flex:0 0 56px;font-size:11.5px;font-weight:700;color:var(--muted)}
+.att-d{flex:0 0 76px;font-size:11.5px;font-weight:700;color:var(--muted)}
 .att-t{flex:1;min-width:0;font-size:13px;font-weight:700;color:var(--ink);
   font-variant-numeric:tabular-nums lining-nums}
 .att-t i{font-style:normal;color:var(--muted);margin:0 3px}
