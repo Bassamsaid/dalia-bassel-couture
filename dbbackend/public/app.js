@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v189';
+const APP_VERSION = 'v190';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -583,6 +583,7 @@ const GROUPS = {
   spending: {
     title: 'Spending', icon: '💸',
     tabs: [
+      ['expsum', 'Expenses', '💰', ['admin']],
       ['purchases', 'Purchases', '🧾', ['admin', 'manager']],
       ['expenses', 'Studio costs', '🏠', ['admin']],
       ['floats', 'Cash with staff', '🧰', ['admin']],

@@ -2686,6 +2686,67 @@ function costNote(e) {
     .replace(/^[\s·]+|[\s·]+$/g, '')
     .trim();
 }
+/* ============ EVERYTHING THE STUDIO SPENDS ============
+   The two halves of the spending — fabric bought for a dress, and what the
+   studio itself costs — added up in one place, and split the way the money
+   really left: out of the bank, or out of cash somebody is holding. Nothing
+   here is a new figure; it is the same invoices and costs, read as totals. */
+PAGES.expsum = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💰'); return; }
+  const [invoices, costs] = await Promise.all([GET('/api/purchases'), GET('/api/expenses')]);
+  const key = window._expSumMonth || '';
+  const inM = (d) => !key || String(d || '').slice(0, 7) === key;
+  const invs = invoices.filter((i) => inM(i.invoice_date || i.created_at));
+  const exps = costs.filter((e) => inM(e.date || e.created_at));
+  const sum = (rows, f) => rows.reduce((a, x) => a + (f(x) || 0), 0);
+  const mat = sum(invs, (i) => i.total);
+  const run = sum(exps, (e) => e.amount);
+  const total = mat + run;
+  const isCash = (x) => !!x.paid_by;
+  const bank = sum(invs.filter((i) => !isCash(i)), (i) => i.total) + sum(exps.filter((e) => !isCash(e)), (e) => e.amount);
+  const cash = total - bank;
+  // what it went on: the dress fabric in one line, then every heading used
+  const byType = {};
+  exps.forEach((e) => { const t = e.type || 'Other'; byType[t] = (byType[t] || 0) + (e.amount || 0); });
+  const rows = [...(mat ? [['👗 Dress materials', mat]] : []), ...Object.entries(byType)]
+    .sort((a, b) => b[1] - a[1]);
+  // and whose cash it was
+  const byHand = {};
+  const hand = (x) => x.paid_by_name || 'Somebody';
+  invs.filter(isCash).forEach((i) => { byHand[hand(i)] = (byHand[hand(i)] || 0) + (i.total || 0); });
+  exps.filter(isCash).forEach((e) => { byHand[hand(e)] = (byHand[hand(e)] || 0) + (e.amount || 0); });
+  const hands = Object.entries(byHand).sort((a, b) => b[1] - a[1]);
+  const months = [...new Set([...invoices.map((i) => i.invoice_date || i.created_at),
+    ...costs.map((e) => e.date || e.created_at)].filter(Boolean).map((d) => String(d).slice(0, 7)))].sort().reverse();
+  // each line's share of the whole, so a figure is read against the rest
+  const bar = (v) => total ? Math.max(1, Math.round((v / total) * 100)) : 0;
+  c.innerHTML = `<p class="hint" style="margin:2px 2px 10px">Everything the studio spent — dress materials and the studio's own costs together.</p>
+    <div class="filters">
+      <span class="chip ${key ? '' : 'active'}" onclick="setExpSumMonth('')">All</span>
+      ${months.slice(0, 11).map((m) => `<span class="chip ${key === m ? 'active' : ''}" onclick="setExpSumMonth('${m}')">${monthShort(m)}</span>`).join('')}
+    </div>
+    <div class="fee-list" style="margin-top:10px">
+      <div class="fee-row big"><span class="fee-k">${key ? esc(monthLabel(key)) : 'All time'}</span>
+        <span class="fee-v" style="color:var(--bad)">${money0(total)}</span></div>
+      <div class="fee-row"><span class="fee-k">🏦 From the bank</span>
+        <span class="fee-v">${money0(bank)} <i>${bar(bank)}%</i></span></div>
+      <div class="fee-row cash"><span class="fee-k">🧰 Cash in hand</span>
+        <span class="fee-v">${money0(cash)} <i>${bar(cash)}%</i></span></div>
+    </div>
+    <div class="sec-title sm">What it went on</div>
+    ${rows.length ? `<div class="fee-list">${rows.map(([t, v]) => `
+      <div class="fee-row"><span class="fee-k">${esc(t)}</span>
+        <span class="fee-v">${money0(v)} <i>${bar(v)}%</i></span></div>`).join('')}</div>`
+    : '<p class="hint">Nothing spent in this stretch.</p>'}
+    ${hands.length ? `<div class="sec-title sm">Whose cash it was</div>
+      <div class="fee-list">${hands.map(([n, v]) => `
+        <div class="fee-row"><span class="fee-k">🧰 ${esc(n)}</span><span class="fee-v">${money0(v)}</span></div>`).join('')}</div>` : ''}
+    <div class="act2">
+      <button class="btn sec sm" onclick="groupTab('spending','purchases')">🧾 The invoices</button>
+      <button class="btn sec sm" onclick="groupTab('spending','expenses')">🏠 The studio costs</button>
+    </div>`;
+};
+window.setExpSumMonth = (m) => { window._expSumMonth = m; go('spending'); };
 PAGES.expenses = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '💸'); return; }
   const [expenses, vendors, types, purchases] = await Promise.all([GET('/api/expenses'), GET('/api/vendors'), GET('/api/expense-types'), GET('/api/purchases'), loadFloatHolders()]);
