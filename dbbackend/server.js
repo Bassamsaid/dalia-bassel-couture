@@ -2304,14 +2304,62 @@ api['GET /api/floats/:id'] = async (req, res, user, url, params) => {
   const when = (d) => String(d || '').slice(0, 10);
   const entries = [
     ...moves.map((m) => ({ kind: m.kind === 'out' ? 'back' : 'handed', id: m.id, amount: m.amount, date: when(m.date || m.created_at), note: m.note })),
-    ...costs.map((e) => ({ kind: 'cost', id: e.id, amount: e.amount, date: when(e.date || e.created_at), note: [e.type, e.vendor_name, e.note].filter(Boolean).join(' · ') })),
+    ...costs.map((e) => ({ kind: 'cost', id: e.id, amount: e.amount, date: when(e.date || e.created_at),
+      note: [e.type, e.vendor_name, e.note].filter(Boolean).join(' · '), image: e.image,
+      // hers to take back only while it is still the day she wrote it down
+      mine: e.recorded_by === id && e.paid_by === id,
+      can_remove: e.recorded_by === id && e.paid_by === id
+        && String(e.created_at || '').slice(0, 10) === new Date().toISOString().slice(0, 10) })),
     // which dress the materials went on is the thing somebody checking a float
     // actually wants to read, so it leads the line
     ...invoices.map((i) => ({ kind: 'invoice', id: i.id, amount: i.total || 0, date: when(i.invoice_date || i.created_at), note: [i.dress_names ? '👗 ' + i.dress_names : null, i.vendor_name || i.shop, i.note].filter(Boolean).join(' · ') })),
   ].sort((a, b) => String(b.date).localeCompare(String(a.date)) || b.id - a.id);
-  send(res, 200, { user: who, ...(await floatFor(id)), entries });
+  // the headings a cost can be filed under, so she can settle hers without
+  // being able to read or change the list itself
+  const types = (await db.prepare('SELECT name FROM expense_types ORDER BY name').all()).map((t) => t.name);
+  send(res, 200, { user: who, ...(await floatFor(id)), entries, types, can_spend: user.id === id });
 };
 
+/* The woman holding the float settles it herself: what she bought, what it
+   cost, and a photo of the invoice. It is filed as a studio cost against HER
+   float — paid_by is always the person signed in and never anything the form
+   sends, so nobody can spend out of somebody else's cash. The owner is told as
+   soon as it is written down. */
+api['POST /api/floats/spend'] = async (req, res, user) => {
+  if (!requireAuth(user, res)) return;
+  const f = await floatFor(user.id);
+  if (!f.handed) return send(res, 403, { error: 'You are not holding any of the studio\'s cash' });
+  const b = await readBody(req);
+  const amount = Number(b.amount) || 0;
+  if (!(amount > 0)) return send(res, 400, { error: 'How much did it cost?' });
+  const type = String(b.type || '').trim().slice(0, 60);
+  if (!type) return send(res, 400, { error: 'What was it for?' });
+  const img = await maybeImage(b.image);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(b.date || '')) ? b.date : studioNow().date;
+  const r = await db.prepare('INSERT INTO expenses (type,amount,date,note,image,paid_by,recorded_by) VALUES (?,?,?,?,?,?,?)')
+    .run(type, amount, date, b.note || null, img, user.id, user.id);
+  const after = await floatFor(user.id);
+  await notifyRoles('admin', {
+    type: 'float',
+    title: `${user.name} spent ${money0(amount)} out of her float`,
+    body: `${type}${b.note ? ' · ' + b.note : ''} · ${date}${img ? ' · invoice attached' : ' · no invoice'} · ${money0(after.balance)} left in her hand`,
+    link_page: 'floats', actor_name: user.name,
+  }, user.id);
+  send(res, 200, { id: r.lastInsertRowid, balance: after.balance });
+};
+/* A wrong figure typed a minute ago is hers to take back; anything older is the
+   owner's to sort out, so a record cannot quietly lose a day's spending. */
+api['DELETE /api/floats/spend/:id'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  const e = await db.prepare('SELECT * FROM expenses WHERE id=?').get(params.id);
+  if (!e) return send(res, 404, { error: 'not found' });
+  if (e.paid_by !== user.id || e.recorded_by !== user.id) return send(res, 403, { error: 'forbidden' });
+  if (String(e.created_at || '').slice(0, 10) !== new Date().toISOString().slice(0, 10)) {
+    return send(res, 400, { error: 'This was written down before today — ask Dalia to take it off.' });
+  }
+  await db.prepare('DELETE FROM expenses WHERE id=?').run(params.id);
+  send(res, 200, { ok: true, balance: (await floatFor(user.id)).balance });
+};
 api['POST /api/floats'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
