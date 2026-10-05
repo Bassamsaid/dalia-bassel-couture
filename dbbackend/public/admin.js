@@ -396,6 +396,7 @@ function booksCard(books, d) {
     <span class="bk-ic">${ic}</span><span class="bk-k">${esc(label)}</span>
     <span class="bk-v">${money0(v)}</span></div>`;
   return `<div class="books">
+    ${workTabs('all', d.dresses.filter((x) => isOpenDress(x) && x.price > 0).length)}
     <div class="bk-top">The dresses · ${key ? esc(monthLabel(key)) : 'all time'}</div>
     <div class="filters bk-chips">
       ${chips.map((k) => `<span class="chip ${key === k ? 'active' : ''}" onclick="setBooksMonth('${k}')">${k ? monthShort(k) : 'All time'}</span>`).join('')}
@@ -1849,6 +1850,50 @@ function missingNote(dresses, kind) {
 
 /* ============ 1. SALES ============
    What each dress sold for, what was spent on it, what it left. */
+/* ============ THE DRESSES BEING MADE NOW ============
+   The delivered ones are finished business. What he wants to check is the work
+   in hand: what it is all worth, what has gone into it, what has come in and
+   what is still to come. A dress is "in hand" until it is marked delivered. */
+const isOpenDress = (d) => (d.status || 'open') !== 'delivered';
+PAGES.openwork = async (c) => {
+  if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '👗'); return; }
+  const dresses = await GET('/api/dresses');
+  window._dresses = dresses;
+  const open = dresses.filter(isOpenDress);
+  const rows = dressRows(open).sort((a, b) => b.due - a.due || b.price - a.price);
+  const price = rows.reduce((a, x) => a + x.price, 0);
+  const spent = rows.reduce((a, x) => a + x.spent, 0);
+  const paid = rows.reduce((a, x) => a + x.paid, 0);
+  const due = rows.reduce((a, x) => a + x.due, 0);
+  const noPrice = open.filter((d) => !d.price).length;
+  c.innerHTML = `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="goBack()">‹ Back</button></div>` +
+    title('Being made now', '👗') +
+    `<p class="hint" style="margin:2px 2px 10px">The dresses still in the atelier — new and in progress. Delivered ones are left out.</p>
+     ${workTabs('open', rows.length)}
+     <div class="fee-list" style="margin-top:10px">
+       ${feeRow(`Their price · ${rows.length} dress${rows.length === 1 ? '' : 'es'}`, price)}
+       ${feeRow('Spent on them so far', spent, 'bad')}
+       ${feeRow('Collected', paid, 'ok', false, 'cash')}
+       ${feeRow('Still to come', due, due ? 'bad' : 'ok', true)}
+     </div>
+     ${noPrice ? `<div class="card dp-note"><div>👗 <b>${noPrice} dress${noPrice === 1 ? '' : 'es'}</b> in the atelier ${noPrice === 1 ? 'has' : 'have'} no price yet, so ${noPrice === 1 ? 'it is' : 'they are'} left out of these figures.</div></div>` : ''}
+     ${rows.length ? rows.map((d) => {
+      const done = d.price ? Math.max(0, Math.min(100, (d.paid / d.price) * 100)) : 0;
+      return `<div class="dp-row work" onclick="openDress(${d.id})">
+        <div class="dp-top"><span class="dp-nm">${esc(d.customer_name)}</span>
+          <span class="dp-v ${d.due ? 'bad' : 'ok'}">${d.due ? money(d.due) : 'paid in full'}</span></div>
+        <div class="dp-bar"><i class="pro" style="width:${done}%"></i><i class="mat" style="width:${100 - done}%;background:var(--line)"></i></div>
+        <div class="dp-sub"><b>${num0(d.price)}</b> price · <b>${num0(d.paid)}</b> paid · <b>${num0(d.spent)}</b> spent${d.delivery_date ? ' · ' + shortDate(d.delivery_date) : ''}${(d.status || 'open') === 'open' ? ' · <span class="dp-flag">not started</span>' : ''}</div>
+      </div>`;
+    }).join('') : empty('Nothing in the atelier with a price on it', '👗')}`;
+};
+/* The pair of tabs that says which half of the work is on the screen. */
+function workTabs(which, n) {
+  return `<div class="filters work-tabs">
+    <span class="chip ${which === 'all' ? 'active' : ''}"${which === 'all' ? '' : ` onclick="go('home')"`}>All dresses</span>
+    <span class="chip ${which === 'open' ? 'active' : ''}"${which === 'open' ? '' : ` onclick="go('openwork')"`}>Being made now${n ? ' (' + n + ')' : ''}</span>
+  </div>`;
+}
 PAGES.sales = async (c) => {
   if (state.user.role !== 'admin') { c.innerHTML = empty('Admins only', '📈'); return; }
   const dresses = await GET('/api/dresses');
