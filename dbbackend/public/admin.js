@@ -2077,11 +2077,23 @@ window.takePayment = async (dressId) => {
   ], async (d) => {
     if (!d.dress_id) throw new Error('Which client paid?');
     if (!(Number(d.amount) > 0)) throw new Error('How much did she pay?');
-    await POST('/api/dresses/' + d.dress_id + '/payments', d);
+    const r = await POST('/api/dresses/' + d.dress_id + '/payments', d);
     toast('Written down on her dress ✓');
+    // she was given up on and the money came anyway: ask, rather than leave the
+    // screen saying nothing is owed while he can see that something is
+    if (r && r.written_off) await askUnwriteOff(Number(d.dress_id), r.still_owed || 0);
     go('collections');
   });
 };
+/* A dress marked "no more money coming" that has just been paid on. Lifting it
+   is his call: a part-settlement, where she pays some and the rest really is
+   let go, is a real thing — so it asks, and does nothing on its own. */
+async function askUnwriteOff(dressId, stillOwed) {
+  const yes = confirm(`This dress was marked as "no more money coming".\n\nThe money came. Take that mark off, so the ${moneyText(stillOwed)} still unpaid shows as owed again?\n\nCancel keeps it as it is — for when the rest really is let go.`);
+  if (!yes) return;
+  try { await PUT('/api/dresses/' + dressId + '/write-off', { off: false }); toast('She owes it again ✓'); }
+  catch (e) { toast(e.message, 'error'); }
+}
 
 window.dressFilter = (k, v) => {
   const f = window._dressF || { status: 'all', month: '', assigned: false };
@@ -2285,7 +2297,7 @@ PAGES.dress = async (c) => {
       </div>
       ${d.written_off
         ? `<div class="card gave-up"><div class="nm">✕ Given up on ${money(d.forgiven || 0)}</div>
-             <div class="sub">${d.written_off_note ? esc(d.written_off_note) + ' · ' : ''}${d.written_off_at ? dt(d.written_off_at) : ''}. It is off what she owes and off the sales — the dress counts as having sold for the ${moneyText(d.paid || 0)} she really paid.</div>
+             <div class="sub">${d.written_off_note ? esc(d.written_off_note) + ' · ' : ''}${d.written_off_at ? dt(d.written_off_at) : ''} · the dress counts as having sold for the ${moneyText(d.paid || 0)} she really paid.</div>
              <button class="btn sec sm" style="margin-top:10px" onclick="unwriteOff(${id},'${esc(d.customer_name).replace(/'/g, "\\'")}')">↩ No — the money is coming</button></div>`
         : (d.remaining || 0) > 0
           ? `<button class="btn ghost sm quiet" onclick="writeOff(${id},'${esc(d.customer_name).replace(/'/g, "\\'")}',${d.remaining || 0})">✕ No more money coming from her</button>`

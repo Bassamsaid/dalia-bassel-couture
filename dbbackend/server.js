@@ -1180,7 +1180,13 @@ api['POST /api/dresses/:id/payments'] = async (req, res, user, url, params) => {
   }
   const r = await db.prepare("INSERT INTO dress_payments (dress_id,amount,method,note,image,paid_at,kind) VALUES (?,?,?,?,?,COALESCE(?,datetime('now')),?)")
     .run(params.id, b.amount, method, b.note || null, img, b.paid_at || null, kind);
-  send(res, 200, { id: r.lastInsertRowid });
+  // Money on a dress somebody gave up on contradicts the giving-up. Nothing is
+  // changed here — a part-settlement is a real thing, and the books are not
+  // rewritten behind him — but the screen is told, so it can ask.
+  const d = await db.prepare('SELECT written_off, price, COALESCE((SELECT SUM(amount) FROM dress_payments WHERE dress_id=?),0) paid FROM dresses WHERE id=?').get(params.id, params.id);
+  send(res, 200, { id: r.lastInsertRowid,
+    written_off: !!(d && d.written_off),
+    still_owed: d ? Math.max(0, (d.price || 0) - (d.paid || 0)) : 0 });
 };
 api['DELETE /api/dress-payments/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM dress_payments WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
 api['POST /api/dresses/:id/fittings'] = async (req, res, user, url, params) => {
