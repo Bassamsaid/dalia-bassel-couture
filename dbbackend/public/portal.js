@@ -118,7 +118,7 @@ PAGES.home_trainee = async (c) => {
 
 /* ============ STUDENT SELF ATTENDANCE (check in/out) ============ */
 PAGES.myattendance = async (c) => {
-  const att = await GET('/api/attendance');
+  const att = await GET('/api/attendance?mine=1');
   attScreen(c, att, 'My Attendance');
 };
 
@@ -477,8 +477,19 @@ window.requestManualLog = () => formModal('Request manual log', [
 
 /* ============ STAFF HOME (attendance) ============ */
 PAGES.home_staff = async (c) => {
-  const att = await GET('/api/attendance');
+  const att = await GET('/api/attendance?mine=1');
   attScreen(c, att, `Welcome, ${state.user.name}`);
+};
+
+/* ============ THE OWNER, CLOCKING IN ============
+   She keeps her own hours like anybody else. This is the same screen the studio
+   uses, on her own account — not somebody else's — so the day it writes is hers
+   and nothing can be entered in another woman's name. */
+PAGES.mycheck = async (c) => {
+  const att = await GET('/api/attendance?mine=1');
+  attScreen(c, att, 'My day');
+  c.insertAdjacentHTML('afterbegin',
+    `<div class="row" style="margin-bottom:4px"><button class="btn sec sm" onclick="go('home')">‹ Back to admin</button></div>`);
 };
 
 /* ============ STAFF SALARY (own, auto-computed) ============ */

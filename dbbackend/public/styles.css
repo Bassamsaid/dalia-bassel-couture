@@ -1598,6 +1598,19 @@ label{font-size:10.5px;margin:12px 0 5px}
    second line rather than ending every row in "…" */
 .dp-row.work .dp-sub{white-space:normal;overflow:visible;line-height:1.55}
 
+/* ===== The owner's own day, on her home screen ===== */
+.myday{display:flex;align-items:center;gap:10px;margin:0 0 12px;padding:11px 13px;cursor:pointer;
+  background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:14px}
+.myday.in{border-color:color-mix(in srgb,var(--ok) 45%,var(--line));
+  background:color-mix(in srgb,var(--ok) 5%,rgba(255,255,255,.85))}
+.myday .md-ic{flex:0 0 auto;font-size:17px}
+.myday .md-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.myday .md-main b{font-size:13.5px;font-weight:800;color:var(--ink)}
+.myday .md-main span{font-size:11.5px;font-weight:600;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.myday .md-go{flex:0 0 auto;font-size:11.5px;font-weight:800;color:var(--purple-d)}
+.myday.in .md-go{color:var(--ok)}
+
 /* ===== The attendance book ===== */
 .att-card{background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:14px;
   padding:11px 13px 6px;margin-bottom:10px}
