@@ -1616,6 +1616,12 @@ label{font-size:10.5px;margin:12px 0 5px}
 .att-t .att-open{color:var(--warn);font-weight:800;font-size:11.5px}
 .att-h{flex:0 0 auto;font-size:12.5px;font-weight:800;color:var(--purple-d);
   font-variant-numeric:tabular-nums lining-nums}
+/* A morning lost: named on the day itself, so the figure on the salary sheet
+   can be traced back to one line here. */
+.att-day.half{background:color-mix(in srgb,var(--bad) 5%,transparent);
+  border-radius:8px;padding-inline:7px;margin-inline:-7px}
+.att-t .att-half{color:var(--bad);font-weight:800;font-size:11px;margin-inline-start:5px;
+  white-space:nowrap}
 .att-card.none{padding:9px 13px;opacity:.72}
 .att-card.none .att-head{border-bottom:none;padding-bottom:0}
 .att-card.none .att-nm{font-weight:700}

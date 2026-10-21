@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v194';
+const APP_VERSION = 'v195';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1254,6 +1254,7 @@ PAGES.payslip = async (c) => {
   if (s.extra_hours) plus.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, money(s.extra_task_pay), 'ps-plus'));
   if (s.bonus) plus.push(line('Bonus', '', money(s.bonus), 'ps-plus'));
   if (s.absent_days) minus.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'ps-minus'));
+  if (s.half_days) minus.push(line('Half days', `${s.half_days} day(s) — in after ${s.half_day_after || ''} — at half of ${moneyText(s.daily)}`, '− ' + money(s.half_day_deduction), 'ps-minus'));
   if (s.late_minutes) minus.push(line('Lateness', `${s.late_minutes} min beyond the grace period`, '− ' + money(s.late_deduction), 'ps-minus'));
   if (s.deductions) minus.push(line('Deductions', '', '− ' + money(s.deductions), 'ps-minus'));
   if (s.advances) minus.push(line('Advances taken this month', '', '− ' + money(s.advances), 'ps-minus'));
