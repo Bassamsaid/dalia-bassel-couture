@@ -529,6 +529,16 @@ const ready = (async () => {
   `);
 
   // seed default configuration (only fills keys that don't exist yet)
+  // The month on the studio's own clock. Reading it off the container's UTC
+  // would, for three hours either side of a month's first midnight, name the
+  // month before — and that is a month already paid.
+  const cairoMonth = () => {
+    try {
+      const d = new Intl.DateTimeFormat('en-CA', { timeZone: process.env.STUDIO_TZ || 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit' })
+        .format(new Date());
+      return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.slice(0, 7) : new Date().toISOString().slice(0, 7);
+    } catch (e) { return new Date().toISOString().slice(0, 7); }
+  };
   try {
     const setDefault = await db.prepare('INSERT OR IGNORE INTO settings (key,value) VALUES (?,?)');
     setDefault.run('academy_name', 'Dalia Bassel Couture');
@@ -538,6 +548,11 @@ const ready = (async () => {
     setDefault.run('check_out_time', '17:00');
     setDefault.run('late_grace_min', '15');
     setDefault.run('overtime_mult', '1.5');
+    // Coming in after eleven costs half the day. Set as a clock time against the
+    // studio's own start, and applied from the month it was asked for onwards —
+    // a month already worked out and paid is not rewritten underneath anybody.
+    setDefault.run('half_day_after', '11:00');
+    setDefault.run('half_day_from', `${cairoMonth()}-01`);
     // attendance geofence — default studio location (Dalia Bassel Couture, El Gamaliya, Cairo)
     setDefault.run('geo_enabled', '1');
     setDefault.run('geo_lat', '30.0464497');

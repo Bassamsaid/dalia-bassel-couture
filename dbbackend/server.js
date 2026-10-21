@@ -117,7 +117,9 @@ async function getUser(req) {
   if (!token) return null;
   const s = await db.prepare('SELECT * FROM sessions WHERE token=?').get(token);
   if (!s) return null;
-  return await db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,avatar,off_days FROM users WHERE id=?').get(s.user_id) || null;
+  // Her own hours travel with her, so the check-in screen measures her day the
+  // way the salary sheet does rather than against the studio's nine o'clock.
+  return await db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,avatar,off_days,shift_start,shift_end FROM users WHERE id=?').get(s.user_id) || null;
 }
 // Save a base64 data URL (or raw base64) to uploads, return filename
 async function saveImage(dataUrl, fallbackExt = '.jpg') {
@@ -192,7 +194,31 @@ function monthName(ym) {
 // ---- time / weekday helpers (payroll) ----
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 function hm2min(s) { if (!s) return 0; const p = String(s).split(':'); return (Number(p[0]) || 0) * 60 + (Number(p[1]) || 0); }
+function min2hm(m) { const x = Math.max(0, Math.round(m)); return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`; }
 function weekdayOf(dateStr) { const d = new Date(String(dateStr).slice(0, 10) + 'T00:00:00Z'); return WEEKDAYS[d.getUTCDay()]; }
+
+/* Arriving very late is not lateness any more — the studio counts half the day
+   as gone, whatever the minutes come to.
+   The hour is set as a clock time the owner recognises (eleven, against a nine
+   o'clock studio), but it is carried as the distance from the start of the day
+   — two hours — so somebody whose own day begins at eleven is measured from her
+   own eleven and not docked every morning for arriving on time.
+   Returns the minute of the day past which the half day is lost, or null when
+   the rule is off or set to something that cannot be read. */
+function halfDayCut(cfg, shiftInMin) {
+  const t = String((cfg && cfg.half_day_after) || '').trim();
+  if (!/^\d{1,2}:\d{2}$/.test(t)) return null;
+  const gap = hm2min(t) - hm2min((cfg && cfg.check_in_time) || '09:00');
+  if (gap <= 0) return null;                       // at or before the start is not a rule, it is a mistake
+  const cut = shiftInMin + gap;
+  return cut >= 1440 ? null : cut;                 // a cutoff past midnight can never be crossed
+}
+// The rule reaches back only as far as the day it was switched on, so a month
+// already worked out and paid is not rewritten underneath him.
+function halfDayStarts(cfg) {
+  const d = String((cfg && cfg.half_day_from) || '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
+}
 
 // ---------- API ----------
 const api = {};
@@ -1262,10 +1288,21 @@ api['GET /api/attendance/log'] = async (req, res, user, url) => {
   const ymd = /^\d{4}-\d{2}-\d{2}$/;
   if (!ymd.test(from) || !ymd.test(to)) return send(res, 400, { error: 'from and to are needed, as YYYY-MM-DD' });
   const rows = await db.prepare(`SELECT a.id,a.user_id,a.date,a.check_in,a.check_out,a.note,
-      u.name user_name, u.job_title, u.role
+      u.name user_name, u.job_title, u.role, u.shift_start, u.off_days
     FROM attendance a JOIN users u ON u.id=a.user_id
     WHERE u.role IN ('staff','manager') AND a.date >= ? AND a.date <= ?
     ORDER BY a.date DESC, u.name`).all(from, to);
+  // Each day says for itself whether half of it was lost, measured the same way
+  // the salary sheet measures it — so the book and the pay agree.
+  const cfg = {}; (await db.prepare('SELECT key,value FROM settings').all()).forEach((r) => { cfg[r.key] = r.value; });
+  const halfFrom = halfDayStarts(cfg);
+  for (const r of rows) {
+    const cut = halfDayCut(cfg, hm2min(r.shift_start || cfg.check_in_time || '09:00'));
+    const offDay = new Set(String(r.off_days || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)).has(weekdayOf(r.date));
+    r.half_day = !!(r.check_in && cut !== null && !offDay && (!halfFrom || r.date >= halfFrom) && hm2min(r.check_in) > cut);
+    r.half_day_after = cut === null ? null : min2hm(cut);
+    delete r.off_days;
+  }
   send(res, 200, rows);
 };
 function haversine(lat1, lon1, lat2, lon2) { // metres between two lat/lng points
@@ -1830,6 +1867,8 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const outMin = hm2min(shiftOut);
   const grace = Number(cfg.late_grace_min) || 0;
   const otMult = Number(cfg.overtime_mult) || 1.5;
+  const halfCut = halfDayCut(cfg, inMin);
+  const halfFrom = halfDayStarts(cfg);
   const workHours = Math.max(1, (outMin - inMin) / 60);
   const off = new Set((u.off_days || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 
@@ -1876,7 +1915,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   }
 
   const days = [];
-  let absDays = 0, presentDays = 0, offDays = 0, paidLeaveDays = 0, lateMin = 0, otMin = 0, extraHours = 0;
+  let absDays = 0, presentDays = 0, offDays = 0, paidLeaveDays = 0, lateMin = 0, otMin = 0, extraHours = 0, halfDays = 0;
   for (let d = 1; d <= lastDay; d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`;
     const a = att[date];
@@ -1893,7 +1932,15 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     if (a && a.check_in) {
       row.status = 'present'; presentDays++;
       const late = hm2min(a.check_in) - inMin;
-      if (!off.has(row.weekday) && late > grace) { row.late_min = late - grace; lateMin += row.late_min; }
+      // Half a day gone is the whole of the charge for that morning: the minutes
+      // are not taken off on top, or the same hours would be paid for twice and
+      // the figure would answer to nothing he can name.
+      // Whichever way the day was written down — her own check-in, a manual log
+      // she asked for, or a row he typed himself — it is the same arrival here.
+      const lostHalf = halfCut !== null && (!halfFrom || date >= halfFrom)
+        && !off.has(row.weekday) && hm2min(a.check_in) > halfCut;
+      if (lostHalf) { row.half_day = true; halfDays++; }
+      else if (!off.has(row.weekday) && late > grace) { row.late_min = late - grace; lateMin += row.late_min; }
       if (a.check_out) { const ot = hm2min(a.check_out) - outMin; if (!off.has(row.weekday) && ot > 0) { row.ot_min = ot; otMin += ot; } }
     } else if (off.has(row.weekday)) {
       row.status = 'off'; offDays++;
@@ -1920,17 +1967,18 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const deductions = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='deduction'").get(params.id, month)).s;
   const r2 = (x) => Math.round(x * 100) / 100;
   const absenceDeduction = r2(daily * absDays);
+  const halfDayDeduction = r2(daily * 0.5 * halfDays);
   const lateDeduction = r2((lateMin / 60) * hourly);
   const overtimePay = r2((otMin / 60) * otMult * hourly);
   // At the plain rate: the studio's sheet keeps this on a line of its own, apart
   // from the overtime it pays at one and a half.
   const extraTaskPay = r2(extraHours * hourly);
-  const net = r2(base + bonus + overtimePay + extraTaskPay - absenceDeduction - lateDeduction - advTotal - deductions);
+  const net = r2(base + bonus + overtimePay + extraTaskPay - absenceDeduction - halfDayDeduction - lateDeduction - advTotal - deductions);
   // What the month is worth so far: the days already paid for, rather than the
   // whole salary with the missing days taken back off it. Same arithmetic at the
   // end of the month, but it reads correctly in the middle of one.
   const paidDays = presentDays + offDays + paidLeaveDays;
-  const earnedToDate = r2(daily * paidDays + bonus + overtimePay + extraTaskPay - lateDeduction - advTotal - deductions);
+  const earnedToDate = r2(daily * paidDays + bonus + overtimePay + extraTaskPay - halfDayDeduction - lateDeduction - advTotal - deductions);
 
   send(res, 200, {
     user: u.name, month, base, work_days: wd, days_in_month: lastDay, owed_days: owedDays,
@@ -1939,6 +1987,8 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     absent_days: absDays, absence_deduction: absenceDeduction,
     present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
     late_minutes: lateMin, late_deduction: lateDeduction, overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
+    half_days: halfDays, half_day_deduction: halfDayDeduction,
+    half_day_after: halfCut === null ? null : min2hm(halfCut), half_day_from: halfFrom,
     extra_hours: r2(extraHours), extra_task_pay: extraTaskPay,
     bonus, deductions, advances: advTotal, net,
     as_of: stop, earned_to_date: earnedToDate, paid_days: paidDays, days,
