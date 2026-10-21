@@ -427,6 +427,9 @@ PAGES.home_admin = async (c) => {
     GET('/api/homeworks'), GET('/api/quizzes'), GET('/api/videos'),
     GET('/api/purchases'), GET('/api/expenses'), GET('/api/books'),
   ]);
+  // She keeps her own hours too, so the day she is having is on the home screen
+  // and one tap away from being started or ended.
+  const myAtt = await GET('/api/attendance?mine=1').catch(() => []);
   const dueSoon = reminders.filter((r) => !r.done).length;
   const dTotal = dresses.reduce((a, x) => a + (x.price || 0), 0);
   const dPaid = dresses.reduce((a, x) => a + (x.paid || 0), 0);
@@ -440,7 +443,7 @@ PAGES.home_admin = async (c) => {
   const eTotal = expenses.reduce((a, x) => a + (x.amount || 0), 0);
   const spendRows = vendorSpendRows(invoices, expenses);
   c.innerHTML = luxBackdrop() + dressWatermark() + '<div class="home-lux">' + title('Welcome, Dalia', '') +
-    booksCard(books, { dresses }) + `
+    myDayRow(myAtt) + booksCard(books, { dresses }) + `
     ${brandGroup({
       name: 'Daliessa', kind: 'Dresses · Couture', collapse: 'dresses',
       c1: '#c2185b', c2: '#d9a45f', glow: '194,24,91',
@@ -489,6 +492,20 @@ PAGES.home_admin = async (c) => {
   runCounters(c);
 };
 window.markReminder = async (id) => { await PUT('/api/reminders/' + id, { done: 1 }); toast('Done'); go('home'); };
+
+/* The owner's own day, on the owner's own home screen: where she stands right
+   now, and the way through to the screen the studio checks in on. */
+function myDayRow(att) {
+  const rec = (att || []).find((a) => a.date === today());
+  const state2 = (!rec || !rec.check_in) ? 'out' : (!rec.check_out ? 'in' : 'done');
+  const said = state2 === 'in' ? `In at ${esc(rec.check_in)} · still working`
+    : state2 === 'done' ? `${esc(rec.check_in)} → ${esc(rec.check_out)} · done for today`
+      : 'Not in yet today';
+  return `<div class="myday ${state2}" onclick="go('mycheck')">
+    <span class="md-ic">🕒</span>
+    <span class="md-main"><b>Switch as employee</b><span>${said}</span></span>
+    <span class="md-go">${state2 === 'out' ? 'Check in' : state2 === 'in' ? 'Check out' : 'Open'} ›</span></div>`;
+}
 
 /* ============ MEMBERS (everyone who registered) ============ */
 PAGES.members = async (c) => {
@@ -3882,7 +3899,10 @@ PAGES.attlog = async (c) => {
   const r = rangeFor(which);
   const [rows, users] = await Promise.all([
     GET(`/api/attendance/log?from=${r.from}&to=${r.to}`), GET('/api/users')]);
-  const staff = users.filter((u) => u.role === 'staff' || u.role === 'manager');
+  // The payroll, plus the owner herself on the days she clocked in — an admin who
+  // never does is not listed as having failed to come in.
+  const staff = users.filter((u) => u.role === 'staff' || u.role === 'manager'
+    || (u.role === 'admin' && rows.some((x) => x.user_id === u.id)));
   // everybody on the payroll shows, even the one who did not come at all —
   // that absence is the thing he is looking for
   const per = staff.map((u) => {

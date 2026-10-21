@@ -1270,6 +1270,10 @@ api['GET /api/attendance'] = async (req, res, user, url) => {
   if (!requireAuth(user, res)) return;
   const uid = url.searchParams.get('user_id');
   const round = url.searchParams.get('round_id');
+  // Her own days, whoever she is. A check-in screen asks for this: without it a
+  // manager — or the owner, now that she clocks in too — was handed the whole
+  // studio's rows and the screen read them as hers.
+  if (url.searchParams.get('mine')) return send(res, 200, await db.prepare('SELECT * FROM attendance WHERE user_id=? ORDER BY date DESC').all(user.id));
   if (['admin', 'manager', 'staff'].includes(user.role)) {
     if (round) return send(res, 200, await db.prepare('SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE u.round_id=? ORDER BY a.date DESC').all(round));
     if (uid) return send(res, 200, await db.prepare('SELECT a.*,u.name user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE a.user_id=? ORDER BY date DESC').all(uid));
@@ -1290,7 +1294,7 @@ api['GET /api/attendance/log'] = async (req, res, user, url) => {
   const rows = await db.prepare(`SELECT a.id,a.user_id,a.date,a.check_in,a.check_out,a.note,
       u.name user_name, u.job_title, u.role, u.shift_start, u.off_days
     FROM attendance a JOIN users u ON u.id=a.user_id
-    WHERE u.role IN ('staff','manager') AND a.date >= ? AND a.date <= ?
+    WHERE u.role IN ('staff','manager','admin') AND a.date >= ? AND a.date <= ?
     ORDER BY a.date DESC, u.name`).all(from, to);
   // Each day says for itself whether half of it was lost, measured the same way
   // the salary sheet measures it — so the book and the pay agree.

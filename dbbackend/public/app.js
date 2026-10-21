@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v195';
+const APP_VERSION = 'v196';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -635,6 +635,7 @@ function groupOf(page) {
 const NAV = {
   admin: [
     ['home', 'Home', '⌂'],
+    ['mycheck', 'Check in / out', '🕒'],
     ['members', 'Members', '👥'],
     ['academy', 'Academy', '🎓'],
     ['classroom', 'Classroom', '📚'],
