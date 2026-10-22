@@ -366,6 +366,7 @@ const markPills = (m) => m.off ? '<span class="d-pill off">Off day</span>'
   : `${m.half ? '<span class="d-pill late">Half day</span>' : ''}${m.late ? `<span class="d-pill late">Late ${fmtDur(m.late)}</span>` : ''}${m.over ? `<span class="d-pill over">Overtime ${fmtDur(m.over)}</span>` : ''}${(!m.late && !m.over && !m.half) ? '<span class="d-pill ok">On time</span>' : ''}`;
 
 function attScreen(c, att, titleTxt) {
+  window._myAtt = att;          // so a day can be corrected with what is already on it
   const rec = att.find((a) => a.date === today());
   const st = (!rec || !rec.check_in) ? 'out' : (!rec.check_out ? 'in' : 'done');
   const now = new Date();
@@ -407,7 +408,9 @@ function attScreen(c, att, titleTxt) {
        ${ring}
        ${status}
      </div>
-     <button class="btn ghost sm" style="margin:0 0 14px" onclick="requestManualLog()">🕒 Forgot to check in/out? Request a manual log</button>
+     ${state.user.role === 'admin'
+    ? `<button class="btn ghost sm" style="margin:0 0 14px" onclick="fixMyDay()">✎ Forgot to check in/out? Put the day right</button>`
+    : `<button class="btn ghost sm" style="margin:0 0 14px" onclick="requestManualLog()">🕒 Forgot to check in/out? Request a manual log</button>`}
      <div class="sec-title">This month</div>
      <div class="grid g2" style="margin-bottom:14px">
        <div class="stat" style="--c1:#d24b62;--c2:#f0a3b0;--glow:210,75,98">
@@ -474,6 +477,22 @@ window.requestManualLog = () => formModal('Request manual log', [
   { name: 'time', label: 'Time', type: 'time' },
   { name: 'reason', label: 'Reason (optional)' },
 ], async (d) => { await POST('/api/attendance-requests', d); toast('Request sent to admin ✓'); go(state.page); });
+
+/* The owner has nobody to ask — she is who the others ask. So she puts her own
+   day right where she stands, and a day already written down is corrected
+   rather than written a second time. */
+window.fixMyDay = () => {
+  const mine = (window._myAtt || []).find((a) => a.date === today()) || {};
+  formModal('Put the day right', [
+    { name: 'date', label: 'Day', type: 'date', required: true, value: today() },
+    { name: 'check_in', label: 'In', type: 'time', value: mine.check_in || '' },
+    { name: 'check_out', label: 'Out', type: 'time', value: mine.check_out || '' },
+  ], async (d) => {
+    const r = await POST('/api/attendance', { ...d, user_id: state.user.id, note: 'by hand' });
+    toast(r && r.corrected ? 'Day put right ✓' : 'Day written down ✓');
+    go(state.page);
+  });
+};
 
 /* ============ STAFF HOME (attendance) ============ */
 PAGES.home_staff = async (c) => {

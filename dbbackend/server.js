@@ -1408,11 +1408,26 @@ api['PUT /api/attendance-requests/:id/decide'] = async (req, res, user, url, par
   send(res, 200, { ok: true });
 };
 api['DELETE /api/attendance-requests/:id'] = async (req, res, user, url, params) => { if (!requireAdmin(user, res)) return; await db.prepare('DELETE FROM attendance_requests WHERE id=?').run(params.id); send(res, 200, { ok: true }); };
+/* A day written in by hand. One row per person per day, because everything that
+   reads a timesheet assumes it: a second row for the same date showed as an
+   extra day worked in the book, doubled the hours, and left the salary sheet
+   quietly using whichever of the two it read last. So a day already there is
+   corrected rather than written again. */
 api['POST /api/attendance'] = async (req, res, user) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
-  const r = await db.prepare('INSERT INTO attendance (user_id,date,check_in,check_out,note,tz_ok) VALUES (?,?,?,?,?,1)').run(b.user_id, b.date, b.check_in || null, b.check_out || null, b.note || null);
-  send(res, 200, { id: r.lastInsertRowid });
+  const uid = Number(b.user_id);
+  const date = String(b.date || '').slice(0, 10);
+  if (!uid || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return send(res, 400, { error: 'Who it is for and which day are both needed' });
+  const cur = await db.prepare('SELECT id,check_in,check_out,note FROM attendance WHERE user_id=? AND date=?').get(uid, date);
+  if (cur) {
+    // Only what was actually filled in is changed; the rest of the day stands.
+    await db.prepare('UPDATE attendance SET check_in=?, check_out=?, note=?, tz_ok=1 WHERE id=?')
+      .run(b.check_in || cur.check_in || null, b.check_out || cur.check_out || null, b.note || cur.note || null, cur.id);
+    return send(res, 200, { id: cur.id, corrected: true });
+  }
+  const r = await db.prepare('INSERT INTO attendance (user_id,date,check_in,check_out,note,tz_ok) VALUES (?,?,?,?,?,1)').run(uid, date, b.check_in || null, b.check_out || null, b.note || null);
+  send(res, 200, { id: r.lastInsertRowid, corrected: false });
 };
 api['GET /api/salaries'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
