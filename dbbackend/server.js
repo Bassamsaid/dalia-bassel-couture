@@ -2827,7 +2827,11 @@ function serveStatic(req, res, pathname) {
     filePath = path.join(UPLOAD_DIR, pathname.slice('/uploads/'.length));
   } else {
     root = PUBLIC_DIR;
-    filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : pathname);
+    // `/next` is the rewritten app's own corner while it is being built screen
+    // by screen. It has its own front page, so asking for the folder must not
+    // fall through to the app in service and quietly serve the old one instead.
+    const forNext = pathname === '/next' || pathname === '/next/';
+    filePath = path.join(PUBLIC_DIR, pathname === '/' ? 'index.html' : forNext ? 'next/index.html' : pathname);
   }
   if (!path.resolve(filePath).startsWith(path.resolve(root))) return send(res, 403, { error: 'forbidden' });
 
@@ -2860,9 +2864,10 @@ function serveStatic(req, res, pathname) {
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      // SPA fallback
+      // SPA fallback — each app answers for its own addresses
       if (!pathname.startsWith('/api') && !pathname.startsWith('/uploads')) {
-        return fs.readFile(path.join(PUBLIC_DIR, 'index.html'), (e2, d2) => e2 ? send(res, 404, { error: 'not found' }) : res.writeHead(200, { 'Content-Type': MIME['.html'] }) & res.end(d2));
+        const shell = pathname.startsWith('/next/') ? path.join(PUBLIC_DIR, 'next', 'index.html') : path.join(PUBLIC_DIR, 'index.html');
+        return fs.readFile(shell, (e2, d2) => e2 ? send(res, 404, { error: 'not found' }) : res.writeHead(200, { 'Content-Type': MIME['.html'] }) & res.end(d2));
       }
       return send(res, 404, { error: 'not found' });
     }
