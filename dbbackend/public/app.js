@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v197';
+const APP_VERSION = 'v198';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -726,6 +726,15 @@ function renderApp() {
   // default landing = the Dalia feed (falls back to the first nav item)
   let start = state.nav.some(([k]) => k === 'dalia') && !isHidden('dalia') ? 'dalia' : state.nav[0][0];
   if (window._forceStart && state.nav.some(([k]) => k === window._forceStart)) { start = window._forceStart; window._forceStart = null; }
+  // ?page=… so a screen already rewritten can hand somebody back to one that is
+  // not yet, and land her on it rather than wherever she happened to be last.
+  try {
+    const asked = new URLSearchParams(location.search).get('page');
+    if (asked && PAGES[asked] && state.nav.some(([k]) => k === asked)) {
+      start = asked;
+      history.replaceState({ root: true }, '', location.pathname);
+    }
+  } catch (e) { /* a browser that will not give up its query is no reason to fail */ }
   try {
     const route = JSON.parse(localStorage.getItem('dalia_route') || 'null');
     if (route && route.page && PAGES[route.page]) {
