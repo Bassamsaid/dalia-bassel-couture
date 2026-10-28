@@ -3998,7 +3998,7 @@ PAGES.staffmember = async (c) => {
         ${kv('Absent days', sal.absent_days + ' day(s)')}
         ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
         ${sal.half_days ? kv(`Half days · in after ${esc(sal.half_day_after || '')}`, sal.half_days + ' day(s)') + kv('− Half-day deduction', money(sal.half_day_deduction || 0), 'bad') : ''}
-        ${kv('Late (beyond grace)', (sal.late_minutes || 0) + ' min')}
+        ${kv('Late (beyond grace)', (sal.late_minutes || 0) + ' min ×' + (sal.late_mult || 1))}
         ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
         ${kv('Overtime', (sal.overtime_minutes || 0) + ' min ×' + (sal.overtime_mult || 1.5))}
         ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
@@ -4091,7 +4091,7 @@ window.runningMonth = async (id) => {
     ${kv('Absent so far', `${m.absent_days} day(s)`, m.absent_days ? 'bad' : '')}
     ${m.paid_leave_days ? kv('Paid leave', `${m.paid_leave_days} day(s)`, 'ok') : ''}
     ${m.half_days ? kv('− Half days', `${m.half_days} × ${moneyText((m.daily || 0) / 2)} · in after ${esc(m.half_day_after || '')}`, 'bad') : ''}
-    ${m.late_minutes ? kv('− Late', `${m.late_minutes} min · ${moneyText(m.late_deduction)}`, 'bad') : ''}
+    ${m.late_minutes ? kv('− Late', `${m.late_minutes} min ×${m.late_mult || 1} · ${moneyText(m.late_deduction)}`, 'bad') : ''}
     ${m.overtime_minutes ? kv('+ Overtime', `${m.overtime_minutes} min · ${moneyText(m.overtime_pay)}`, 'ok') : ''}
     ${m.advances ? kv('− Advances', money(m.advances), 'bad') : ''}
     <div class="hint" style="margin:8px 2px 0">Updates itself as the day is checked in and out. The full month's figure is on the Salary tab.</div>`;
@@ -4249,12 +4249,13 @@ PAGES.config = async (c) => {
       <label>Check-in time</label><input id="cfg_check_in_time" type="time" value="${esc(s.check_in_time || '09:00')}" />
       <label>Check-out time</label><input id="cfg_check_out_time" type="time" value="${esc(s.check_out_time || '17:00')}" />
       <label>Late grace (minutes)</label><input id="cfg_late_grace_min" type="number" inputmode="numeric" value="${esc(s.late_grace_min || '15')}" />
-      <label>Overtime multiplier (×)</label><input id="cfg_overtime_mult" type="number" inputmode="decimal" step="0.1" value="${esc(s.overtime_mult || '1.5')}" />
+      <label>Overtime and lateness multiplier (×)</label><input id="cfg_overtime_mult" type="number" inputmode="decimal" step="0.1" value="${esc(s.overtime_mult || '1.5')}" />
+      <div class="hint" style="margin-top:6px">One number, both directions: an extra hour pays this much, and an hour late costs this much.</div>
       <div class="divider"></div>
       <label>Half a day is lost if she comes in after</label><input id="cfg_half_day_after" type="time" value="${esc(s.half_day_after || '')}" />
       <label>Counting from</label><input id="cfg_half_day_from" type="date" value="${esc(s.half_day_from || '')}" />
       <div class="hint" style="margin-top:6px">Half the day comes off instead of the late minutes, not on top of them. A manual log counts the same; a paid off-day never does. Her own hours carry the same gap. Days before the date are left alone. Empty switches it off.</div>
-      <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace deducts at the hourly rate; overtime pays at the multiplier. Each staff's paid weekly off-days are set on their profile.</div>
+      <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace and overtime are both counted at the multiplier, one off and one on. Each staff's paid weekly off-days are set on their profile.</div>
       <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month','check_in_time','check_out_time','late_grace_min','overtime_mult','half_day_after','half_day_from'])">Save</button></div>`;
   } else if (tab === 'location') {
     const gLat = esc(s.geo_lat || ''), gLng = esc(s.geo_lng || '');

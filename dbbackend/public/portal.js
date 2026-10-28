@@ -702,7 +702,7 @@ function salaryBreakdown(s, month) {
   const off = [];
   if (s.absent_days) off.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'bad'));
   if (s.half_days) off.push(line('Half days', `${s.half_days} day(s) in after ${esc(s.half_day_after || '')} — half of ${moneyText(s.daily)} each`, '− ' + money(s.half_day_deduction), 'bad'));
-  if (s.late_minutes) off.push(line('Lateness', `${s.late_minutes} min past the grace period`, '− ' + money(s.late_deduction), 'bad'));
+  if (s.late_minutes) off.push(line('Lateness', `${s.late_minutes} min past the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + money(s.late_deduction), 'bad'));
   if (s.deductions) off.push(line('Deductions', '', '− ' + money(s.deductions), 'bad'));
   if (s.advances) off.push(line('Advances taken', 'already in hand', '− ' + money(s.advances), 'bad'));
 
