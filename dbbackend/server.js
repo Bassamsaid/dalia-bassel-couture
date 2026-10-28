@@ -1987,7 +1987,10 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   const r2 = (x) => Math.round(x * 100) / 100;
   const absenceDeduction = r2(daily * absDays);
   const halfDayDeduction = r2(daily * 0.5 * halfDays);
-  const lateDeduction = r2((lateMin / 60) * hourly);
+  // Lateness comes off exactly the way overtime goes on — the same multiplier,
+  // in the other direction. An hour not given back is worth what an hour given
+  // is worth, and the studio would rather the two read as one rule than as two.
+  const lateDeduction = r2((lateMin / 60) * otMult * hourly);
   const overtimePay = r2((otMin / 60) * otMult * hourly);
   // At the plain rate: the studio's sheet keeps this on a line of its own, apart
   // from the overtime it pays at one and a half.
@@ -2005,7 +2008,8 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     shift_start: shiftIn, shift_end: shiftOut, shift_is_own: !!(u.shift_start || u.shift_end),
     absent_days: absDays, absence_deduction: absenceDeduction,
     present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
-    late_minutes: lateMin, late_deduction: lateDeduction, overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
+    late_minutes: lateMin, late_deduction: lateDeduction, late_mult: otMult,
+    overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
     half_days: halfDays, half_day_deduction: halfDayDeduction,
     half_day_after: halfCut === null ? null : min2hm(halfCut), half_day_from: halfFrom,
     extra_hours: r2(extraHours), extra_task_pay: extraTaskPay,
