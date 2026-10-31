@@ -1931,7 +1931,14 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
           const worked = hm2min(a.check_out) - hm2min(a.check_in);
           if (worked > 0) { row.ot_min = worked; row.off_day_worked = true; otMin += worked; otOffMin += worked; offWorkedDays++; }
         } else {
-          const ot = hm2min(a.check_out) - outMin;
+          // Never more overtime than there were minutes in the day. Somebody who
+          // forgot to check in and tapped once on her way out is written down as
+          // arriving and leaving at the same minute: nine hours of work, nothing
+          // on the sheet — and an hour and a half of overtime for it, because the
+          // going-home time had passed. The hours worked are the ceiling, so a
+          // day that was never worked cannot be paid as one that ran late.
+          const worked = Math.max(0, hm2min(a.check_out) - hm2min(a.check_in));
+          const ot = Math.min(hm2min(a.check_out) - outMin, worked);
           if (ot > 0) { row.ot_min = ot; otMin += ot; }
         }
       }
