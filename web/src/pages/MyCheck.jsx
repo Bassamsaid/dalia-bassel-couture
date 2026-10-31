@@ -31,7 +31,6 @@ export default function MyCheck({ user, cfg, go }) {
   const lateTotal = mine.reduce((x, r) => x + r.m.late, 0);
   const overTotal = mine.reduce((x, r) => x + r.m.over, 0);
   const lateDays = mine.filter((r) => r.m.late).length;
-  const halfDays = mine.filter((r) => r.m.half).length;
 
   const check = async () => {
     if (busy) return;
@@ -64,7 +63,6 @@ export default function MyCheck({ user, cfg, go }) {
         <div className="ck-shift">
           Your shift · {hhmmOf(s.inMin)} – {hhmmOf(s.outMin)}
           {s.grace ? ` · ${s.grace}m grace` : ''}
-          {s.halfCut !== null ? ` · in after ${hhmmOf(s.halfCut)} is half a day` : ''}
         </div>
 
         {st === 'done'
@@ -81,11 +79,9 @@ export default function MyCheck({ user, cfg, go }) {
           <div className="ck-running">
             <div className="run-k">Working since {rec.check_in}</div>
             <div className="run-t">{runningSince(rec.check_in)}</div>
-            {marks && marks.half
-              ? <div className="d-pills"><span className="d-pill late">Half day · in after {hhmmOf(s.halfCut)}</span></div>
-              : marks && marks.late
-                ? <div className="d-pills"><span className="d-pill late">Came in {fmtDur(marks.late)} late</span></div>
-                : null}
+            {marks && marks.late
+              ? <div className="d-pills"><span className="d-pill late">Came in {fmtDur(marks.late)} late</span></div>
+              : null}
           </div>
         )}
         {st === 'done' && (
@@ -135,8 +131,8 @@ export default function MyCheck({ user, cfg, go }) {
       <div className="sec-title">This month</div>
       <div className="grid g2" style={{ marginBottom: 14 }}>
         <div className="stat" style={{ '--c1': '#d24b62', '--c2': '#f0a3b0', '--glow': '210,75,98' }}>
-          <div className="n" style={{ color: lateTotal || halfDays ? 'var(--bad)' : 'var(--ok)' }}>{fmtDur(lateTotal)}</div>
-          <div className="l">Late · {lateDays} day{lateDays === 1 ? '' : 's'}{halfDays ? ` · ½ ×${halfDays}` : ''}</div>
+          <div className="n" style={{ color: lateTotal ? 'var(--bad)' : 'var(--ok)' }}>{fmtDur(lateTotal)}</div>
+          <div className="l">Late · {lateDays} day{lateDays === 1 ? '' : 's'}</div>
         </div>
         <div className="stat" style={{ '--c1': '#2f9d66', '--c2': '#7fd3a6', '--glow': '47,157,102' }}>
           <div className="n" style={{ color: 'var(--ok)' }}>{fmtDur(overTotal)}</div>
