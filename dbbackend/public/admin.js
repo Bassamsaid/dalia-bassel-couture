@@ -3993,6 +3993,7 @@ PAGES.staffmember = async (c) => {
         ${kv('Late (beyond grace)', (sal.late_minutes || 0) + ' min ×' + (sal.late_mult || 1))}
         ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
         ${kv('Overtime', (sal.overtime_minutes || 0) + ' min ×' + (sal.overtime_mult || 1.5))}
+        ${sal.overtime_off_day_minutes ? kv('… of which days off she worked', `${sal.off_days_worked} day(s) · ${sal.overtime_off_day_minutes} min`) + kv('… and hours past going-home time', `${(sal.overtime_minutes || 0) - sal.overtime_off_day_minutes} min`) : ''}
         ${kv('+ Overtime pay', money(sal.overtime_pay || 0), 'ok')}
         ${sal.extra_hours ? kv('Extra task hours', sal.extra_hours + ' h at the plain rate') + kv('+ Extra task pay', money(sal.extra_task_pay || 0), 'ok') : ''}
         ${kv('+ Bonus', money(sal.bonus || 0), 'ok')}
