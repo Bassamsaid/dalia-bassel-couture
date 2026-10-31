@@ -352,7 +352,13 @@ function dayMarks(a) {
   const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
   let late = 0, over = 0;
   if (a.check_in) { const l = toMin(a.check_in) - s.inMin; if (l > s.grace) late = l - s.grace; }
-  if (a.check_out) { const o = toMin(a.check_out) - s.outMin; if (o > 0) over = o; }
+  if (a.check_out) {
+    // never more overtime than there were minutes in the day — the salary
+    // sheet's own ceiling, so this screen cannot promise what it will not pay
+    const worked = Math.max(0, toMin(a.check_out) - toMin(a.check_in || a.check_out));
+    const o = Math.min(toMin(a.check_out) - s.outMin, worked);
+    if (o > 0) over = o;
+  }
   return { off: false, late, over };
 }
 const markPills = (m) => m.off
@@ -448,8 +454,25 @@ function getPosition() {
     navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
   });
 }
+/* The first tap of the day says "I have arrived". That is almost never what it
+   means when it comes after going-home time: somebody who forgot to check in
+   this morning taps on her way out, and the day is written down as arriving and
+   leaving at the same minute — nine hours worked, none of them on the sheet. So
+   at that hour it asks, rather than guessing, and sends her to the manual log
+   when the answer is no. */
+async function askIfSheIsArriving() {
+  const s = shift();
+  const nowMin = (() => { const [h, m] = _hhmm(new Date()).split(':').map(Number); return h * 60 + m; })();
+  if (nowMin <= s.outMin) return true;
+  return confirm(`It is ${hhmmOf(nowMin)}, and nothing is written down for you today.\n\nTapping now writes it down as you ARRIVING at ${hhmmOf(nowMin)}.\n\nIs that right — are you only getting here now?\n\nIf you forgot to check in this morning, choose Cancel and ask for the day to be put right.`);
+}
 window.doAttCheck = async () => {
   const cfg = window._cfg || {};
+  // nothing written down yet today, and the day is already over
+  const rec = (window._myAtt || []).find((a) => a.date === today());
+  if (!rec || !rec.check_in) {
+    if (!await askIfSheIsArriving()) { requestManualLog(); return; }
+  }
   let body = {};
   if (cfg.geo_enabled === '1' && cfg.geo_lat) {
     toast('Getting your location…');

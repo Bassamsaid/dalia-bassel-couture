@@ -34,6 +34,22 @@ export default function MyCheck({ user, cfg, go }) {
 
   const check = async () => {
     if (busy) return;
+    // The first tap of the day says "I have arrived", which is almost never what
+    // it means after going-home time: somebody who forgot to check in this
+    // morning taps on her way out, and the day is written down as arriving and
+    // leaving at the same minute. So at that hour it asks rather than guesses.
+    if (st === 'out') {
+      const [h, m] = clockIn(new Date(), STUDIO_TZ).split(':').map(Number);
+      const nowMin = h * 60 + m;
+      if (nowMin > s.outMin && !window.confirm(
+        `It is ${hhmmOf(nowMin)}, and nothing is written down for you today.\n\n`
+        + `Tapping now writes it down as you ARRIVING at ${hhmmOf(nowMin)}.\n\n`
+        + 'Is that right — are you only getting here now?\n\n'
+        + 'If you forgot to check in this morning, choose Cancel and put the day right instead.')) {
+        setForm(user.role === 'admin' ? 'fix' : 'ask');
+        return;
+      }
+    }
     setBusy(true);
     try {
       let body = {};

@@ -58,7 +58,13 @@ export function dayMarks(a, cfg, me) {
   const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
   let late = 0, over = 0;
   if (a.check_in) { const l = toMin(a.check_in) - s.inMin; if (l > s.grace) late = l - s.grace; }
-  if (a.check_out) { const o = toMin(a.check_out) - s.outMin; if (o > 0) over = o; }
+  if (a.check_out) {
+    // never more overtime than there were minutes in the day — the salary
+    // sheet's own ceiling, so this screen cannot promise what it will not pay
+    const worked = Math.max(0, toMin(a.check_out) - toMin(a.check_in || a.check_out));
+    const o = Math.min(toMin(a.check_out) - s.outMin, worked);
+    if (o > 0) over = o;
+  }
   return { off: false, late, over };
 }
 
