@@ -37,16 +37,10 @@ export function runningSince(at) {
 export function shift(cfg = {}, me = {}) {
   // Her own hours if she has them, the studio's otherwise.
   const inMin = hm(me.shift_start || cfg.check_in_time, '09:00');
-  // Coming in later than this costs half the day. Held as the gap from the
-  // start of the day rather than a fixed hour, so her own start carries it.
-  const gap = /^\d{1,2}:\d{2}$/.test(String(cfg.half_day_after || ''))
-    ? hm(cfg.half_day_after, '11:00') - hm(cfg.check_in_time, '09:00') : 0;
   return {
     inMin,
     outMin: hm(me.shift_end || cfg.check_out_time, '17:00'),
     grace: Number(cfg.late_grace_min) || 0,
-    halfCut: gap > 0 && inMin + gap < 1440 ? inMin + gap : null,
-    halfFrom: /^\d{4}-\d{2}-\d{2}$/.test(String(cfg.half_day_from || '')) ? String(cfg.half_day_from) : null,
   };
 }
 
@@ -58,26 +52,19 @@ export function dayMarks(a, cfg, me) {
     // Her day off. If she came in anyway, the whole of it is overtime — the day
     // was paid for either way, so every hour of it was given rather than owed.
     const over = (a.check_in && a.check_out) ? attMins(a.check_in, a.check_out) : 0;
-    return { off: true, late: 0, over, half: false };
+    return { off: true, late: 0, over };
   }
   const s = shift(cfg, me);
   const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
-  let late = 0, over = 0, half = false;
-  if (a.check_in) {
-    const l = toMin(a.check_in) - s.inMin;
-    // Past the hour it stops being minutes and becomes half the day — and only
-    // one of the two is charged for.
-    if (s.halfCut !== null && (!s.halfFrom || a.date >= s.halfFrom) && toMin(a.check_in) > s.halfCut) half = true;
-    else if (l > s.grace) late = l - s.grace;
-  }
+  let late = 0, over = 0;
+  if (a.check_in) { const l = toMin(a.check_in) - s.inMin; if (l > s.grace) late = l - s.grace; }
   if (a.check_out) { const o = toMin(a.check_out) - s.outMin; if (o > 0) over = o; }
-  return { off: false, late, over, half };
+  return { off: false, late, over };
 }
 
 export function markPills(m) {
   if (m.off) return m.over ? [['off', 'Off day'], ['over', `Came in · ${fmtDur(m.over)} overtime`]] : [['off', 'Off day']];
   const pills = [];
-  if (m.half) pills.push(['late', 'Half day']);
   if (m.late) pills.push(['late', `Late ${fmtDur(m.late)}`]);
   if (m.over) pills.push(['over', `Overtime ${fmtDur(m.over)}`]);
   if (!pills.length) pills.push(['ok', 'On time']);

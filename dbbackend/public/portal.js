@@ -331,16 +331,10 @@ function shift() {
   // salary sheet reads them in, so this screen never calls her late when the
   // sheet does not.
   const inMin = hm(me.shift_start || cfg.check_in_time, '09:00');
-  // Coming in later than this costs half the day. Held as the gap from the start
-  // of the day rather than a fixed hour, so her own start carries it with her.
-  const gap = /^\d{1,2}:\d{2}$/.test(String(cfg.half_day_after || ''))
-    ? hm(cfg.half_day_after, '11:00') - hm(cfg.check_in_time, '09:00') : 0;
   return {
     inMin,
     outMin: hm(me.shift_end || cfg.check_out_time, '17:00'),
     grace: Number(cfg.late_grace_min) || 0,
-    halfCut: gap > 0 && inMin + gap < 1440 ? inMin + gap : null,
-    halfFrom: /^\d{4}-\d{2}-\d{2}$/.test(String(cfg.half_day_from || '')) ? String(cfg.half_day_from) : null,
   };
 }
 const hhmmOf = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -356,20 +350,14 @@ function dayMarks(a) {
   }
   const s = shift();
   const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
-  let late = 0, over = 0, half = false;
-  if (a.check_in) {
-    const l = toMin(a.check_in) - s.inMin;
-    // Past the hour, it stops being minutes and becomes half the day — and only
-    // one of the two is charged for.
-    if (s.halfCut !== null && (!s.halfFrom || a.date >= s.halfFrom) && toMin(a.check_in) > s.halfCut) half = true;
-    else if (l > s.grace) late = l - s.grace;
-  }
+  let late = 0, over = 0;
+  if (a.check_in) { const l = toMin(a.check_in) - s.inMin; if (l > s.grace) late = l - s.grace; }
   if (a.check_out) { const o = toMin(a.check_out) - s.outMin; if (o > 0) over = o; }
-  return { off: false, late, over, half };
+  return { off: false, late, over };
 }
 const markPills = (m) => m.off
   ? `<span class="d-pill off">Off day</span>${m.over ? `<span class="d-pill over">Came in · ${fmtDur(m.over)} overtime</span>` : ''}`
-  : `${m.half ? '<span class="d-pill late">Half day</span>' : ''}${m.late ? `<span class="d-pill late">Late ${fmtDur(m.late)}</span>` : ''}${m.over ? `<span class="d-pill over">Overtime ${fmtDur(m.over)}</span>` : ''}${(!m.late && !m.over && !m.half) ? '<span class="d-pill ok">On time</span>' : ''}`;
+  : `${m.late ? `<span class="d-pill late">Late ${fmtDur(m.late)}</span>` : ''}${m.over ? `<span class="d-pill over">Overtime ${fmtDur(m.over)}</span>` : ''}${(!m.late && !m.over) ? '<span class="d-pill ok">On time</span>' : ''}`;
 
 function attScreen(c, att, titleTxt) {
   window._myAtt = att;          // so a day can be corrected with what is already on it
@@ -378,7 +366,7 @@ function attScreen(c, att, titleTxt) {
   const now = new Date();
   const s = shift();
   const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
-  const shiftLine = `<div class="ck-shift">Your shift · ${hhmmOf(s.inMin)} – ${hhmmOf(s.outMin)}${s.grace ? ` · ${s.grace}m grace` : ''}${s.halfCut !== null ? ` · in after ${hhmmOf(s.halfCut)} is half a day` : ''}</div>`;
+  const shiftLine = `<div class="ck-shift">Your shift · ${hhmmOf(s.inMin)} – ${hhmmOf(s.outMin)}${s.grace ? ` · ${s.grace}m grace` : ''}</div>`;
   const ring = st === 'out'
     ? `<button class="ck-ring out" onclick="doAttCheck()"><span class="ic">🕒</span><span class="lbl">Check in</span></button>`
     : st === 'in'
@@ -391,8 +379,7 @@ function attScreen(c, att, titleTxt) {
       ? `<div class="ck-running">
            <div class="run-k">Working since ${rec.check_in}</div>
            <div class="run-t" id="ckRun" data-since="${rec.check_in}">0:00:00</div>
-           ${todayMarks && todayMarks.half ? `<div class="d-pills"><span class="d-pill late">Half day · in after ${hhmmOf(s.halfCut)}</span></div>`
-    : todayMarks && todayMarks.late ? `<div class="d-pills"><span class="d-pill late">Came in ${fmtDur(todayMarks.late)} late</span></div>` : ''}
+           ${todayMarks && todayMarks.late ? `<div class="d-pills"><span class="d-pill late">Came in ${fmtDur(todayMarks.late)} late</span></div>` : ''}
          </div>`
       : `<div class="ck-pills"><div class="ck-pill"><div class="k">In</div><div class="v">${rec.check_in}</div></div>
          <div class="ck-pill"><div class="k">Out</div><div class="v">${rec.check_out}</div></div>
@@ -405,7 +392,6 @@ function attScreen(c, att, titleTxt) {
   const lateTotal = mine.reduce((x, r) => x + r.m.late, 0);
   const overTotal = mine.reduce((x, r) => x + r.m.over, 0);
   const lateDays = mine.filter((r) => r.m.late).length;
-  const halfDays = mine.filter((r) => r.m.half).length;
 
   c.innerHTML = pageHead(titleTxt, '🕒') +
     `<div class="card checkin">
@@ -420,8 +406,8 @@ function attScreen(c, att, titleTxt) {
      <div class="sec-title">This month</div>
      <div class="grid g2" style="margin-bottom:14px">
        <div class="stat" style="--c1:#d24b62;--c2:#f0a3b0;--glow:210,75,98">
-         <div class="n" style="color:${lateTotal || halfDays ? 'var(--bad)' : 'var(--ok)'}">${fmtDur(lateTotal)}</div>
-         <div class="l">Late · ${lateDays} day${lateDays === 1 ? '' : 's'}${halfDays ? ` · ½ ×${halfDays}` : ''}</div></div>
+         <div class="n" style="color:${lateTotal ? 'var(--bad)' : 'var(--ok)'}">${fmtDur(lateTotal)}</div>
+         <div class="l">Late · ${lateDays} day${lateDays === 1 ? '' : 's'}</div></div>
        <div class="stat" style="--c1:#2f9d66;--c2:#7fd3a6;--glow:47,157,102">
          <div class="n" style="color:var(--ok)">${fmtDur(overTotal)}</div><div class="l">Overtime</div></div>
      </div>
@@ -707,7 +693,6 @@ function salaryBreakdown(s, month) {
 
   const off = [];
   if (s.absent_days) off.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'bad'));
-  if (s.half_days) off.push(line('Half days', `${s.half_days} day(s) in after ${esc(s.half_day_after || '')} — half of ${moneyText(s.daily)} each`, '− ' + money(s.half_day_deduction), 'bad'));
   if (s.late_minutes) off.push(line('Lateness', `${s.late_minutes} min past the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + money(s.late_deduction), 'bad'));
   if (s.deductions) off.push(line('Deductions', '', '− ' + money(s.deductions), 'bad'));
   if (s.advances) off.push(line('Advances taken', 'already in hand', '− ' + money(s.advances), 'bad'));
@@ -718,7 +703,6 @@ function salaryBreakdown(s, month) {
       ${s.paid_leave_days ? `<span><b>${s.paid_leave_days}</b> paid leave</span>` : ''}
       <span><b>${s.off_days}</b> day(s) off</span>
       ${s.absent_days ? `<span class="bad"><b>${s.absent_days}</b> absent</span>` : ''}
-      ${s.half_days ? `<span class="bad"><b>${s.half_days}</b> half day(s)</span>` : ''}
     </div>
     <div class="sec-title">What the month earned</div>
     ${earned.join('')}
