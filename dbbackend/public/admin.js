@@ -4060,14 +4060,16 @@ PAGES.staffmember = async (c) => {
   if (tab === 'overview') runningMonth(id);
 };
 // What a day on the sheet is, in one word.
-window.attBadge = (d) => ({
-  present:      '<span class="badge ok">Present</span>',
-  absent:       '<span class="badge bad">Absent</span>',
-  paid_leave:   '<span class="badge ok">Paid absence</span>',
-  unpaid_leave: '<span class="badge bad">Unpaid leave</span>',
-  off:          '<span class="badge">Day off</span>',
-  today:        '<span class="badge warn">Today — not in yet</span>',
-}[d.status] || '');
+window.attBadge = (d) => (d.off_day_worked
+  ? '<span class="badge ok">Day off · came in</span>'
+  : {
+    present:      '<span class="badge ok">Present</span>',
+    absent:       '<span class="badge bad">Absent</span>',
+    paid_leave:   '<span class="badge ok">Paid absence</span>',
+    unpaid_leave: '<span class="badge bad">Unpaid leave</span>',
+    off:          '<span class="badge">Day off</span>',
+    today:        '<span class="badge warn">Today — not in yet</span>',
+  }[d.status] || '');
 
 /* What the month has come to so far, filled in after the page draws so the rest
    of the screen is not held up waiting for it. It moves with every check-in and
@@ -4255,7 +4257,7 @@ PAGES.config = async (c) => {
       <label>Half a day is lost if she comes in after</label><input id="cfg_half_day_after" type="time" value="${esc(s.half_day_after || '')}" />
       <label>Counting from</label><input id="cfg_half_day_from" type="date" value="${esc(s.half_day_from || '')}" />
       <div class="hint" style="margin-top:6px">Half the day comes off instead of the late minutes, not on top of them. A manual log counts the same; a paid off-day never does. Her own hours carry the same gap. Days before the date are left alone. Empty switches it off.</div>
-      <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace and overtime are both counted at the multiplier, one off and one on. Each staff's paid weekly off-days are set on their profile.</div>
+      <div class="hint" style="margin-top:6px">Daily = base ÷ working days · Hourly = daily ÷ (check-out − check-in). Lateness beyond the grace and overtime are both counted at the multiplier, one off and one on. Each staff's paid weekly off-days are set on their profile — and a day off she comes in on anyway counts as overtime from the first hour to the last.</div>
       <button class="btn" style="margin-top:12px" onclick="saveCfg(['work_days_per_month','check_in_time','check_out_time','late_grace_min','overtime_mult','half_day_after','half_day_from'])">Save</button></div>`;
   } else if (tab === 'location') {
     const gLat = esc(s.geo_lat || ''), gLng = esc(s.geo_lng || '');

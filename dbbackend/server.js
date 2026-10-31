@@ -1960,7 +1960,19 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
         && !off.has(row.weekday) && hm2min(a.check_in) > halfCut;
       if (lostHalf) { row.half_day = true; halfDays++; }
       else if (!off.has(row.weekday) && late > grace) { row.late_min = late - grace; lateMin += row.late_min; }
-      if (a.check_out) { const ot = hm2min(a.check_out) - outMin; if (!off.has(row.weekday) && ot > 0) { row.ot_min = ot; otMin += ot; } }
+      if (a.check_out) {
+        if (off.has(row.weekday)) {
+          // Her day off, and she came in anyway. The day was already paid for
+          // whether she came or not, so every hour of it was given rather than
+          // owed — the whole of it counts as overtime, not just what ran past
+          // the usual going-home time.
+          const worked = hm2min(a.check_out) - hm2min(a.check_in);
+          if (worked > 0) { row.ot_min = worked; row.off_day_worked = true; otMin += worked; }
+        } else {
+          const ot = hm2min(a.check_out) - outMin;
+          if (ot > 0) { row.ot_min = ot; otMin += ot; }
+        }
+      }
     } else if (off.has(row.weekday)) {
       row.status = 'off'; offDays++;
     } else if (leave[date] && leave[date] !== 'unpaid') {

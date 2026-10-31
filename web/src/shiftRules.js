@@ -54,7 +54,12 @@ const offDays = (me) => new Set(String((me && me.off_days) || '').split(',').map
 const weekdayOf = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 
 export function dayMarks(a, cfg, me) {
-  if (offDays(me).has(weekdayOf(a.date))) return { off: true, late: 0, over: 0, half: false };
+  if (offDays(me).has(weekdayOf(a.date))) {
+    // Her day off. If she came in anyway, the whole of it is overtime — the day
+    // was paid for either way, so every hour of it was given rather than owed.
+    const over = (a.check_in && a.check_out) ? attMins(a.check_in, a.check_out) : 0;
+    return { off: true, late: 0, over, half: false };
+  }
   const s = shift(cfg, me);
   const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
   let late = 0, over = 0, half = false;
@@ -70,7 +75,7 @@ export function dayMarks(a, cfg, me) {
 }
 
 export function markPills(m) {
-  if (m.off) return [['off', 'Off day']];
+  if (m.off) return m.over ? [['off', 'Off day'], ['over', `Came in · ${fmtDur(m.over)} overtime`]] : [['off', 'Off day']];
   const pills = [];
   if (m.half) pills.push(['late', 'Half day']);
   if (m.late) pills.push(['late', `Late ${fmtDur(m.late)}`]);

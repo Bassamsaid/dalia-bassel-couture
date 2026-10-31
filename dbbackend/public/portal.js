@@ -348,7 +348,12 @@ const _offDays = () => new Set(String((state.user && state.user.off_days) || '')
   .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
 const _weekdayOf = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
 function dayMarks(a) {
-  if (_offDays().has(_weekdayOf(a.date))) return { off: true, late: 0, over: 0 };
+  if (_offDays().has(_weekdayOf(a.date))) {
+    // Her day off. If she came in anyway, the whole of it is overtime — the day
+    // was paid for either way, so every hour of it was given rather than owed.
+    const over = (a.check_in && a.check_out) ? attMins(a.check_in, a.check_out) : 0;
+    return { off: true, late: 0, over, half: false };
+  }
   const s = shift();
   const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
   let late = 0, over = 0, half = false;
@@ -362,7 +367,8 @@ function dayMarks(a) {
   if (a.check_out) { const o = toMin(a.check_out) - s.outMin; if (o > 0) over = o; }
   return { off: false, late, over, half };
 }
-const markPills = (m) => m.off ? '<span class="d-pill off">Off day</span>'
+const markPills = (m) => m.off
+  ? `<span class="d-pill off">Off day</span>${m.over ? `<span class="d-pill over">Came in · ${fmtDur(m.over)} overtime</span>` : ''}`
   : `${m.half ? '<span class="d-pill late">Half day</span>' : ''}${m.late ? `<span class="d-pill late">Late ${fmtDur(m.late)}</span>` : ''}${m.over ? `<span class="d-pill over">Overtime ${fmtDur(m.over)}</span>` : ''}${(!m.late && !m.over && !m.half) ? '<span class="d-pill ok">On time</span>' : ''}`;
 
 function attScreen(c, att, titleTxt) {
