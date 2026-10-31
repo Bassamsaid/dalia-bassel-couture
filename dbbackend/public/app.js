@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v202';
+const APP_VERSION = 'v203';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1255,18 +1255,27 @@ PAGES.payslip = async (c) => {
   const o = window._payslip;
   if (!o) return goBack();
   const s = o.sheet;
+  /* On a payslip the figures are read down the column, so each one carries two
+     places whether it needs them or not — 1,500.00 sits under 711.83 rather than
+     beside it — and the currency is set smaller after the number, out of the way
+     of the digits lining up. */
+  const psm = (n) => {
+    const v = Number(n || 0);
+    const cur = (window._cfg && window._cfg.currency) || 'EGP';
+    return `<bdi>${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}<span class="ps-cur">${esc(cur)}</span></bdi>`;
+  };
   const line = (label, detail, amount, kind) => `<tr class="${kind || ''}">
     <td>${esc(label)}${detail ? `<span class="ps-detail">${esc(detail)}</span>` : ''}</td>
     <td class="ps-amt">${amount}</td></tr>`;
   const plus = [];
   const minus = [];
-  if (s.overtime_minutes) plus.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h${s.overtime_off_day_minutes ? ` — of it ${s.overtime_off_day_minutes} min on ${s.off_days_worked} day(s) off` : ''}`, money(s.overtime_pay), 'ps-plus'));
-  if (s.extra_hours) plus.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, money(s.extra_task_pay), 'ps-plus'));
-  if (s.bonus) plus.push(line('Bonus', '', money(s.bonus), 'ps-plus'));
-  if (s.absent_days) minus.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'ps-minus'));
-  if (s.late_minutes) minus.push(line('Lateness', `${s.late_minutes} min beyond the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + money(s.late_deduction), 'ps-minus'));
-  if (s.deductions) minus.push(line('Deductions', '', '− ' + money(s.deductions), 'ps-minus'));
-  if (s.advances) minus.push(line('Advances taken this month', '', '− ' + money(s.advances), 'ps-minus'));
+  if (s.overtime_minutes) plus.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h${s.overtime_off_day_minutes ? ` — of it ${s.overtime_off_day_minutes} min on ${s.off_days_worked} day(s) off` : ''}`, psm(s.overtime_pay), 'ps-plus'));
+  if (s.extra_hours) plus.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, psm(s.extra_task_pay), 'ps-plus'));
+  if (s.bonus) plus.push(line('Bonus', '', psm(s.bonus), 'ps-plus'));
+  if (s.absent_days) minus.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + psm(s.absence_deduction), 'ps-minus'));
+  if (s.late_minutes) minus.push(line('Lateness', `${s.late_minutes} min beyond the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + psm(s.late_deduction), 'ps-minus'));
+  if (s.deductions) minus.push(line('Deductions', '', '− ' + psm(s.deductions), 'ps-minus'));
+  if (s.advances) minus.push(line('Advances taken this month', '', '− ' + psm(s.advances), 'ps-minus'));
 
   const monthName = new Date(s.month + '-01T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   c.innerHTML = `<div class="rc-actions no-print">
@@ -1292,14 +1301,14 @@ PAGES.payslip = async (c) => {
       </div>
 
       <table class="rc-table ps-table"><tbody>
-        ${line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, money(s.base))}
+        ${line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, psm(s.base))}
         ${plus.join('')}
         ${minus.join('')}
       </tbody></table>
 
       <div class="ps-net">
         <div class="ps-net-k">Net salary</div>
-        <div class="ps-net-v">${money(s.net)}</div>
+        <div class="ps-net-v">${psm(s.net)}</div>
       </div>
 
       <div class="ps-sign">

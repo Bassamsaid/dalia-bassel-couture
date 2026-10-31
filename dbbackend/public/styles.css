@@ -1088,7 +1088,15 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .ps-table td{vertical-align:top}
 .ps-table td:first-child{background:#fff;font-weight:700;width:auto;color:#14101a}
 .ps-detail{display:block;font-weight:400;font-size:11.5px;color:var(--muted);margin-top:2px}
+/* A figure broken across two lines — "1,874.02" above "EGP" — is the one thing a
+   payslip must not do. The receipt's own `td` rule set white-space:normal and
+   outranked the class, so the column is named here where it outranks it back,
+   and shrunk to the figure so the words beside it get the rest of the width. */
+.ps-table td.ps-amt{white-space:nowrap;width:1%;padding-inline-start:14px}
 .ps-amt{text-align:end!important;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700}
+.ps-cur{font-size:.82em;font-weight:700;margin-inline-start:4px;opacity:.72}
+/* the net is set large, where the same proportions read as cramped */
+.ps-net-v .ps-cur{font-size:.5em;margin-inline-start:7px;letter-spacing:1px}
 .ps-plus .ps-amt{color:var(--ok)}
 .ps-minus .ps-amt{color:var(--bad)}
 .ps-net{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
