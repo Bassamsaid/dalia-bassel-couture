@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v201';
+const APP_VERSION = 'v202';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1260,7 +1260,7 @@ PAGES.payslip = async (c) => {
     <td class="ps-amt">${amount}</td></tr>`;
   const plus = [];
   const minus = [];
-  if (s.overtime_minutes) plus.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h`, money(s.overtime_pay), 'ps-plus'));
+  if (s.overtime_minutes) plus.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h${s.overtime_off_day_minutes ? ` — of it ${s.overtime_off_day_minutes} min on ${s.off_days_worked} day(s) off` : ''}`, money(s.overtime_pay), 'ps-plus'));
   if (s.extra_hours) plus.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, money(s.extra_task_pay), 'ps-plus'));
   if (s.bonus) plus.push(line('Bonus', '', money(s.bonus), 'ps-plus'));
   if (s.absent_days) minus.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'ps-minus'));

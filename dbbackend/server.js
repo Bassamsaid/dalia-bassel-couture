@@ -1900,6 +1900,9 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
 
   const days = [];
   let absDays = 0, presentDays = 0, offDays = 0, paidLeaveDays = 0, lateMin = 0, otMin = 0, extraHours = 0;
+  // The overtime that came from days off worked, kept apart from the hours that
+  // simply ran late: a month's total of seventy hours should say which it was.
+  let otOffMin = 0, offWorkedDays = 0;
   for (let d = 1; d <= lastDay; d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`;
     const a = att[date];
@@ -1926,7 +1929,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
           // owed — the whole of it counts as overtime, not just what ran past
           // the usual going-home time.
           const worked = hm2min(a.check_out) - hm2min(a.check_in);
-          if (worked > 0) { row.ot_min = worked; row.off_day_worked = true; otMin += worked; }
+          if (worked > 0) { row.ot_min = worked; row.off_day_worked = true; otMin += worked; otOffMin += worked; offWorkedDays++; }
         } else {
           const ot = hm2min(a.check_out) - outMin;
           if (ot > 0) { row.ot_min = ot; otMin += ot; }
@@ -1980,6 +1983,7 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
     late_minutes: lateMin, late_deduction: lateDeduction, late_mult: otMult,
     overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
+    overtime_off_day_minutes: otOffMin, off_days_worked: offWorkedDays,
     extra_hours: r2(extraHours), extra_task_pay: extraTaskPay,
     bonus, deductions, advances: advTotal, net,
     as_of: stop, earned_to_date: earnedToDate, paid_days: paidDays, days,
