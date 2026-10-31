@@ -4035,9 +4035,9 @@ PAGES.staffmember = async (c) => {
     const sheet = await GET(`/api/staff/${id}/salary?month=${month}`);
     const shown = sheet.days.filter((d) => d.status !== 'future').reverse();
     inner = `<div class="filters"><input type="month" value="${month}" onchange="setSalMonth(this.value)" style="width:auto;padding:8px" /></div>
-      <div class="hint" style="margin-bottom:8px">Staff check themselves in/out from their account. Every other working day counts as an absence.</div>
+      <div class="hint" style="margin-bottom:8px">Staff check themselves in/out from their account. Every other working day counts as an absence. <b>Tap any day to put it right.</b></div>
       <div class="card"><div class="tbl-wrap"><table class="att-tbl"><thead><tr><th>Day</th><th>Status</th><th>In</th><th>Out</th></tr></thead>
-      <tbody>${shown.length ? shown.map((d) => `<tr class="${d.status}">
+      <tbody>${shown.length ? shown.map((d) => `<tr class="${d.status}" style="cursor:pointer" onclick="fixStaffDay(${id},'${esc(d.date)}','${esc(d.check_in || '')}','${esc(d.check_out || '')}')">
         <td>${dt(d.date)}</td>
         <td>${attBadge(d)}</td>
         <td>${d.check_in || '—'}${d.late_min ? ` <span class="att-note bad">+${d.late_min}m</span>` : ''}</td>
@@ -4052,6 +4052,29 @@ PAGES.staffmember = async (c) => {
   // an element that is still a string.
   if (tab === 'overview') runningMonth(id);
 };
+/* A day put right, for somebody else. Everybody but the owner has to ask for a
+   manual log and wait to be approved — which is the right way round for them,
+   and no way at all for him when the day is plainly wrong and the woman it
+   belongs to has already told him what it was. A day already written down is
+   corrected rather than written a second time, and clearing both times leaves
+   the day as it stands rather than emptying it. */
+window.fixStaffDay = (id, date, ci, co) => {
+  const who = ((window._staff || []).find((x) => x.id === id) || {}).name || 'this day';
+  formModal(`Put ${date} right`, [
+    { name: 'check_in', label: 'Came in at', type: 'time', value: ci || '' },
+    { name: 'check_out', label: 'Went home at', type: 'time', value: co || '' },
+    { name: 'note', label: 'Why (optional)', value: '' },
+  ], async (d) => {
+    if (!d.check_in && !d.check_out) throw new Error('Put in a time first — a day with neither is not a correction.');
+    const r = await POST('/api/attendance', {
+      user_id: id, date, check_in: d.check_in || null, check_out: d.check_out || null,
+      note: d.note || `put right by ${state.user.name}`,
+    });
+    toast(r && r.corrected ? 'Day put right ✓' : 'Day written down ✓');
+    go(state.page);
+  }, { hint: `${who} · the hours she actually kept` });
+};
+
 // What a day on the sheet is, in one word.
 window.attBadge = (d) => (d.off_day_worked
   ? '<span class="badge ok">Day off · came in</span>'
