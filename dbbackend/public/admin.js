@@ -3957,9 +3957,11 @@ function feeRow(label, v, cls, strong, extra) {
 PAGES.staffmember = async (c) => {
   const id = window._staffId;
   if (!id) return go('staff');
-  const [allUsers, attendance, absences, advances] = await Promise.all([
+  const [allUsers, attendance, absences, advances, allLeaves] = await Promise.all([
     GET('/api/users'), GET('/api/attendance?user_id=' + id), GET('/api/absences?user_id=' + id), GET('/api/advances?user_id=' + id),
+    GET('/api/leaves').catch(() => []),
   ]);
+  const leaves = (allLeaves || []).filter((l) => l.user_id === id);
   const s = allUsers.find((u) => u.id === id) || {};
   window._staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   const month = window._salMonth || today().slice(0, 7);
@@ -4015,7 +4017,19 @@ PAGES.staffmember = async (c) => {
         <span class="badge ${p.status === 'confirmed' ? 'ok' : 'warn'}">${p.status === 'confirmed' ? 'Confirmed ✓' : 'Sent'}</span>
         <button class="btn-icon" onclick="delSalaryPay(${p.id})">🗑</button></div>`).join('') : empty('No salary sent yet')}</div>`;
   } else if (tab === 'absence') {
-    inner = `<button class="btn" onclick="addAbsence(${id})">＋ Add absence</button>
+    inner = `<div class="act2"><button class="btn sm" onclick="addLeave(${id})">＋ Days off, paid</button>
+        <button class="btn sec sm" onclick="addAbsence(${id})">＋ A day she missed</button></div>
+      <div class="hint" style="margin:8px 2px 0">A sick or annual day costs her nothing. A day she simply missed comes off at ${money(((allUsers.find((u) => u.id === id) || {}).base_salary || 0) / (Number((window._cfg || {}).work_days_per_month) || 30))} — and so does an unpaid day.</div>
+      ${leaves.length ? `<div class="sec-title">Days off</div><div class="card">${leaves.map((l) => `<div class="item">
+        <div class="av">${l.type === 'sick' ? '🤒' : l.type === 'unpaid' ? '✕' : '🌴'}</div>
+        <div class="main"><div class="nm">${dt(l.from_date)}${String(l.to_date).slice(0, 10) !== String(l.from_date).slice(0, 10) ? ' → ' + dt(l.to_date) : ''}
+          <span class="badge ${l.type === 'unpaid' ? 'bad' : 'ok'}">${esc(leaveEn(l.type))}${l.type === 'unpaid' ? '' : ' · paid'}</span>
+          ${(l.status || 'approved') !== 'approved' ? `<span class="badge warn">${esc(l.status)}</span>` : ''}</div>
+          <div class="sub">${l.reason ? esc(l.reason) : leaveEn(l.type) + ' leave'}</div></div>
+        ${(l.status || 'approved') === 'pending' ? `<button class="btn sm ghost" onclick="approveLeave(${l.id})">Approve</button>` : ''}
+        <button class="btn-icon" onclick="delLeave(${l.id})">🗑</button></div>`).join('')}</div>` : ''}
+      <div class="sec-title">Days she missed</div>
+      ${`<div style="display:none"></div>`}
       <div class="card" style="margin-top:12px">${absences.length ? absences.map((a) => { const st = a.status || 'confirmed'; return `<div class="item"><div class="av">✕</div>
         <div class="main"><div class="nm">${dt(a.date)} <span class="badge ${st === 'confirmed' ? 'ok' : 'warn'}">${st === 'confirmed' ? 'Confirmed' : 'Pending'}</span></div><div class="sub">${a.reason ? esc(a.reason) : 'Absent day'}</div></div>
         ${st === 'pending' ? `<button class="btn sm ghost" onclick="confirmAbsence(${a.id})">Confirm</button>` : ''}
@@ -4141,6 +4155,29 @@ window.editStaff = (id) => {
     { name: 'hire_date', label: 'Hire date', type: 'date', value: s.hire_date },
   ], async (d) => { d.role = d.role === 'manager' ? 'manager' : 'staff'; await PUT('/api/users/' + id, d); toast('Saved'); go(state.page); });
 };
+/* Sick days and annual days cost her nothing — the salary already knew that and
+   there was nowhere to write one down, so every sick day she took was read as a
+   day she simply did not come and came off her pay. */
+window.addLeave = (id) => formModal('Days off', [
+  { name: 'from_date', label: 'From', type: 'date', required: true, value: today() },
+  { name: 'to_date', label: 'To (same day if it is one day)', type: 'date', required: true, value: today() },
+  { name: 'type', label: 'What kind', type: 'select', value: 'sick', options: [
+    { value: 'sick', label: 'Sick — paid, costs her nothing' },
+    { value: 'annual', label: 'Annual — paid, costs her nothing' },
+    { value: 'unpaid', label: 'Unpaid — comes off her pay' },
+  ] },
+  { name: 'reason', label: 'Why (optional)' },
+], async (d) => {
+  if (String(d.to_date) < String(d.from_date)) throw new Error('The last day cannot come before the first.');
+  await POST('/api/leaves', { ...d, user_id: id, status: 'approved' });
+  toast('Written down ✓'); go(state.page);
+}, { perStep: 4 });
+window.approveLeave = async (lid) => { await PUT('/api/leaves/' + lid, { status: 'approved' }); toast('Approved ✓'); go(state.page); };
+window.delLeave = async (lid) => {
+  if (!confirm('Take these days off the record?\n\nIf they were paid days, they go back to counting as days she missed.')) return;
+  await DEL('/api/leaves/' + lid); toast('Removed ✓'); go(state.page);
+};
+
 window.addAbsence = (id) => formModal('Add absence', [
   { name: 'date', label: 'Date', type: 'date', required: true, value: today() },
   { name: 'reason', label: 'Reason (optional)' },
