@@ -1427,6 +1427,13 @@ api['POST /api/leaves'] = async (req, res, user) => {
   if (user.role !== 'admin') await notifyRoles('admin', { type: 'leave', title: `Leave request from ${user.name}`, body: `${b.from_date} → ${b.to_date}`, link_page: 'staff', actor_name: user.name }, user.id);
   send(res, 200, { id: r.lastInsertRowid });
 };
+/* A leave written down by mistake has to be removable, or the only way back is
+   a row nobody can reach. His alone: hers is the asking, not the deciding. */
+api['DELETE /api/leaves/:id'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  await db.prepare('DELETE FROM leaves WHERE id=?').run(params.id);
+  send(res, 200, { ok: true });
+};
 api['PUT /api/leaves/:id'] = async (req, res, user, url, params) => {
   if (!requireAdmin(user, res)) return;
   const b = await readBody(req);
