@@ -286,12 +286,12 @@ PAGES.mypay = async (c) => {
     <div class="sec-title">My payments</div>
     <div class="card">${pay.length ? pay.map((p, i) => `<div class="item">
       <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/>` : '💵'}</div>
-      <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+      <div class="main"><div class="nm">${money(p.amount)}${sentText(p) ? ` <span class="badge">${esc(sentText(p))}</span>` : ''}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${esc(methodEn(p.method).label)} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
       <button class="btn sec sm" onclick="printMyPay(${i})">🖨 Receipt</button></div>`).join('') : empty('No payments yet', '💵')}</div>
     ${rem.filter((r) => !r.done).length ? `<div class="sec-title">Upcoming payments</div><div class="card">${rem.filter((r) => !r.done).map((r) => `<div class="item"><div class="av">◷</div><div class="main"><div class="nm">${dt(r.due_date)}</div><div class="sub">${money(r.amount)}${r.note ? ' · ' + esc(r.note) : ''}</div></div></div>`).join('')}</div>` : ''}`;
 };
 
-window.printMyPay = (i) => { const p = (window._myPays || [])[i]; if (!p) return; printReceipt({ name: state.user.name, forWhat: 'Course fees', amount: p.amount, method: p.method, kind: p.kind, date: p.paid_at, note: p.note }); };
+window.printMyPay = (i) => { const p = (window._myPays || [])[i]; if (!p) return; printReceipt({ name: state.user.name, forWhat: 'Course fees', amount: p.amount, sent: sentText(p), method: p.method, kind: p.kind, date: p.paid_at, note: p.note }); };
 window.printDressPay = (did, i) => { const d = (window._custDresses || []).find((x) => x.id === did); if (!d || !d.payments) return; const p = d.payments[i]; if (!p) return; printReceipt({ name: state.user.name, forWhat: 'Dress order', amount: p.amount, method: p.method, date: p.paid_at, note: p.note, remaining: d.remaining }); };
 
 /* ============ ABOUT (view for non-admin) ============ */

@@ -11,6 +11,36 @@ const MEASURE_FIELDS = [
   ['sleeve', 'كم'], ['wrist', 'معصم'], ['arm', 'د. دراع'], ['hip', 'هانش'], ['skirt_len', 'ط. اسكيرت'],
 ];
 
+/* How the money arrived, and what to call it. "Transfer" alone did not cover a
+   studio that is paid by InstaPay from Cairo and by Western Union from Dubai. */
+const PAY_METHODS = [
+  { value: 'transfer', label: '🏦 Bank transfer', short: 'Bank' },
+  { value: 'instapay', label: '📲 InstaPay', short: 'InstaPay' },
+  { value: 'western', label: '🌍 Western Union', short: 'Western Union' },
+  { value: 'cash', label: '💵 Cash', short: 'Cash' },
+  { value: 'other', label: '… Other', short: 'Other' },
+];
+const methodEn = (m) => (PAY_METHODS.find((x) => x.value === m) || PAY_METHODS[0]);
+/* The money the studio is paid in besides its own. The amount in pounds is what
+   the books add up; this is what she actually sent, so her receipt reads the way
+   her bank statement does. */
+const PAY_CURRENCIES = [
+  { value: 'EGP', label: 'Egyptian pound (EGP)' },
+  { value: 'USD', label: 'US dollar ($)' },
+  { value: 'EUR', label: 'Euro (€)' },
+  { value: 'SAR', label: 'Saudi riyal (SAR)' },
+  { value: 'AED', label: 'UAE dirham (AED)' },
+  { value: 'KWD', label: 'Kuwaiti dinar (KWD)' },
+  { value: 'GBP', label: 'Pound sterling (£)' },
+];
+const CUR_SIGN = { USD: '$', EUR: '€', GBP: '£' };
+/* "$150" where there is a sign for it, "150 SAR" where there is not. */
+function sentText(p) {
+  if (!p || !p.currency || p.currency === 'EGP' || !p.paid_amount) return '';
+  const n = Number(p.paid_amount).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  return CUR_SIGN[p.currency] ? `${CUR_SIGN[p.currency]}${n}` : `${n} ${p.currency}`;
+}
+
 /* Egypt governorates (for student registration) */
 const EG_GOV = ['Cairo', 'Giza', 'Alexandria', 'Qalyubia', 'Dakahlia', 'Sharqia', 'Gharbia', 'Monufia', 'Beheira', 'Kafr El Sheikh', 'Damietta', 'Port Said', 'Ismailia', 'Suez', 'Faiyum', 'Beni Suef', 'Minya', 'Asyut', 'Sohag', 'Qena', 'Luxor', 'Aswan', 'Red Sea', 'New Valley', 'Matrouh', 'North Sinai', 'South Sinai'];
 
@@ -714,7 +744,7 @@ PAGES.finance = async (c) => {
     const kfLbl = kf === 'installment' ? 'Installments' : kf === 'deposit' ? 'Deposits' : '';
     inner = `<div class="grid g2" style="margin-bottom:10px">
         <div class="stat"><div class="n serif" style="color:var(--ok)">${money(cashTotal)}</div><div class="l">💵 Cash${kfLbl ? ' · ' + kfLbl : ''}</div></div>
-        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(transferTotal)}</div><div class="l">🏦 Transfer${kfLbl ? ' · ' + kfLbl : ''}</div></div>
+        <div class="stat"><div class="n serif" style="color:var(--ok)">${money(transferTotal)}</div><div class="l">🏦 Transferred${kfLbl ? ' · ' + kfLbl : ''}</div></div>
       </div>
       <div class="filters">
         <span class="chip ${kf === 'all' ? 'active' : ''}" onclick="payKind('all')">All types</span>
@@ -724,20 +754,20 @@ PAGES.finance = async (c) => {
       <div class="filters">
         <span class="chip ${pf === 'all' ? 'active' : ''}" onclick="payFilter('all')">All · ${money(cashTotal + transferTotal)}</span>
         <span class="chip ${pf === 'cash' ? 'active' : ''}" onclick="payFilter('cash')">💵 Cash</span>
-        <span class="chip ${pf === 'transfer' ? 'active' : ''}" onclick="payFilter('transfer')">🏦 Transfer</span>
+        <span class="chip ${pf === 'transfer' ? 'active' : ''}" onclick="payFilter('transfer')">🏦 Transferred</span>
       </div>
       <button class="btn" onclick="addPayment()">＋ Record payment</button>
       <div class="hint" style="margin:8px 2px">${shown.length} payment${shown.length === 1 ? '' : 's'}</div>
       <div class="card">${shown.length ? shown.map((p) => `
       <div class="item">
-        <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}','Transfer ${esc(p.user_name || '')}')"/>` : (p.method === 'cash' ? '💵' : '🏦')}</div>
+        <div class="av">${p.image ? `<img class="thumb" style="width:44px;height:44px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}','Transfer ${esc(p.user_name || '')}')"/>` : methodEn(p.method).label.slice(0, 2).trim()}</div>
         <div class="main"><div class="nm">${esc(p.user_name || '')} · ${money(p.amount)}</div>
-          <div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${p.method === 'cash' ? '💵 Cash' : '🏦 Transfer'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
+          <div class="sub">${sentText(p) ? `<b>${esc(sentText(p))}</b> · ` : ''}${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${esc(methodEn(p.method).label)} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div>
         <button class="btn-icon" onclick="editPayment(${p.id})" aria-label="Edit payment">✎</button>
         <button class="btn-icon" onclick="delPayment(${p.id})" aria-label="Delete payment">🗑</button>
       </div>`).join('') : empty('No payments match this filter')}</div>
       <div class="item" style="background:var(--soft);border-radius:12px;padding:12px 14px;margin-top:10px;border:none">
-        <div class="main"><div class="nm">TOTAL${kfLbl ? ' · ' + kfLbl : ''}${pf === 'cash' ? ' · 💵 Cash' : pf === 'transfer' ? ' · 🏦 Transfer' : ''}</div><div class="sub">${shown.length} payment${shown.length === 1 ? '' : 's'}</div></div>
+        <div class="main"><div class="nm">TOTAL${kfLbl ? ' · ' + kfLbl : ''}${pf === 'cash' ? ' · 💵 Cash' : pf === 'transfer' ? ' · 🏦 Transferred' : ''}</div><div class="sub">${shown.length} payment${shown.length === 1 ? '' : 's'}</div></div>
         <div class="serif" style="font-size:20px;font-weight:800;color:var(--ok)">${money(shownTotal)}</div>
       </div>`;
   } else {
@@ -788,17 +818,20 @@ window.addPayment = () => {
   const owed = owedMap();
   formModal('Record payment', [
   { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: studentPayLabel(u, owed) })) },
-  { name: 'amount', label: 'Amount', type: 'number', required: true },
+  { name: 'currency', label: 'Paid in', type: 'select', value: 'EGP', options: PAY_CURRENCIES },
+  { name: 'paid_amount', label: 'What she sent', type: 'number', step: '0.01' },
+  { name: 'amount', label: 'What it came to in pounds (EGP)', type: 'number', required: true },
   { name: 'kind', label: 'Type', type: 'select', options: [{ value: 'deposit', label: 'Deposit' }, { value: 'installment', label: 'Installment' }] },
-  { name: 'method', label: 'Payment method', type: 'select', value: 'transfer', options: [{ value: 'transfer', label: 'Bank transfer' }, { value: 'cash', label: 'Cash' }] },
+  { name: 'method', label: 'Payment method', type: 'select', value: 'transfer', options: PAY_METHODS },
   { name: 'paid_at', label: 'Date', type: 'date', value: today() },
   { name: 'note', label: 'Note', value: '' },
-  { name: 'image', label: 'Transfer screenshot (if bank transfer)', type: 'image' },
+  { name: 'image', label: 'Photo of the transfer', type: 'image' },
   ], async (d) => {
     guardPayment(d, owed); // caught here as well as on the server, so she is told before it is sent
     await POST('/api/payments', d); toast('Recorded'); go(state.page);
-  }, { perStep: 8 });
+  }, { perStep: 10 });
   prefillOwed(owed);
+  wireCurrency();
 };
 /* the amount opens on whatever is still owed */
 function prefillOwed(owed, editing) {
@@ -813,23 +846,49 @@ function prefillOwed(owed, editing) {
   if (!editing) fill(); // an edit opens on the figure that was actually recorded
 }
 
+/* Paid in pounds, there is one figure and it is the one the books take. Paid in
+   anything else, there are two: what she sent, and what landed — which he reads
+   off the statement rather than off a rate this app would have to guess at and
+   would have wrong by the afternoon. */
+function wireCurrency() {
+  const cur = $('select[name="currency"]');
+  const sent = $('input[name="paid_amount"]');
+  const egp = $('input[name="amount"]');
+  if (!cur || !sent || !egp) return;
+  const sentLabel = sent.previousElementSibling;
+  const egpLabel = egp.previousElementSibling;
+  const apply = () => {
+    const foreign = cur.value && cur.value !== 'EGP';
+    if (sentLabel) sentLabel.style.display = foreign ? '' : 'none';
+    sent.style.display = foreign ? '' : 'none';
+    if (!foreign) sent.value = '';
+    if (sentLabel && foreign) sentLabel.textContent = `What she sent (${cur.value})`;
+    if (egpLabel) egpLabel.textContent = foreign ? 'What it came to in pounds (EGP)' : 'Amount';
+  };
+  cur.onchange = apply;
+  apply();
+}
+
 window.editPayment = (id) => {
   const p = (window._fin.payments || []).find((x) => x.id === id);
   if (!p) { toast('That payment is no longer here'); return; }
   const owed = owedMap();
   formModal('Edit payment', [
     { name: 'user_id', label: 'Student', type: 'select', required: true, value: p.user_id, options: window._fin.users.map((u) => ({ value: u.id, label: studentPayLabel(u, owed, p) })) },
-    { name: 'amount', label: 'Amount', type: 'number', required: true, value: p.amount },
+    { name: 'currency', label: 'Paid in', type: 'select', value: p.currency || 'EGP', options: PAY_CURRENCIES },
+    { name: 'paid_amount', label: 'What she sent', type: 'number', step: '0.01', value: p.paid_amount || '' },
+    { name: 'amount', label: 'What it came to in pounds (EGP)', type: 'number', required: true, value: p.amount },
     { name: 'kind', label: 'Type', type: 'select', value: p.kind, options: [{ value: 'deposit', label: 'Deposit' }, { value: 'installment', label: 'Installment' }] },
-    { name: 'method', label: 'Payment method', type: 'select', value: p.method, options: [{ value: 'transfer', label: 'Bank transfer' }, { value: 'cash', label: 'Cash' }] },
+    { name: 'method', label: 'Payment method', type: 'select', value: p.method, options: PAY_METHODS },
     { name: 'paid_at', label: 'Date', type: 'date', value: dt(p.paid_at) },
     { name: 'note', label: 'Note', value: p.note || '' },
-    { name: 'image', label: 'Transfer screenshot (if bank transfer)', type: 'image', value: p.image || '' },
+    { name: 'image', label: 'Photo of the transfer', type: 'image', value: p.image || '' },
   ], async (d) => {
     guardPayment(d, owed, p);
     await PUT('/api/payments/' + id, d); toast('Updated'); go(state.page);
-  }, { submitLabel: 'Save changes', perStep: 8 });
+  }, { submitLabel: 'Save changes', perStep: 10 });
   prefillOwed(owed, p);
+  wireCurrency();
 };
 window.delPayment = (id) => confirmDel('Delete this payment?', async () => { await DEL('/api/payments/' + id); toast('Deleted'); go('finance'); });
 window.addReminder = () => formModal('Payment reminder', [
