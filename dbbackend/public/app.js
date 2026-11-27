@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v213';
+const APP_VERSION = 'v214';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1278,7 +1278,9 @@ PAGES.payslip = async (c) => {
   if (s.absent_days) minus.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + psm(s.absence_deduction), 'ps-minus'));
   // Her own weekly day off that the month does not pay for. On its own line and
   // under its own name: it is not an absence and should never read as one.
-  if (s.unpaid_off_days) minus.push(line('Unpaid weekly day off', `${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, '− ' + psm(s.unpaid_off_deduction), 'ps-minus'));
+  // Not in a part month: the line above it is already only the days that were
+  // hers, and these are not among them. Taking them off twice is not arithmetic.
+  if (s.unpaid_off_days && !s.part_month) minus.push(line('Unpaid weekly day off', `${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, '− ' + psm(s.unpaid_off_deduction), 'ps-minus'));
   if (s.late_minutes) minus.push(line('Lateness', `${s.late_minutes} min beyond the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + psm(s.late_deduction), 'ps-minus'));
   if (s.deductions) minus.push(line('Deductions', '', '− ' + psm(s.deductions), 'ps-minus'));
   if (s.advances) minus.push(line('Advances taken this month', '', '− ' + psm(s.advances), 'ps-minus'));

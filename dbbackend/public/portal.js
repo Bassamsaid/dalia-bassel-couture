@@ -724,7 +724,7 @@ function salaryBreakdown(s, month) {
 
   const off = [];
   if (s.absent_days) off.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'bad'));
-  if (s.unpaid_off_days) off.push(line('Unpaid weekly day off', `${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.unpaid_off_deduction), 'bad'));
+  if (s.unpaid_off_days && !s.part_month) off.push(line('Unpaid weekly day off', `${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.unpaid_off_deduction), 'bad'));
   if (s.late_minutes) off.push(line('Lateness', `${s.late_minutes} min past the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + money(s.late_deduction), 'bad'));
   if (s.deductions) off.push(line('Deductions', '', '− ' + money(s.deductions), 'bad'));
   if (s.advances) off.push(line('Advances taken', 'already in hand', '− ' + money(s.advances), 'bad'));

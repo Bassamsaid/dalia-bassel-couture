@@ -4293,8 +4293,13 @@ PAGES.staffmember = async (c) => {
       + (sal.gone_days ? `<div class="hint" style="margin:-2px 2px 8px">The ${sal.gone_days} day(s) after she left are neither absence nor pay.</div>` : '')
     : kv('Absent days', sal.absent_days + ' day(s)')
       + kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
-        ${sal.unpaid_off_days ? kv('Unpaid weekly days off', `${sal.unpaid_off_days} day(s) × ${money(sal.daily)}`)
-    + kv('− Not paid for those days', money(sal.unpaid_off_deduction || 0), 'bad') : ''}
+        ${!sal.unpaid_off_days ? ''
+    : sal.part_month
+      // The days that were hers, above, already leave these out — showing them
+      // again as money coming off would have the lines not add up to the net.
+      ? kv('Unpaid weekly days off', `${sal.unpaid_off_days} day(s) · already left out above`)
+      : kv('Unpaid weekly days off', `${sal.unpaid_off_days} day(s) × ${money(sal.daily)}`)
+        + kv('− Not paid for those days', money(sal.unpaid_off_deduction || 0), 'bad')}
         ${kv('Late (beyond grace)', (sal.late_minutes || 0) + ' min ×' + (sal.late_mult || 1))}
         ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
         ${kv('Overtime', (sal.overtime_minutes || 0) + ' min ×' + (sal.overtime_mult || 1.5))}
