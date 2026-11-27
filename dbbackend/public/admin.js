@@ -853,7 +853,7 @@ PAGES.finance = async (c) => {
       const overdue = !r.done && d < t;
       return `<div class="item">
         <div class="av">${r.done ? '✓' : overdue ? '⚠️' : '◷'}</div>
-        <div class="main"><div class="nm">${esc(r.user_name)} <b class="${overdue ? 'bad' : ''}">${money(r.amount)}</b></div>
+        <div class="main"><div class="nm">${esc(r.user_name)} <b class="amt ${overdue ? 'bad' : ''}">${money(r.amount)}</b></div>
           <div class="sub">${shortDate(d) || d}${overdue ? ' · <b class="bad">overdue</b>' : ''}${r.round_name ? ' · ' + esc(r.round_name) : ''}${r.round_kind === 'online' ? ' · 🌍 online' : ''}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
         ${r.done ? '<span class="badge ok">Paid</span>' : `<button class="btn sm ghost" onclick="markReminder2(${r.id})">Paid</button>`}
         <button class="btn-icon" onclick="delReminder(${r.id})">🗑</button></div>`;
@@ -900,13 +900,15 @@ function paidByOthers(row, editing) {
   const mine = editing && Number(editing.user_id) === Number(row.id) ? (editing.amount || 0) : 0;
   return Math.max(0, (row.paid || 0) - mine);
 }
+/* This becomes the text of an <option>, which shows tags rather than obeying
+   them — so the plain figure, never money()'s marked-up one. */
 function studentPayLabel(u, owed, editing) {
   const r = owed[u.id];
   if (!r || !r.total_fee) return u.name;
   const others = paidByOthers(r, editing);
   const left = r.total_fee - others;
-  if (left < 0) return `${u.name} · overpaid by ${money(-left)}`;
-  return left ? `${u.name} · ${money(left)} left` : `${u.name} · paid in full`;
+  if (left < 0) return `${u.name} · overpaid by ${moneyText(-left)}`;
+  return left ? `${u.name} · ${moneyText(left)} left` : `${u.name} · paid in full`;
 }
 /* One rule for both forms: a payment may never carry her past her course fee. */
 function guardPayment(d, owed, editing) {
@@ -914,9 +916,10 @@ function guardPayment(d, owed, editing) {
   if (!r || !r.total_fee) return;
   const left = r.total_fee - paidByOthers(r, editing);
   if (Number(d.amount) <= left) return;
+  // the message is put on screen as text, so the figures go in plain
   throw new Error(left > 0
-    ? `That is more than she still owes — only ${money(left)} is left on her ${money(r.total_fee)} course.`
-    : `Her course fee of ${money(r.total_fee)} is already covered.`);
+    ? `That is more than she still owes — only ${moneyText(left)} is left on her ${moneyText(r.total_fee)} course.`
+    : `Her course fee of ${moneyText(r.total_fee)} is already covered.`);
 }
 window.addPayment = () => {
   const owed = owedMap();

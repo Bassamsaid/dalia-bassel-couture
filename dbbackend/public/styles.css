@@ -136,6 +136,9 @@ textarea{min-height:80px;resize:vertical}
   display:flex;align-items:center;justify-content:center;font-weight:800;font-family:var(--sans);flex:0 0 auto;font-size:15px}
 .item .main{flex:1;min-width:0}
 .item .main .nm{font-weight:700;color:var(--ink)}
+/* a figure travels whole: it drops to the next line sooner than it splits
+   the pounds off its own number */
+.item .main .nm b.amt{white-space:nowrap}
 .item .main .sub{font-size:12px;color:var(--muted)}
 .badge{display:inline-block;font-size:10px;padding:3px 10px;border-radius:20px;background:var(--soft);
   color:var(--purple-d);font-weight:700;letter-spacing:.4px;text-transform:uppercase}
