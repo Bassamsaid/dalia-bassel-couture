@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v207';
+const APP_VERSION = 'v208';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1225,10 +1225,13 @@ PAGES.receipt = async (c) => {
   const rows = [
     ['Name', o.name || '—'],
     ['For', o.forWhat || '—'],
-    ['Method', o.method === 'cash' ? 'Cash' : 'Bank transfer / Instapay'],
+    ['Method', (typeof methodEn === 'function' ? methodEn(o.method).short : (o.method === 'cash' ? 'Cash' : 'Bank transfer'))],
     ['Type', o.kind === 'deposit' ? 'Deposit' : 'Installment'],
     ['Date', o.date ? dt(o.date) : dt(today())],
   ];
+  // What she actually sent, where that was not pounds: the figure on her own
+  // bank statement, beside the one the studio's books carry.
+  if (o.sent) rows.splice(2, 0, ['Sent', o.sent]);
   if (o.note) rows.push(['Note', o.note]);
   if (o.remaining != null) rows.push(['Remaining balance', money(o.remaining)]);
   c.innerHTML = `<div class="rc-actions no-print">

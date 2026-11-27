@@ -583,6 +583,12 @@ const ready = (async () => {
   await tryExec("ALTER TABLE about ADD COLUMN img_shape TEXT");
   await tryExec("ALTER TABLE videos ADD COLUMN kind TEXT DEFAULT 'online'"); // online | onsite (in-person)
   await tryExec("ALTER TABLE payments ADD COLUMN method TEXT DEFAULT 'transfer'"); // transfer | cash
+  // A student abroad pays in her own money. `amount` stays what landed in
+  // Egyptian pounds — every total, balance and sheet already reads it and none
+  // of them change — and these two record what she actually sent, so her
+  // receipt can say "$150" and the books can still add up.
+  await tryExec("ALTER TABLE payments ADD COLUMN currency TEXT DEFAULT 'EGP'");
+  await tryExec('ALTER TABLE payments ADD COLUMN paid_amount REAL');
   await tryExec("ALTER TABLE rounds ADD COLUMN kind TEXT DEFAULT 'onsite'"); // online | onsite (in-person)
   await tryExec("ALTER TABLE advances ADD COLUMN status TEXT DEFAULT 'approved'"); // pending | approved | rejected
   await tryExec('ALTER TABLE dresses ADD COLUMN assigned_to INTEGER'); // staff responsible for the dress

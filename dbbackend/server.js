@@ -575,6 +575,9 @@ api['GET /api/payments'] = async (req, res, user, url) => {
   const q = uid ? 'SELECT * FROM payments WHERE user_id=? ORDER BY paid_at DESC' : 'SELECT p.*,u.name user_name FROM payments p JOIN users u ON u.id=p.user_id ORDER BY paid_at DESC';
   send(res, 200, uid ? await db.prepare(q).all(uid) : await db.prepare(q).all());
 };
+/* How the money arrived. Kept here rather than guessed from the screen, so a
+   method the app does not know cannot be written into the books. */
+const PAY_METHODS = ['transfer', 'instapay', 'western', 'cash', 'other'];
 api['POST /api/payments'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
   const b = await readBody(req);
@@ -591,9 +594,14 @@ api['POST /api/payments'] = async (req, res, user) => {
     });
   }
   const img = await maybeImage(b.image);
-  const method = b.method === 'cash' ? 'cash' : 'transfer';
-  const r = await db.prepare('INSERT INTO payments (user_id,amount,kind,method,image,note,paid_at) VALUES (?,?,?,?,?,?,COALESCE(?,datetime(\'now\')))').run(
-    b.user_id, b.amount || 0, b.kind || 'installment', method, img, b.note || null, b.paid_at || null);
+  const method = PAY_METHODS.includes(b.method) ? b.method : 'transfer';
+  // What she actually sent, in her own money. `amount` is still what it came to
+  // in pounds, which is the figure every total and balance is built on.
+  const cur = /^[A-Z]{3}$/.test(String(b.currency || '').toUpperCase()) ? String(b.currency).toUpperCase() : 'EGP';
+  const sent = cur === 'EGP' ? amount : (Number(b.paid_amount) || 0);
+  if (cur !== 'EGP' && sent <= 0) return send(res, 400, { error: `Enter what she sent in ${cur}, and what it came to in pounds.` });
+  const r = await db.prepare('INSERT INTO payments (user_id,amount,kind,method,image,note,paid_at,currency,paid_amount) VALUES (?,?,?,?,?,?,COALESCE(?,datetime(\'now\')),?,?)').run(
+    b.user_id, b.amount || 0, b.kind || 'installment', method, img, b.note || null, b.paid_at || null, cur, sent);
   const payer = await db.prepare('SELECT name FROM users WHERE id=?').get(b.user_id);
   await notifyRoles('admin', { type: 'payment', title: `New payment: ${money0(b.amount)}`, body: `${user.name} recorded a payment for ${payer ? payer.name : ''}`, link_page: 'finance', actor_name: user.name }, user.id);
   await notify(b.user_id, { type: 'payment', title: `A payment of ${money0(b.amount)} was recorded 💳`, body: 'Thank you! You can view your account', link_page: 'mypay', actor_name: user.name });
@@ -619,9 +627,14 @@ api['PUT /api/payments/:id'] = async (req, res, user, url, params) => {
     });
   }
   const img = b.image === undefined ? cur.image : await maybeImage(b.image);
-  await db.prepare('UPDATE payments SET user_id=?,amount=?,kind=?,method=?,image=?,note=?,paid_at=COALESCE(?,paid_at) WHERE id=?').run(
-    uid, amount, b.kind || cur.kind, (b.method === 'cash' ? 'cash' : (b.method ? 'transfer' : cur.method)),
-    img, b.note === undefined ? cur.note : (b.note || null), b.paid_at || null, params.id);
+  const curr = b.currency === undefined
+    ? (cur.currency || 'EGP')
+    : (/^[A-Z]{3}$/.test(String(b.currency).toUpperCase()) ? String(b.currency).toUpperCase() : 'EGP');
+  const sent = curr === 'EGP' ? amount : (b.paid_amount === undefined ? (Number(cur.paid_amount) || 0) : (Number(b.paid_amount) || 0));
+  if (curr !== 'EGP' && sent <= 0) return send(res, 400, { error: `Enter what she sent in ${curr}, and what it came to in pounds.` });
+  await db.prepare('UPDATE payments SET user_id=?,amount=?,kind=?,method=?,image=?,note=?,paid_at=COALESCE(?,paid_at),currency=?,paid_amount=? WHERE id=?').run(
+    uid, amount, b.kind || cur.kind, (b.method ? (PAY_METHODS.includes(b.method) ? b.method : 'transfer') : cur.method),
+    img, b.note === undefined ? cur.note : (b.note || null), b.paid_at || null, curr, sent, params.id);
   if (amount !== cur.amount || uid !== cur.user_id) {
     const payer = await db.prepare('SELECT name FROM users WHERE id=?').get(uid);
     await notifyRoles('admin', { type: 'payment', title: `Payment corrected: ${money0(cur.amount)} → ${money0(amount)}`,
