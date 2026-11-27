@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v214';
+const APP_VERSION = 'v215';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1331,6 +1331,93 @@ PAGES.payslip = async (c) => {
     </div>`;
 };
 window.openPayslip = (sheet) => { window._payslip = { sheet }; go('payslip'); };
+
+/* ---------- the month's attendance, as a sheet to print ----------
+   The payslip says what the month came to. This says what the month was: every
+   day of it, the time she came in and went home, and the minutes that were late
+   or over. A figure on the payslip is only worth as much as the days behind it,
+   and this is where somebody who disagrees with one goes to look. */
+const ATT_WORD = {
+  present: ['Present', 'ok'],
+  off: ['Day off · paid', 'off'],
+  unpaid_off: ['Day off · unpaid', 'warn'],
+  paid_leave: ['Leave · paid', 'off'],
+  unpaid_leave: ['Leave · unpaid', 'bad'],
+  absent: ['Absent', 'bad'],
+  today: ['Today', 'off'],
+};
+PAGES.attsheet = async (c) => {
+  const s = window._attsheet;
+  if (!s) return goBack();
+  const hm = (m) => (m ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : '—');
+  const cap = (x) => (x ? x[0].toUpperCase() + x.slice(1) : '');
+  // A day that has not happened, and a day after she left, are both left off.
+  // Eighteen identical empty lines saying she had gone are not a record of
+  // anything — one sentence under the table says it once.
+  const rows = (s.days || []).filter((d) => d.status !== 'future' && d.status !== 'gone');
+  const gone = (s.days || []).filter((d) => d.status === 'gone');
+  const monthName = new Date(s.month + '-01T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const chip = (n, label, cls) => (n ? `<span class="${cls || ''}"><b>${n}</b> ${label}</span>` : '');
+  c.innerHTML = `<div class="rc-actions no-print">
+      <button class="btn sec" onclick="goBack()">‹ Back</button>
+      <button class="btn" onclick="window.print()">🖨 Print / Save as PDF</button>
+    </div>
+    <div class="receipt-sheet ps-sheet at-sheet">
+      <div class="rc-head">
+        <div class="rc-brand">DALIA BASSEL</div>
+        <div class="rc-sub">Haute Couture · Attendance</div>
+      </div>
+
+      <div class="ps-who">
+        <div><div class="ps-k">Employee</div><div class="ps-v">${esc(s.user)}</div></div>
+        <div><div class="ps-k">Month</div><div class="ps-v">${esc(monthName)}</div></div>
+      </div>
+      <div class="ps-days">
+        <span>${esc(s.shift_start)}–${esc(s.shift_end)}</span>
+        ${chip(s.present_days, 'present')}
+        ${chip(s.off_days, 'day(s) off')}
+        ${chip(s.paid_leave_days, 'paid leave')}
+        ${chip(s.unpaid_off_days, 'unpaid day(s) off', 'ps-bad')}
+        ${chip(s.absent_days, 'absent', 'ps-bad')}
+        ${chip(s.gone_days, 'after she left')}
+      </div>
+
+      <div class="at-wrap"><table class="rc-table at-table">
+      <colgroup><col class="c-d"><col class="c-t"><col class="c-t"><col class="c-m"><col class="c-m"><col></colgroup>
+      <thead><tr>
+        <th>Day</th><th>In</th><th>Out</th><th>Late</th><th>Over</th><th>How it counted</th>
+      </tr></thead><tbody>
+        ${rows.map((d) => {
+    // She came in on a day that was hers. Saying "present" hides the one thing
+    // that matters about it — it is why the whole day is in the overtime column.
+    const [word, cls] = d.off_day_worked
+      ? ['Day off · worked', 'ok']
+      : (ATT_WORD[d.status] || [cap(d.status), '']);
+    return `<tr class="at-${cls}">
+          <td class="at-d"><b>${Number(d.date.slice(8))}</b> <span>${cap(d.weekday).slice(0, 3)}</span></td>
+          <td>${d.check_in ? esc(d.check_in) : '—'}</td>
+          <td>${d.check_out ? esc(d.check_out) : '—'}</td>
+          <td class="${d.late_min ? 'at-bad' : ''}">${d.late_min ? d.late_min + 'm' : '—'}</td>
+          <td class="${d.ot_min ? 'at-ok' : ''}">${d.ot_min ? d.ot_min + 'm' : '—'}</td>
+          <td class="at-w">${esc(word)}${d.extra_hours ? ` · ${d.extra_hours}h from home` : ''}</td>
+        </tr>`;
+  }).join('')}
+      </tbody><tfoot><tr>
+        <td colspan="3">Totals</td>
+        <td class="${s.late_minutes ? 'at-bad' : ''}">${hm(s.late_minutes)}</td>
+        <td class="${s.overtime_minutes ? 'at-ok' : ''}">${hm(s.overtime_minutes)}</td>
+        <td class="at-w">${s.paid_days} day(s) paid${s.overtime_off_day_minutes ? ` · ${hm(s.overtime_off_day_minutes)} of the overtime on day(s) off` : ''}</td>
+      </tr></tfoot></table></div>
+      ${gone.length ? `<p class="at-note">Her last day here was ${esc(dt(s.left_on) || s.left_on)}. The ${gone.length} day(s) after it are not part of this month — they are neither absence nor pay.</p>` : ''}
+
+      <div class="ps-sign">
+        <div><div class="ps-line"></div>Seen by</div>
+        <div><div class="ps-line"></div>Dalia Bassel Couture</div>
+      </div>
+      <div class="rc-foot">${esc(monthName)} · issued ${esc(dt(today()))}</div>
+    </div>`;
+};
+window.openAttSheet = (sheet) => { window._attsheet = sheet; go('attsheet'); };
 
 /* ---------- notifications ---------- */
 function timeago(s) {

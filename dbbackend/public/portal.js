@@ -696,7 +696,10 @@ PAGES.mysalary = async (c) => {
     </div>`).join('');
   c.innerHTML = pageHead('My Salary', '💵') + waitingCard +
     `<div class="filters"><input type="month" value="${month}" onchange="setMySalMonth(this.value)" style="width:auto;padding:8px" /></div>` +
-    (sal ? '<button class="btn sec sm" style="margin-bottom:10px" onclick="openPayslip(window._mySal)">🖨 Print my payslip</button>' : '') +
+    (sal ? `<div class="row" style="margin-bottom:10px">
+      <button class="btn sec sm" onclick="openPayslip(window._mySal)">🖨 My payslip</button>
+      <button class="btn sec sm" onclick="openAttSheet(window._mySal)">🗓 My days</button>
+    </div>` : '') +
     (sal ? salaryBreakdown(sal, month) : empty('No salary info yet', '💵')) +
     `<div class="sec-title">Salary sent to me</div>
      <div class="card">${pays.length ? pays.map((p) => `<div class="item">
