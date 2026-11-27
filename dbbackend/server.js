@@ -652,9 +652,51 @@ api['DELETE /api/payments/:id'] = async (req, res, user, url, params) => {
 api['GET /api/reminders'] = async (req, res, user) => {
   if (!requireAuth(user, res)) return;
   if (user.role === 'admin') {
-    return send(res, 200, await db.prepare('SELECT r.*,u.name user_name FROM reminders r JOIN users u ON u.id=r.user_id ORDER BY done, due_date').all());
+    // the round each one belongs to, so the money coming in can be read as the
+    // online course's or the studio's own
+    return send(res, 200, await db.prepare(`SELECT r.*,u.name user_name,u.round_id,
+        (SELECT name FROM rounds WHERE id=u.round_id) round_name,
+        (SELECT kind FROM rounds WHERE id=u.round_id) round_kind
+      FROM reminders r JOIN users u ON u.id=r.user_id ORDER BY done, due_date`).all());
   }
   send(res, 200, await db.prepare('SELECT * FROM reminders WHERE user_id=? ORDER BY done,due_date').all(user.id));
+};
+/* An instalment plan, written down in one go. She agrees to pay what is left
+   over so many months, and the studio would rather have the dates in the book
+   than in somebody's head — so each instalment becomes a line of its own, to
+   the piastre, with whatever does not divide riding on the last one. */
+api['POST /api/reminders/plan'] = async (req, res, user) => {
+  if (!requireManager(user, res)) return;
+  const b = await readBody(req);
+  const uid = Number(b.user_id);
+  if (!uid) return send(res, 400, { error: 'Select a student' });
+  const n = Math.max(1, Math.min(36, Number(b.count) || 0));
+  const total = Math.round((Number(b.total) || 0) * 100) / 100;
+  if (total <= 0) return send(res, 400, { error: 'Enter how much the plan is for' });
+  const start = String(b.start_date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return send(res, 400, { error: 'Pick the date of the first instalment' });
+  const every = ['month', 'fortnight', 'week'].includes(b.every) ? b.every : 'month';
+  if (b.replace) await db.prepare('DELETE FROM reminders WHERE user_id=? AND done=0').run(uid);
+  const each = Math.round((total / n) * 100) / 100;
+  let placed = 0;
+  const made = [];
+  for (let i = 0; i < n; i++) {
+    const amt = i === n - 1 ? Math.round((total - placed) * 100) / 100 : each;
+    placed = Math.round((placed + amt) * 100) / 100;
+    const d = new Date(start + 'T12:00:00Z');
+    if (every === 'month') d.setUTCMonth(d.getUTCMonth() + i);
+    else d.setUTCDate(d.getUTCDate() + i * (every === 'week' ? 7 : 14));
+    const due = d.toISOString().slice(0, 10);
+    const r = await db.prepare('INSERT INTO reminders (user_id,due_date,amount,note) VALUES (?,?,?,?)')
+      .run(uid, due, amt, b.note || `Instalment ${i + 1} of ${n}`);
+    made.push({ id: r.lastInsertRowid, due_date: due, amount: amt });
+  }
+  const who = await db.prepare('SELECT name FROM users WHERE id=?').get(uid);
+  await notifyRoles('admin', { type: 'payment', title: `Instalments set for ${who ? who.name : ''}`,
+    body: `${n} instalment${n === 1 ? '' : 's'} · ${money0(total)}`, link_page: 'finance', actor_name: user.name }, user.id);
+  await notify(uid, { type: 'payment', title: 'Your instalments are set 🗓',
+    body: `${n} instalment${n === 1 ? '' : 's'}, the first on ${made[0].due_date}`, link_page: 'mypay', actor_name: user.name });
+  send(res, 200, { made });
 };
 api['POST /api/reminders'] = async (req, res, user) => {
   if (!requireManager(user, res)) return;
