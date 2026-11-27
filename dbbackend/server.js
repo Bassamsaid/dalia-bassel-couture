@@ -457,7 +457,7 @@ api['GET /api/users'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return; // staff may view students (money stripped below)
   const role = url.searchParams.get('role');
   const round = url.searchParams.get('round_id');
-  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,off_days,created_at FROM users WHERE 1=1';
+  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,country,off_days,created_at FROM users WHERE 1=1';
   const args = [];
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
@@ -476,12 +476,12 @@ api['POST /api/users'] = async (req, res, user) => {
   if (user.role === 'manager' && !['trainee', 'customer'].includes(b.role || 'trainee')) return send(res, 403, { error: 'managers can only add students or clients' });
   try {
     const invited = b.password ? 0 : 1; // no password -> they set one themselves by signing up with this email
-    const r = await db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date,governorate,off_days,invited)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    const r = await db.prepare(`INSERT INTO users (name,email,phone,password_hash,role,round_id,group_id,job_title,base_salary,hire_date,governorate,country,off_days,invited)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       b.name, b.email ? String(b.email).trim().toLowerCase() : null, b.phone || null,
       hashPassword(b.password || crypto.randomBytes(9).toString('hex')),
       b.role || 'trainee', b.round_id || null, b.group_id || null,
-      b.job_title || null, b.base_salary || 0, b.hire_date || null, b.governorate || null, b.off_days || null, invited);
+      b.job_title || null, b.base_salary || 0, b.hire_date || null, b.governorate || null, b.country || null, b.off_days || null, invited);
     const uid = r.lastInsertRowid;
     if (b.role !== 'staff' && (b.total_fee != null || b.round_id)) {
       await db.prepare('INSERT INTO enrollments (user_id,round_id,total_fee) VALUES (?,?,?)').run(uid, b.round_id || null, b.total_fee || 0);
@@ -498,7 +498,7 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
   if (!cur) return send(res, 404, { error: 'not found' });
   if (user.role === 'staff') { // staff may only edit a student/client's contact info — no money, role, round, group
     if (!['trainee', 'customer'].includes(cur.role)) return send(res, 403, { error: 'forbidden' });
-    await db.prepare('UPDATE users SET name=?,phone=?,governorate=? WHERE id=?').run(b.name ?? cur.name, b.phone ?? cur.phone, b.governorate ?? cur.governorate, params.id);
+    await db.prepare('UPDATE users SET name=?,phone=?,governorate=?,country=? WHERE id=?').run(b.name ?? cur.name, b.phone ?? cur.phone, b.governorate ?? cur.governorate, b.country ?? cur.country, params.id);
     return send(res, 200, { ok: true });
   }
   if (user.role === 'manager') { // managers may only touch students/clients and never escalate a role
@@ -508,10 +508,10 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
   // An empty shift box means "use the studio's hours", so '' is stored as null
   // rather than as a time of midnight.
   const shift = (v, fallback) => (v === undefined ? fallback : (String(v).trim() || null));
-  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,off_days=?,shift_start=?,shift_end=? WHERE id=?`).run(
+  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,country=?,off_days=?,shift_start=?,shift_end=? WHERE id=?`).run(
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
-    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.off_days ?? cur.off_days,
+    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.country ?? cur.country, b.off_days ?? cur.off_days,
     shift(b.shift_start, cur.shift_start), shift(b.shift_end, cur.shift_end), params.id);
   if (b.password) await db.prepare('UPDATE users SET password_hash=?,invited=0 WHERE id=?').run(hashPassword(b.password), params.id);
   // giving a login email to someone who had none makes the account claimable on sign-up.

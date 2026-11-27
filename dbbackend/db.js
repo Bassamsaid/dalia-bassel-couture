@@ -587,6 +587,9 @@ const ready = (async () => {
   await tryExec("ALTER TABLE advances ADD COLUMN status TEXT DEFAULT 'approved'"); // pending | approved | rejected
   await tryExec('ALTER TABLE dresses ADD COLUMN assigned_to INTEGER'); // staff responsible for the dress
   await tryExec('ALTER TABLE users ADD COLUMN governorate TEXT'); // student governorate (Egypt)
+  // Online rounds are taken from anywhere, so where somebody is is a country
+  // first and a governorate only if that country is Egypt.
+  await tryExec('ALTER TABLE users ADD COLUMN country TEXT');
   await tryExec('ALTER TABLE dress_images ADD COLUMN position INTEGER DEFAULT 0'); // photo order (first = cover)
   await tryExec('ALTER TABLE dresses ADD COLUMN price REAL DEFAULT 0');        // selling price (admin only)
   await tryExec('ALTER TABLE dresses ADD COLUMN measurements TEXT');            // JSON of measurement fields
