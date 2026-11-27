@@ -119,7 +119,7 @@ async function getUser(req) {
   if (!s) return null;
   // Her own hours travel with her, so the check-in screen measures her day the
   // way the salary sheet does rather than against the studio's nine o'clock.
-  return await db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,avatar,off_days,shift_start,shift_end FROM users WHERE id=?').get(s.user_id) || null;
+  return await db.prepare('SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,avatar,off_days,unpaid_off_days,shift_start,shift_end FROM users WHERE id=?').get(s.user_id) || null;
 }
 // Save a base64 data URL (or raw base64) to uploads, return filename
 async function saveImage(dataUrl, fallbackExt = '.jpg') {
@@ -457,7 +457,7 @@ api['GET /api/users'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return; // staff may view students (money stripped below)
   const role = url.searchParams.get('role');
   const round = url.searchParams.get('round_id');
-  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,country,off_days,left_on,created_at FROM users WHERE 1=1';
+  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,country,off_days,unpaid_off_days,left_on,created_at FROM users WHERE 1=1';
   const args = [];
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
@@ -512,10 +512,10 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
   // admin may set one: it decides what a month owes her.
   const leftOn = b.left_on === undefined ? cur.left_on
     : (user.role === 'admin' ? (String(b.left_on || '').trim().slice(0, 10) || null) : cur.left_on);
-  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,country=?,off_days=?,shift_start=?,shift_end=?,left_on=? WHERE id=?`).run(
+  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,country=?,off_days=?,unpaid_off_days=?,shift_start=?,shift_end=?,left_on=? WHERE id=?`).run(
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
-    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.country ?? cur.country, b.off_days ?? cur.off_days,
+    b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.country ?? cur.country, b.off_days ?? cur.off_days, b.unpaid_off_days ?? cur.unpaid_off_days,
     shift(b.shift_start, cur.shift_start), shift(b.shift_end, cur.shift_end), leftOn, params.id);
   if (b.password) await db.prepare('UPDATE users SET password_hash=?,invited=0 WHERE id=?').run(hashPassword(b.password), params.id);
   // giving a login email to someone who had none makes the account claimable on sign-up.
@@ -1907,7 +1907,7 @@ api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => {
    get the same answer the sheet gives — there is one salary arithmetic here,
    not two. Returns null when there is no such person. */
 async function salaryFor(id, month) {
-  const u = await db.prepare('SELECT id,name,base_salary,off_days,shift_start,shift_end,left_on FROM users WHERE id=?').get(id);
+  const u = await db.prepare('SELECT id,name,base_salary,off_days,unpaid_off_days,shift_start,shift_end,left_on FROM users WHERE id=?').get(id);
   if (!u) return null;
   const cfg = {}; (await db.prepare('SELECT key,value FROM settings').all()).forEach((r) => { cfg[r.key] = r.value; });
   const base = Number(u.base_salary) || 0;
@@ -1922,6 +1922,11 @@ async function salaryFor(id, month) {
   const otMult = Number(cfg.overtime_mult) || 1.5;
   const workHours = Math.max(1, (outMin - inMin) / 60);
   const off = new Set((u.off_days || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+  // The weekly days that are hers but that the month does not pay for. A day
+  // named as both is paid: the kinder reading wins, and the screen does not
+  // offer both at once anyway.
+  const unpaidOff = new Set((u.unpaid_off_days || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+  for (const d of off) unpaidOff.delete(d);
 
   // A month is read day by day rather than counted from the rows that happen to
   // exist. A day nobody recorded anything for is an absence — that is what the
@@ -1940,9 +1945,12 @@ async function salaryFor(id, month) {
   // — the days somebody is expected in, times the length of their day. September
   // asks for twenty-six days of nine hours, so an hour is a two-hundred-and-
   // thirty-fourth of the month, which is what the studio's own timesheet pays.
+  // A day the month does not pay for is not a day it asks for either, so an
+  // unpaid weekly day off is left out of this the same way a paid one is.
   let owedDays = 0;
   for (let d = 1; d <= lastDay; d++) {
-    if (!off.has(weekdayOf(`${month}-${String(d).padStart(2, '0')}`))) owedDays++;
+    const w = weekdayOf(`${month}-${String(d).padStart(2, '0')}`);
+    if (!off.has(w) && !unpaidOff.has(w)) owedDays++;
   }
   if (!owedDays) owedDays = wd;
   const hourly = base / (owedDays * workHours);
@@ -1972,7 +1980,7 @@ async function salaryFor(id, month) {
   let otOffMin = 0, offWorkedDays = 0;
   // Her last day here, if she has one. Everything after it belongs to nobody.
   const leftOn = u.left_on ? String(u.left_on).slice(0, 10) : null;
-  let goneDays = 0;
+  let goneDays = 0, unpaidOffDays = 0;
   for (let d = 1; d <= lastDay; d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`;
     const a = att[date];
@@ -1995,7 +2003,9 @@ async function salaryFor(id, month) {
       const late = hm2min(a.check_in) - inMin;
       // However late the morning, it is minutes: what she owed and did not
       // give, counted from her own start and charged at the rate overtime pays.
-      if (!off.has(row.weekday) && late > grace) { row.late_min = late - grace; lateMin += row.late_min; }
+      // Not on a day that was hers to take, paid or unpaid: she was not owed
+      // the morning at all, so she cannot be late for it.
+      if (!off.has(row.weekday) && !unpaidOff.has(row.weekday) && late > grace) { row.late_min = late - grace; lateMin += row.late_min; }
       if (a.check_out) {
         if (off.has(row.weekday)) {
           // Her day off, and she came in anyway. The day was already paid for
@@ -2018,6 +2028,11 @@ async function salaryFor(id, month) {
       }
     } else if (off.has(row.weekday)) {
       row.status = 'off'; offDays++;
+    } else if (unpaidOff.has(row.weekday)) {
+      // Her own day, and the month does not pay for it. Not an absence: she is
+      // not in the wrong and nothing is marked against her. It is simply a day
+      // the salary was never for, so it is kept apart from the days she missed.
+      row.status = 'unpaid_off'; unpaidOffDays++;
     } else if (leave[date] && leave[date] !== 'unpaid') {
       row.status = 'paid_leave'; row.leave_type = leave[date]; paidLeaveDays++;
     } else if (leave[date] === 'unpaid') {
@@ -2049,7 +2064,12 @@ async function salaryFor(id, month) {
   // At the plain rate: the studio's sheet keeps this on a line of its own, apart
   // from the overtime it pays at one and a half.
   const extraTaskPay = r2(extraHours * hourly);
-  const fullNet = r2(base + bonus + overtimePay + extraTaskPay - absenceDeduction - lateDeduction - advTotal - deductions);
+  // The weekly days the month was never for. A whole-month figure starts from a
+  // salary that assumes all thirty days, so these have to come off it by name —
+  // kept on a line of their own rather than folded in with the days she missed,
+  // because they are not the same thing and she is not in the wrong for them.
+  const unpaidOffDeduction = r2(daily * unpaidOffDays);
+  const fullNet = r2(base + bonus + overtimePay + extraTaskPay - absenceDeduction - unpaidOffDeduction - lateDeduction - advTotal - deductions);
   // What the month is worth so far: the days already paid for, rather than the
   // whole salary with the missing days taken back off it. Same arithmetic at the
   // end of the month, but it reads correctly in the middle of one.
@@ -2068,6 +2088,7 @@ async function salaryFor(id, month) {
     shift_start: shiftIn, shift_end: shiftOut, shift_is_own: !!(u.shift_start || u.shift_end),
     absent_days: absDays, absence_deduction: absenceDeduction,
     present_days: presentDays, off_days: offDays, paid_leave_days: paidLeaveDays,
+    unpaid_off_days: unpaidOffDays, unpaid_off_deduction: unpaidOffDeduction,
     late_minutes: lateMin, late_deduction: lateDeduction, late_mult: otMult,
     overtime_minutes: otMin, overtime_pay: overtimePay, overtime_mult: otMult,
     overtime_off_day_minutes: otOffMin, off_days_worked: offWorkedDays,
@@ -2153,6 +2174,50 @@ api['GET /api/staff/:id/settlement'] = async (req, res, user, url, params) => {
     advances: shaped,
     settlement: r2(payDue - advOutstanding),
   });
+};
+
+/* Writing down that the settling-up actually happened.
+   Until this is recorded she goes on reading as owed for months he has already
+   handed over, and her advance goes on standing against somebody who is not
+   coming back. It writes what the screen showed and nothing else: one salary
+   payment per unpaid month, and every instalment still standing ticked off.
+   Each of those rows can be deleted on its own afterwards, so nothing here is
+   a door that only opens one way. */
+api['POST /api/staff/:id/settlement'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const u = await db.prepare('SELECT id,name,left_on FROM users WHERE id=?').get(params.id);
+  if (!u) return send(res, 404, { error: 'not found' });
+  if (!u.left_on) return send(res, 400, { error: 'Write down her last day first — a settlement is only for somebody who has left.' });
+  const b = await readBody(req);
+  const months = Array.isArray(b.months) ? b.months.filter((m) => /^\d{4}-\d{2}$/.test(String(m))) : [];
+  const note = String(b.note || '').trim() || 'Settled on leaving';
+
+  const sent = {};
+  for (const r of await db.prepare('SELECT month,COALESCE(SUM(amount),0) s FROM salary_payments WHERE user_id=? GROUP BY month').all(params.id)) sent[r.month] = r.s;
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const wrote = [];
+  for (const m of months) {
+    const s = await salaryFor(params.id, m);
+    if (!s) continue;
+    const owed = r2(s.pay_before_advances - (sent[m] || 0));
+    if (owed <= 0.5) continue;   // already handed over; nothing to write
+    await db.prepare('INSERT INTO salary_payments (user_id,month,amount,note) VALUES (?,?,?,?)').run(params.id, m, owed, note);
+    wrote.push({ month: m, amount: owed });
+  }
+
+  // Every instalment still standing, ticked off: there are no more salaries for
+  // it to come off, so it is settled here or not at all.
+  const all = await db.prepare('SELECT * FROM advances WHERE user_id=?').all(params.id);
+  const parents = all.filter((r) => !r.parent_id && (r.status || 'approved') === 'approved');
+  let ticked = 0;
+  for (const parent of parents) {
+    const kids = all.filter((r) => r.parent_id === parent.id);
+    for (const row of (kids.length ? kids : [parent])) {
+      if (!row.paid) { await db.prepare('UPDATE advances SET paid=1 WHERE id=?').run(row.id); ticked++; }
+    }
+  }
+  await notify(Number(params.id), { type: 'salary', title: 'Your record has been settled', body: note, link_page: 'mysalary', actor_name: user.name });
+  send(res, 200, { ok: true, salary_payments: wrote, instalments_settled: ticked });
 };
 
 // ================= DRESS MATERIAL PURCHASES (invoices + dress-linked lines) =================

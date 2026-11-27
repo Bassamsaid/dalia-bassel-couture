@@ -705,6 +705,12 @@ const ready = (async () => {
   // did not come in, and the sheet deducts for each of them. A last day stops
   // the month at the day she stopped, so what is owed is what she earned.
   await tryExec('ALTER TABLE users ADD COLUMN left_on TEXT');
+  // A weekly day off that is hers to take but is not paid for. off_days are the
+  // paid ones — the day costs her nothing and is counted as worked. Some people
+  // here have both: a paid day and an unpaid one in the same week. An unpaid day
+  // is not an absence, she owes nothing for it and nobody marks it; it simply is
+  // not a day the month pays for.
+  await tryExec('ALTER TABLE users ADD COLUMN unpaid_off_days TEXT');
   // Work done away from the studio and paid by the hour — a dress finished at
   // home, beading, pressing. It belongs to a day but is not part of it, so it is
   // neither lateness nor overtime: hours, at the plain rate.
