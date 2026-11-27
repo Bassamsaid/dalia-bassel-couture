@@ -536,6 +536,7 @@ PAGES.myoverview = async (c) => {
   let sal = null;
   try { sal = await GET(`/api/staff/${u.id}/salary?month=${month}`); } catch (e) {}
   const offSet = new Set((u.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
+  const unpaidSet = new Set((u.unpaid_off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
   const hours = sal
     ? `${esc(sal.shift_start)} – ${esc(sal.shift_end)}${sal.shift_is_own ? '' : ' <span class="hint">· the studio\'s</span>'}`
     : '—';
@@ -552,6 +553,9 @@ PAGES.myoverview = async (c) => {
     <div class="sec-title">Paid weekly off-days</div>
     <div class="hint" style="margin:0 2px 6px">Not counted as absence or lateness, and paid.</div>
     <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${offSet.has(k) ? 'active' : ''}" style="cursor:default">${l}</span>`).join('')}</div>
+    ${unpaidSet.size ? `<div class="sec-title">Unpaid weekly off-days</div>
+    <div class="hint" style="margin:0 2px 6px">Your day off, but the month does not pay for it. Not an absence — nothing is marked against you.</div>
+    <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${unpaidSet.has(k) ? 'active' : ''}" style="cursor:default">${l}</span>`).join('')}</div>` : ''}
     ${sal ? `<div class="sec-title">This month so far</div>
       <div class="card">
         ${kv('Days worked', `${sal.present_days} of ${sal.paid_days} paid so far`)}
@@ -720,6 +724,7 @@ function salaryBreakdown(s, month) {
 
   const off = [];
   if (s.absent_days) off.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'bad'));
+  if (s.unpaid_off_days) off.push(line('Unpaid weekly day off', `${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.unpaid_off_deduction), 'bad'));
   if (s.late_minutes) off.push(line('Lateness', `${s.late_minutes} min past the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + money(s.late_deduction), 'bad'));
   if (s.deductions) off.push(line('Deductions', '', '− ' + money(s.deductions), 'bad'));
   if (s.advances) off.push(line('Advances taken', 'already in hand', '− ' + money(s.advances), 'bad'));

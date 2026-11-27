@@ -4216,6 +4216,8 @@ PAGES.staffmember = async (c) => {
   let inner = '';
   if (tab === 'overview') {
     const offSet = new Set((s.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
+    const unpaidSet = new Set((s.unpaid_off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
+    const dayRate = (s.base_salary || 0) / (Number((window._cfg || {}).work_days_per_month) || 30);
     inner = `<div class="card">
       ${kv('Role', roleLabel(s.role))}${kv('Job title', s.job_title || '—')}${kv('Base salary', money(s.base_salary))}
       ${kv('Working hours', (s.shift_start || s.shift_end)
@@ -4228,8 +4230,11 @@ PAGES.staffmember = async (c) => {
     ? `<button class="btn sec" style="margin-top:8px" onclick="markBack(${id})">She is back — undo this</button>`
     : `<button class="btn sec" style="margin-top:8px" onclick="markLeft(${id})">She has left the studio</button>`}</div>
       <div class="sec-title">Paid weekly off-days</div>
-      <div class="hint" style="margin:0 2px 6px">Tap the day(s) off — not counted as absence or lateness, and paid.</div>
+      <div class="hint" style="margin:0 2px 6px">Her day off, and the month pays for it. Not counted as absence or lateness, and nothing comes off.</div>
       <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${offSet.has(k) ? 'active' : ''}" onclick="toggleOffDay(${id},'${k}')">${l}</span>`).join('')}</div>
+      <div class="sec-title">Unpaid weekly off-days</div>
+      <div class="hint" style="margin:0 2px 6px">Her day off too, but the month does not pay for it — ${money(dayRate)} a day comes off, the same as any day the salary was not for. It is not an absence and nothing is marked against her. A day already paid above cannot be made unpaid as well.</div>
+      <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${unpaidSet.has(k) ? 'active' : ''}${offSet.has(k) ? ' off' : ''}" onclick="${offSet.has(k) ? '' : `toggleUnpaidOffDay(${id},'${k}')`}" ${offSet.has(k) ? 'style="opacity:.35"' : ''}>${l}</span>`).join('')}</div>
       <div class="sec-title">This month so far</div>
       <div id="mtdCard" class="card"><div class="hint" style="margin:0">Working it out…</div></div>`;
   } else if (tab === 'settle') {
@@ -4266,7 +4271,10 @@ PAGES.staffmember = async (c) => {
         ${kv('Already come off a salary', money(st.advance_recovered || 0), 'ok')}
         ${kv('Still standing', money(st.advance_outstanding || 0), 'bad')}
       </div>
-      ${(st.advances || []).length ? `<div class="card" style="margin-top:12px">${(st.advances || []).map((a) => advanceCard(a, false)).join('')}</div>` : ''}`;
+      ${(st.advances || []).length ? `<div class="card" style="margin-top:12px">${(st.advances || []).map((a) => advanceCard(a, false)).join('')}</div>` : ''}
+      ${(unpaid.length || st.advance_outstanding) ? `<div class="sec-title">Once it is done</div>
+      <div class="hint" style="margin:0 2px 8px">When the money has actually changed hands, record it here. Until you do, she goes on reading as owed for months you have already paid, and her advance goes on standing against somebody who is not coming back.</div>
+      <button class="btn" onclick='settleUp(${id}, ${JSON.stringify(unpaid.map((m) => ({ m: m.month, a: m.outstanding })))}, ${st.advance_outstanding || 0})'>Record that this is settled</button>` : ''}`;
   } else if (tab === 'salary') {
     const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
     window._salSheet = sal; // the payslip prints exactly what is on screen
@@ -4285,6 +4293,8 @@ PAGES.staffmember = async (c) => {
       + (sal.gone_days ? `<div class="hint" style="margin:-2px 2px 8px">The ${sal.gone_days} day(s) after she left are neither absence nor pay.</div>` : '')
     : kv('Absent days', sal.absent_days + ' day(s)')
       + kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+        ${sal.unpaid_off_days ? kv('Unpaid weekly days off', `${sal.unpaid_off_days} day(s) × ${money(sal.daily)}`)
+    + kv('− Not paid for those days', money(sal.unpaid_off_deduction || 0), 'bad') : ''}
         ${kv('Late (beyond grace)', (sal.late_minutes || 0) + ' min ×' + (sal.late_mult || 1))}
         ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
         ${kv('Overtime', (sal.overtime_minutes || 0) + ' min ×' + (sal.overtime_mult || 1.5))}
@@ -4477,11 +4487,24 @@ window.addAbsence = (id) => formModal('Add absence', [
 ], async (d) => { d.user_id = id; await POST('/api/absences', d); toast('Added'); go('staffmember'); });
 window.delAbsence = (aid) => confirmDel('Delete this absence?', async () => { await DEL('/api/absences/' + aid); go('staffmember'); });
 window.confirmAbsence = async (aid) => { await PUT('/api/absences/' + aid + '/confirm', {}); toast('Confirmed'); go('staffmember'); };
+const dayList = (v) => new Set(String(v || '').split(',').map((x) => x.trim()).filter(Boolean));
+/* Making a day paid takes it off the unpaid list in the same breath: a day
+   cannot be both, and leaving it on both would have the sheet deciding which
+   one it meant. */
 window.toggleOffDay = async (id, day) => {
   const s = (window._staff || []).find((x) => x.id === id) || {};
-  const set = new Set((s.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
-  set.has(day) ? set.delete(day) : set.add(day);
-  await PUT('/api/users/' + id, { off_days: [...set].join(',') });
+  const set = dayList(s.off_days);
+  const unpaid = dayList(s.unpaid_off_days);
+  set.has(day) ? set.delete(day) : (set.add(day), unpaid.delete(day));
+  await PUT('/api/users/' + id, { off_days: [...set].join(','), unpaid_off_days: [...unpaid].join(',') });
+  toast('Saved'); go('staffmember');
+};
+window.toggleUnpaidOffDay = async (id, day) => {
+  const s = (window._staff || []).find((x) => x.id === id) || {};
+  if (dayList(s.off_days).has(day)) return toast('That day is already a paid one');
+  const unpaid = dayList(s.unpaid_off_days);
+  unpaid.has(day) ? unpaid.delete(day) : unpaid.add(day);
+  await PUT('/api/users/' + id, { unpaid_off_days: [...unpaid].join(',') });
   toast('Saved'); go('staffmember');
 };
 /* Writing down that somebody has gone, and taking it back if she returns.
@@ -4496,6 +4519,21 @@ window.markLeft = (id) => formModal('She has left the studio', [
   window._staffTab2 = 'settle';
   go('staffmember');
 }, { hint: 'Nothing after this day is counted as an absence, and nothing after it is paid. Her last month is paid for the days she actually worked.' });
+/* Recording the settling-up. The dialog names every row it is about to write,
+   because this one tap can add several — and somebody who meant only to tick
+   the advance off should see the salary months before, not after. */
+window.settleUp = (id, months, advanceLeft) => {
+  const lines = (months || []).map((m) => `   · ${monthLabel(m.m)} — ${moneyText(m.a)}`);
+  const msg = `Record that this is settled?\n\nThis writes down:\n`
+    + (lines.length ? `\n${lines.length} salary payment(s):\n${lines.join('\n')}\n` : '\nNo salary payments — every month is already recorded as sent.\n')
+    + (advanceLeft ? `\nAnd the ${moneyText(advanceLeft)} still standing on her advance, ticked off as recovered.\n` : '\nHer advance is already fully recovered.\n')
+    + `\nEach row can be deleted on its own afterwards if you need to put it right.`;
+  confirmDel(msg, async () => {
+    const r = await POST(`/api/staff/${id}/settlement`, { months: (months || []).map((m) => m.m) });
+    toast(`Recorded · ${(r.salary_payments || []).length} month(s), ${r.instalments_settled || 0} instalment(s)`);
+    go('staffmember');
+  });
+};
 window.markBack = (id) => confirmDel(
   'She is back?\n\nHer last day comes off, and her sheet goes back to counting every day of the month as it did before.',
   async () => { await PUT('/api/users/' + id, { left_on: '' }); toast('Done'); window._staffTab2 = 'overview'; go('staffmember'); });
