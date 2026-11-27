@@ -654,7 +654,8 @@ window.viewStudent = async (id) => {
       <div class="av">${p.image ? `<img class="thumb" style="width:42px;height:42px;aspect-ratio:1" src="${esc(mediaUrl(p.image))}" onclick="lightbox('${esc(mediaUrl(p.image))}')"/>` : '💵'}</div>
       <div class="main"><div class="nm">${money(p.amount)}</div><div class="sub">${p.kind === 'deposit' ? 'Deposit' : 'Installment'} · ${dt(p.paid_at)}${p.note ? ' · ' + esc(p.note) : ''}</div></div></div>`).join('') : '<div class="hint">No payments yet</div>'}</div>` : ''}
     ${(canSeeMoney || canEdit) ? `<div class="row" style="margin-top:14px">
-      ${canSeeMoney ? `<button class="btn ghost" onclick="closeModal();addPaymentFor(${id})">＋ Payment</button>` : ''}
+      ${canSeeMoney ? `<button class="btn ghost" onclick="closeModal();addPaymentFor(${id})">＋ Payment</button>
+      <button class="btn ghost" onclick="closeModal();addPlanFor(${id})">🗓 Set instalments</button>` : ''}
       ${canEdit ? `<button class="btn sec" onclick="closeModal();editStudent(${id})">Edit</button>` : ''}
     </div>` : ''}`);
 };
@@ -710,6 +711,15 @@ function wireStudentForm(groups) {
   }
 }
 
+/* From her own record, where he is already looking at what she owes. */
+window.addPlanFor = async (id) => {
+  if (!window._fin || !window._fin.sheet) {
+    const [users, sheet, payments] = await Promise.all([
+      GET('/api/users?role=trainee'), GET('/api/finance/sheet'), GET('/api/payments')]);
+    window._fin = { users, sheet, payments };
+  }
+  addPlan(id);
+};
 window.stFilter = (f) => { window._stF = f; go('students'); };
 window.editStudent = async (id) => {
   const canManageFull = ['admin', 'manager'].includes(state.user.role); // staff: contact only, no money/round/group
@@ -766,7 +776,7 @@ PAGES.finance = async (c) => {
   ]);
   window._fin = { users, sheet, payments };
   const tab = window._finTab || 'sheet';
-  const tabs = [['sheet', 'Sheet'], ['pay', 'Payments'], ['rem', 'Reminders']];
+  const tabs = [['sheet', 'Sheet'], ['pay', 'Payments'], ['rem', 'Coming in']];
   let inner = '';
   if (tab === 'sheet') {
     const over = sheet.rows.filter((r) => r.over > 0);
@@ -820,13 +830,58 @@ PAGES.finance = async (c) => {
         <div class="serif" style="font-size:20px;font-weight:800;color:var(--ok)">${money(shownTotal)}</div>
       </div>`;
   } else {
-    inner = `<button class="btn" onclick="addReminder()">＋ Payment reminder</button>
-      <div class="card" style="margin-top:12px">${reminders.length ? reminders.map((r) => `
-      <div class="item"><div class="av">${r.done ? '✓' : '◷'}</div>
-        <div class="main"><div class="nm">${esc(r.user_name)}</div>
-          <div class="sub">${dt(r.due_date)} · ${money(r.amount)}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
-        ${r.done ? '<span class="badge ok">Done</span>' : `<button class="btn sm ghost" onclick="markReminder2(${r.id})">Done</button>`}
-        <button class="btn-icon" onclick="delReminder(${r.id})">🗑</button></div>`).join('') : empty('No reminders')}</div>`;
+    // What is still to come, and when. The ones already paid are kept but fall to
+    // the foot of the list: it is the money that has not arrived that is read.
+    const kind = window._dueKind || 'all';
+    const mine = reminders.filter((r) => kind === 'all' || (r.round_kind || 'onsite') === kind);
+    const open = mine.filter((r) => !r.done);
+    const t = today();
+    const monthEnd = t.slice(0, 8) + '31';
+    const late = open.filter((r) => dt(r.due_date) < t);
+    const soon = open.filter((r) => dt(r.due_date) >= t && dt(r.due_date) <= monthEnd);
+    const later = open.filter((r) => dt(r.due_date) > monthEnd);
+    const sum = (a) => a.reduce((x, r) => x + (r.amount || 0), 0);
+    const counts = { all: reminders.filter((r) => !r.done).length,
+      online: reminders.filter((r) => !r.done && r.round_kind === 'online').length,
+      onsite: reminders.filter((r) => !r.done && (r.round_kind || 'onsite') !== 'online').length };
+    // grouped by the month it falls in, so a year of instalments reads as a year
+    const byMonth = {};
+    open.slice().sort((a, b) => dt(a.due_date).localeCompare(dt(b.due_date)))
+      .forEach((r) => { const m = dt(r.due_date).slice(0, 7); (byMonth[m] = byMonth[m] || []).push(r); });
+    const row = (r) => {
+      const d = dt(r.due_date);
+      const overdue = !r.done && d < t;
+      return `<div class="item">
+        <div class="av">${r.done ? '✓' : overdue ? '⚠️' : '◷'}</div>
+        <div class="main"><div class="nm">${esc(r.user_name)} <b class="${overdue ? 'bad' : ''}">${money(r.amount)}</b></div>
+          <div class="sub">${shortDate(d) || d}${overdue ? ' · <b class="bad">overdue</b>' : ''}${r.round_name ? ' · ' + esc(r.round_name) : ''}${r.round_kind === 'online' ? ' · 🌍 online' : ''}${r.note ? ' · ' + esc(r.note) : ''}</div></div>
+        ${r.done ? '<span class="badge ok">Paid</span>' : `<button class="btn sm ghost" onclick="markReminder2(${r.id})">Paid</button>`}
+        <button class="btn-icon" onclick="delReminder(${r.id})">🗑</button></div>`;
+    };
+    inner = `<div class="act2" style="margin:0 0 10px">
+        <button class="btn sm" onclick="addPlan()">🗓 Set instalments</button>
+        <button class="btn sec sm" onclick="addReminder()">＋ One payment</button>
+      </div>
+      <div class="filters">
+        <span class="chip ${kind === 'all' ? 'active' : ''}" onclick="dueKind('all')">All · ${counts.all}</span>
+        <span class="chip ${kind === 'online' ? 'active' : ''}" onclick="dueKind('online')">🌍 Online · ${counts.online}</span>
+        <span class="chip ${kind === 'onsite' ? 'active' : ''}" onclick="dueKind('onsite')">🏠 In the studio · ${counts.onsite}</span>
+      </div>
+      <div class="t3" style="margin:10px 0">
+        <div class="t3-c"><div class="t3-k">Overdue</div><div class="t3-v ${late.length ? 'bad' : ''}">${money0(sum(late))}</div><div class="t3-n">${late.length} payment${late.length === 1 ? '' : 's'}</div></div>
+        <div class="t3-c"><div class="t3-k">This month</div><div class="t3-v">${money0(sum(soon))}</div><div class="t3-n">${soon.length} payment${soon.length === 1 ? '' : 's'}</div></div>
+        <div class="t3-c"><div class="t3-k">Later</div><div class="t3-v">${money0(sum(later))}</div><div class="t3-n">${later.length} payment${later.length === 1 ? '' : 's'}</div></div>
+      </div>
+      <div class="card" style="text-align:center;margin-bottom:12px">
+        <div class="sub muted" style="letter-spacing:2px;text-transform:uppercase;font-size:11px;font-weight:700">Still to come in</div>
+        <div class="serif" style="font-size:26px;font-weight:700;color:var(--ok);margin-top:2px">${money0(sum(open))}</div>
+      </div>
+      ${Object.keys(byMonth).length ? Object.keys(byMonth).sort().map((m) => `
+        <div class="sec-title">${esc(monthLabel(m))} · ${money0(sum(byMonth[m]))}</div>
+        <div class="card">${byMonth[m].map(row).join('')}</div>`).join('')
+    : empty(kind === 'all' ? 'Nothing is due' : 'Nothing is due for these', '🗓')}
+      ${mine.some((r) => r.done) ? `<div class="sec-title">Already paid</div>
+        <div class="card">${mine.filter((r) => r.done).map(row).join('')}</div>` : ''}`;
   }
   c.innerHTML = pageHead('Payments') +
     `<div class="filters">${tabs.map(([k, l]) => `<span class="chip ${tab === k ? 'active' : ''}" onclick="finTab('${k}')">${l}</span>`).join('')}</div>` + inner;
@@ -940,6 +995,39 @@ window.editPayment = (id) => {
   wireCurrency();
 };
 window.delPayment = (id) => confirmDel('Delete this payment?', async () => { await DEL('/api/payments/' + id); toast('Deleted'); go('finance'); });
+/* The dates of what she still owes, agreed once and written down once. The
+   amount opens on what is actually left on her account, so the plan and the
+   books start from the same figure. */
+window.addPlan = (uid) => {
+  const owed = owedMap();
+  const left = (id) => Math.max(0, Number((owed[id] || {}).remaining || 0));
+  formModal('Instalments', [
+    { name: 'user_id', label: 'Student', type: 'select', required: true, value: uid || '',
+      options: window._fin.users.map((u) => ({ value: u.id, label: studentPayLabel(u, owed), sets: { total: left(u.id) } })) },
+    { name: 'total', label: 'Over how much in all (EGP)', type: 'number', required: true, value: uid ? left(uid) : '' },
+    { name: 'count', label: 'In how many instalments', type: 'number', required: true, value: 3 },
+    { name: 'start_date', label: 'First one due', type: 'date', required: true, value: today() },
+    { name: 'every', label: 'Then', type: 'select', value: 'month', options: [
+      { value: 'month', label: 'Every month' },
+      { value: 'fortnight', label: 'Every two weeks' },
+      { value: 'week', label: 'Every week' },
+    ] },
+    { name: 'note', label: 'Note (optional)' },
+  ], async (d) => {
+    if (Number(d.count) < 1) throw new Error('One instalment at the least.');
+    const r = await POST('/api/reminders/plan', { ...d, replace: true });
+    toast(`${r.made.length} instalment${r.made.length === 1 ? '' : 's'} written down ✓`);
+    go(state.page);
+  }, { perStep: 6, hint: 'Anything still owed and not yet paid is replaced by this plan.', submitLabel: 'Write them down' });
+  // choosing her fills in what she still owes
+  const sel = $('select[name="user_id"]'), tot = $('input[name="total"]');
+  if (sel && tot) {
+    const fill = () => { const v = left(Number(sel.value)); if (v) tot.value = v; };
+    sel.onchange = fill;
+    if (!uid) fill();
+  }
+};
+
 window.addReminder = () => formModal('Payment reminder', [
   { name: 'user_id', label: 'Student', type: 'select', required: true, options: window._fin.users.map((u) => ({ value: u.id, label: u.name })) },
   { name: 'due_date', label: 'Due date', type: 'date', required: true, value: today() },
@@ -947,6 +1035,7 @@ window.addReminder = () => formModal('Payment reminder', [
   { name: 'note', label: 'Note', value: '' },
 ], async (d) => { await POST('/api/reminders', d); toast('Added'); go('finance'); });
 window.markReminder2 = async (id) => { await PUT('/api/reminders/' + id, { done: 1 }); go('finance'); };
+window.dueKind = (k) => { window._dueKind = k; go('finance'); };
 window.delReminder = (id) => confirmDel('Delete reminder?', async () => { await DEL('/api/reminders/' + id); go('finance'); });
 
 /* ============ ROUNDS & GROUPS ============ */
