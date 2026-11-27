@@ -1117,6 +1117,46 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
   .ps-sign{margin-top:56px}
 }
 
+/* ===== The month's attendance, as a sheet to print =====
+   Thirty-one lines have to fit on a page and still be read, so this is tighter
+   than the payslip: small type, a narrow column per figure, and the day of the
+   month doing the work the date would. */
+.at-sheet{max-width:620px}
+/* A six-column table does not fit a phone without crushing the last column into
+   one letter a line. It keeps its width and the sheet scrolls to it; on paper
+   there is room and it fills the page. */
+.at-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.at-table{font-size:12px;table-layout:fixed;min-width:500px}
+.at-table col.c-d{width:62px}
+.at-table col.c-t{width:58px}
+.at-table col.c-m{width:50px}
+.at-note{margin:10px 2px 0;font-size:11.5px;color:var(--muted);line-height:1.6}
+.at-table th{border:1px solid #e9e2f7;background:#f6f2fe;color:#4a2f8f;
+  font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;padding:7px 8px;text-align:start}
+.at-table td{padding:6px 8px;text-align:start;font-variant-numeric:tabular-nums}
+.at-table td:first-child{background:#fff;color:#14101a;width:auto;font-weight:400}
+.at-table .at-d b{font-size:13px}
+.at-table .at-d span{color:var(--muted);font-size:10.5px;margin-inline-start:3px}
+.at-table col,.at-table th,.at-table td{overflow-wrap:anywhere}
+.at-table .at-w{font-size:11px;color:#4b4458}
+.at-bad{color:var(--bad);font-weight:700}
+.at-ok{color:var(--ok);font-weight:700}
+/* the day itself says what kind of day it was, before anything is read across it */
+.at-table tr.at-bad td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+.at-table tr.at-ok td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+.at-table tr.at-off td:first-child{box-shadow:inset 3px 0 0 #c9bedd}
+.at-table tr.at-warn td:first-child{box-shadow:inset 3px 0 0 #d9a441}
+.at-table tr.at-gone td{color:var(--muted);background:#fbfafd}
+.at-table tfoot td{background:#f6f2fe;font-weight:700;color:#4a2f8f}
+@media print{
+  .at-sheet{max-width:none}
+  .at-wrap{overflow:visible}
+  .at-table{font-size:11px;min-width:0}
+  .at-table tr{break-inside:avoid}
+  .at-table thead{display:table-header-group}
+  .at-table th,.at-table tfoot td{background:#f6f2fe!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+
 /* ===== A merged screen: several pages side by side under one heading ===== */
 .grp-tabs{margin-top:10px}
 .grp-body{margin-top:12px;animation:rise .26s ease both}

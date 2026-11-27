@@ -4312,7 +4312,10 @@ PAGES.staffmember = async (c) => {
         <div class="divider"></div>
         <div class="item"><div class="main"><div class="sub">Net salary · ${month}</div><div class="serif" style="font-size:24px;font-weight:700;color:var(--ok)">${money(sal.net)}</div></div></div>
       </div>
-      <button class="btn sec" style="margin-top:10px" onclick="openPayslip(window._salSheet)">🖨 Print payslip</button>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sec" onclick="openPayslip(window._salSheet)">🖨 Payslip</button>
+        <button class="btn sec" onclick="openAttSheet(window._salSheet)">🗓 Attendance sheet</button>
+      </div>
       <div class="row" style="margin-top:10px"><button class="btn sec" onclick="addAdjustment(${id},'bonus','${month}')">＋ Bonus</button><button class="btn danger" onclick="addAdjustment(${id},'deduction','${month}')">＋ Deduction</button></div>
       ${adjustments.length ? `<div class="card" style="margin-top:10px">${adjustments.map((a) => `<div class="item"><div class="av">${a.type === 'bonus' ? '➕' : '➖'}</div>
         <div class="main"><div class="nm" style="color:var(--${a.type === 'bonus' ? 'ok' : 'bad'})">${a.type === 'bonus' ? '+' : '−'} ${money(a.amount)} <span class="badge">${esc(a.month || '')}</span></div><div class="sub">${a.note ? esc(a.note) : a.type}</div></div>
