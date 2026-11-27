@@ -4208,7 +4208,11 @@ PAGES.staffmember = async (c) => {
   window._staff = allUsers.filter((u) => u.role === 'staff' || u.role === 'manager');
   const month = window._salMonth || today().slice(0, 7);
   const tab = window._staffTab2 || 'overview';
+  // The settling-up tab only exists for somebody who has gone: it is the one
+  // screen that answers "what is left between us", and it has no meaning for
+  // somebody who is still coming in tomorrow.
   const tabs = [['overview', 'Overview'], ['salary', 'Salary'], ['absence', 'Absences'], ['advance', 'Advances'], ['att', 'Attendance']];
+  if (s.left_on) tabs.splice(1, 0, ['settle', 'Settling up']);
   let inner = '';
   if (tab === 'overview') {
     const offSet = new Set((s.off_days || '').split(',').map((x) => x.trim()).filter(Boolean));
@@ -4218,12 +4222,51 @@ PAGES.staffmember = async (c) => {
         ? `${esc(s.shift_start || '—')} – ${esc(s.shift_end || '—')}`
         : `${esc((window._cfg && window._cfg.check_in_time) || '09:00')} – ${esc((window._cfg && window._cfg.check_out_time) || '17:00')} <span class="hint">· the studio's</span>`)}
       ${kv('Phone', s.phone || '—')}${kv('Email', s.email || '—')}${kv('Hired', s.hire_date ? dt(s.hire_date) : '—')}
-      <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button></div>
+      ${s.left_on ? kv('Last day here', `${dt(s.left_on)} <span class="badge bad">Left</span>`, 'bad') : ''}
+      <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button>
+      ${s.left_on
+    ? `<button class="btn sec" style="margin-top:8px" onclick="markBack(${id})">She is back — undo this</button>`
+    : `<button class="btn sec" style="margin-top:8px" onclick="markLeft(${id})">She has left the studio</button>`}</div>
       <div class="sec-title">Paid weekly off-days</div>
       <div class="hint" style="margin:0 2px 6px">Tap the day(s) off — not counted as absence or lateness, and paid.</div>
       <div class="filters">${WEEKDAYS_LABELS.map(([k, l]) => `<span class="chip ${offSet.has(k) ? 'active' : ''}" onclick="toggleOffDay(${id},'${k}')">${l}</span>`).join('')}</div>
       <div class="sec-title">This month so far</div>
       <div id="mtdCard" class="card"><div class="hint" style="margin:0">Working it out…</div></div>`;
+  } else if (tab === 'settle') {
+    // What is left between her and the studio, as one number, with every line
+    // that made it underneath. The answer can go either way, and the screen
+    // says which way rather than showing a figure with a minus in front of it.
+    const st = await GET(`/api/staff/${id}/settlement`);
+    const owedToHer = (st.settlement || 0) >= 0;
+    const amt = Math.abs(st.settlement || 0);
+    const unpaid = (st.months || []).filter((m) => m.outstanding > 0.5);
+    inner = `<div class="card" style="text-align:center">
+        <div class="sub muted" style="letter-spacing:2px;text-transform:uppercase;font-size:11px;font-weight:700">${owedToHer ? 'To hand over to her' : 'She owes the studio'}</div>
+        <div class="serif" style="font-size:30px;font-weight:700;margin-top:2px;color:var(--${owedToHer ? 'ok' : 'bad'})">${money(amt)}</div>
+        <div class="hint" style="margin:6px 0 0">Last day here · ${esc(dt(st.left_on) || st.left_on || '—')}</div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        ${kv('Owed for the months she worked', money(st.pay_due || 0), 'ok')}
+        ${kv('− Still standing on her advance', money(st.advance_outstanding || 0), 'bad')}
+        <div class="divider"></div>
+        ${kv(owedToHer ? 'To hand over' : 'To collect from her', money(amt), owedToHer ? 'ok' : 'bad')}
+      </div>
+      <div class="sec-title">The months</div>
+      <div class="hint" style="margin:0 2px 6px">What each month came to, and what was recorded as sent. A month she did not finish is paid for the days she worked, not a whole salary with the rest taken off.</div>
+      <div class="card">${(st.months || []).length ? (st.months || []).slice().reverse().map((m) => `<div class="item">
+        <div class="av">${m.outstanding > 0.5 ? '💰' : '✓'}</div>
+        <div class="main"><div class="nm">${esc(monthLabel(m.month))} <b class="amt ${m.outstanding > 0.5 ? 'bad' : ''}">${money(m.owed)}</b></div>
+          <div class="sub">${m.paid_days} day(s) paid${m.part_month ? ' · part month' : ''}${m.paid ? ' · ' + moneyText(m.paid) + ' sent' : ' · nothing sent'}</div></div>
+        ${m.outstanding > 0.5 ? `<span class="badge bad">${esc(moneyText(m.outstanding))} owed</span>` : '<span class="badge ok">Settled</span>'}</div>`).join('') : empty('No months to settle', '🗓')}</div>
+      ${unpaid.length > 1 ? `<div class="hint" style="margin:8px 2px 0">⚠️ ${unpaid.length} months have nothing recorded as sent. If any of them was handed over without being written down here, record it on the Salary tab first — otherwise it is counted as still owed.</div>` : ''}
+      <div class="sec-title">Her advance</div>
+      <div class="hint" style="margin:0 2px 6px">All of what is left comes off here: there are no more salaries for the rest of it to come off month by month.</div>
+      <div class="card">
+        ${kv('Handed to her in all', money(st.advance_total || 0))}
+        ${kv('Already come off a salary', money(st.advance_recovered || 0), 'ok')}
+        ${kv('Still standing', money(st.advance_outstanding || 0), 'bad')}
+      </div>
+      ${(st.advances || []).length ? `<div class="card" style="margin-top:12px">${(st.advances || []).map((a) => advanceCard(a, false)).join('')}</div>` : ''}`;
   } else if (tab === 'salary') {
     const sal = await GET(`/api/staff/${id}/salary?month=${month}`);
     window._salSheet = sal; // the payslip prints exactly what is on screen
@@ -4232,8 +4275,16 @@ PAGES.staffmember = async (c) => {
       <div class="card">
         ${kv('Base salary', money(sal.base))}
         ${kv('Working days / month', sal.work_days + '  ·  daily ' + money(sal.daily))}
-        ${kv('Absent days', sal.absent_days + ' day(s)')}
-        ${kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
+        ${sal.part_month
+    // She left inside this month, so the sheet does not start from a whole
+    // salary and take days back off it — it pays for the days that were hers.
+    // Saying so here is what keeps the base and the net from looking unrelated.
+    ? kv('Her last day here', `${esc(dt(sal.left_on) || sal.left_on)} <span class="badge bad">Left</span>`, 'bad')
+      + kv('Days that were hers', `${sal.paid_days} day(s) × ${money(sal.daily)}`)
+      + kv('= Earned for those days', money(sal.earned_for_days || 0), 'ok')
+      + (sal.gone_days ? `<div class="hint" style="margin:-2px 2px 8px">The ${sal.gone_days} day(s) after she left are neither absence nor pay.</div>` : '')
+    : kv('Absent days', sal.absent_days + ' day(s)')
+      + kv('− Absence deduction', money(sal.absence_deduction), 'bad')}
         ${kv('Late (beyond grace)', (sal.late_minutes || 0) + ' min ×' + (sal.late_mult || 1))}
         ${kv('− Lateness deduction', money(sal.late_deduction || 0), 'bad')}
         ${kv('Overtime', (sal.overtime_minutes || 0) + ' min ×' + (sal.overtime_mult || 1.5))}
@@ -4433,6 +4484,21 @@ window.toggleOffDay = async (id, day) => {
   await PUT('/api/users/' + id, { off_days: [...set].join(',') });
   toast('Saved'); go('staffmember');
 };
+/* Writing down that somebody has gone, and taking it back if she returns.
+   The date matters more than it looks: it is the line the salary sheet stops
+   at, so everything after it stops being an absence and stops being paid. */
+window.markLeft = (id) => formModal('She has left the studio', [
+  { name: 'left_on', label: 'Her last day here', type: 'date', required: true, value: today() },
+], async (d) => {
+  if (!d.left_on) throw new Error('Pick the last day she worked.');
+  await PUT('/api/users/' + id, { left_on: d.left_on });
+  toast('Written down');
+  window._staffTab2 = 'settle';
+  go('staffmember');
+}, { hint: 'Nothing after this day is counted as an absence, and nothing after it is paid. Her last month is paid for the days she actually worked.' });
+window.markBack = (id) => confirmDel(
+  'She is back?\n\nHer last day comes off, and her sheet goes back to counting every day of the month as it did before.',
+  async () => { await PUT('/api/users/' + id, { left_on: '' }); toast('Done'); window._staffTab2 = 'overview'; go('staffmember'); });
 window.addAdjustment = (id, type, month) => formModal(type === 'bonus' ? 'Add bonus' : 'Add deduction', [
   { name: 'amount', label: 'Amount', type: 'number', required: true },
   { name: 'month', label: 'Month', type: 'month', value: month },

@@ -457,7 +457,7 @@ api['GET /api/users'] = async (req, res, user, url) => {
   if (!requireStaffish(user, res)) return; // staff may view students (money stripped below)
   const role = url.searchParams.get('role');
   const round = url.searchParams.get('round_id');
-  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,country,off_days,created_at FROM users WHERE 1=1';
+  let q = 'SELECT id,name,email,phone,role,round_id,group_id,job_title,base_salary,hire_date,active,governorate,country,off_days,left_on,created_at FROM users WHERE 1=1';
   const args = [];
   if (role) { q += ' AND role=?'; args.push(role); }
   if (round) { q += ' AND round_id=?'; args.push(round); }
@@ -508,11 +508,15 @@ api['PUT /api/users/:id'] = async (req, res, user, url, params) => {
   // An empty shift box means "use the studio's hours", so '' is stored as null
   // rather than as a time of midnight.
   const shift = (v, fallback) => (v === undefined ? fallback : (String(v).trim() || null));
-  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,country=?,off_days=?,shift_start=?,shift_end=? WHERE id=?`).run(
+  // Her last day, and taking it off again when somebody comes back. Only an
+  // admin may set one: it decides what a month owes her.
+  const leftOn = b.left_on === undefined ? cur.left_on
+    : (user.role === 'admin' ? (String(b.left_on || '').trim().slice(0, 10) || null) : cur.left_on);
+  await db.prepare(`UPDATE users SET name=?,email=?,phone=?,role=?,round_id=?,group_id=?,job_title=?,base_salary=?,hire_date=?,active=?,governorate=?,country=?,off_days=?,shift_start=?,shift_end=?,left_on=? WHERE id=?`).run(
     b.name ?? cur.name, b.email ?? cur.email, b.phone ?? cur.phone, b.role ?? cur.role,
     b.round_id ?? cur.round_id, b.group_id ?? cur.group_id, b.job_title ?? cur.job_title,
     b.base_salary ?? cur.base_salary, b.hire_date ?? cur.hire_date, b.active ?? cur.active, b.governorate ?? cur.governorate, b.country ?? cur.country, b.off_days ?? cur.off_days,
-    shift(b.shift_start, cur.shift_start), shift(b.shift_end, cur.shift_end), params.id);
+    shift(b.shift_start, cur.shift_start), shift(b.shift_end, cur.shift_end), leftOn, params.id);
   if (b.password) await db.prepare('UPDATE users SET password_hash=?,invited=0 WHERE id=?').run(hashPassword(b.password), params.id);
   // giving a login email to someone who had none makes the account claimable on sign-up.
   // An account that already had an email keeps its password — editing it must not lock anyone out.
@@ -1898,12 +1902,13 @@ api['DELETE /api/advances/:id'] = async (req, res, user, url, params) => {
 };
 
 // Auto salary breakdown for a staff member in a given month (YYYY-MM). Admin, or the staff themselves.
-api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
-  if (!requireAuth(user, res)) return;
-  if (user.role !== 'admin' && user.id !== Number(params.id)) return send(res, 403, { error: 'forbidden' });
-  const month = url.searchParams.get('month') || studioNow().date.slice(0, 7);
-  const u = await db.prepare('SELECT id,name,base_salary,off_days,shift_start,shift_end FROM users WHERE id=?').get(params.id);
-  if (!u) return send(res, 404, { error: 'not found' });
+/* One month of somebody's pay, worked out day by day. Pulled out of its own
+   endpoint so that a settlement can ask the same question of several months and
+   get the same answer the sheet gives — there is one salary arithmetic here,
+   not two. Returns null when there is no such person. */
+async function salaryFor(id, month) {
+  const u = await db.prepare('SELECT id,name,base_salary,off_days,shift_start,shift_end,left_on FROM users WHERE id=?').get(id);
+  if (!u) return null;
   const cfg = {}; (await db.prepare('SELECT key,value FROM settings').all()).forEach((r) => { cfg[r.key] = r.value; });
   const base = Number(u.base_salary) || 0;
   // This person's hours if they have their own, the studio's otherwise. Both
@@ -1948,12 +1953,12 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     ? `${month}-${String(lastDay).padStart(2, '0')}` : today;
 
   const att = {};
-  for (const a of await db.prepare('SELECT date,check_in,check_out,extra_hours,extra_note FROM attendance WHERE user_id=? AND substr(date,1,7)=?').all(params.id, month)) att[a.date] = a;
-  const marked = new Set((await db.prepare("SELECT date FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").all(params.id, month)).map((a) => a.date));
+  for (const a of await db.prepare('SELECT date,check_in,check_out,extra_hours,extra_note FROM attendance WHERE user_id=? AND substr(date,1,7)=?').all(id, month)) att[a.date] = a;
+  const marked = new Set((await db.prepare("SELECT date FROM absences WHERE user_id=? AND substr(date,1,7)=? AND (status IS NULL OR status='confirmed')").all(id, month)).map((a) => a.date));
   // Approved leave. Annual and sick are paid and cost nothing; unpaid is a day
   // off that is still a day unpaid, so it is deducted like an absence.
   const leave = {};
-  for (const l of await db.prepare("SELECT from_date,to_date,type FROM leaves WHERE user_id=? AND (status IS NULL OR status='approved')").all(params.id)) {
+  for (const l of await db.prepare("SELECT from_date,to_date,type FROM leaves WHERE user_id=? AND (status IS NULL OR status='approved')").all(id)) {
     for (let d = 1; d <= lastDay; d++) {
       const iso = `${month}-${String(d).padStart(2, '0')}`;
       if (iso >= String(l.from_date).slice(0, 10) && iso <= String(l.to_date).slice(0, 10)) leave[iso] = l.type || 'annual';
@@ -1965,11 +1970,18 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   // The overtime that came from days off worked, kept apart from the hours that
   // simply ran late: a month's total of seventy hours should say which it was.
   let otOffMin = 0, offWorkedDays = 0;
+  // Her last day here, if she has one. Everything after it belongs to nobody.
+  const leftOn = u.left_on ? String(u.left_on).slice(0, 10) : null;
+  let goneDays = 0;
   for (let d = 1; d <= lastDay; d++) {
     const date = `${month}-${String(d).padStart(2, '0')}`;
     const a = att[date];
     const row = { date, weekday: weekdayOf(date), check_in: (a && a.check_in) || null, check_out: (a && a.check_out) || null, late_min: 0, ot_min: 0 };
     if (date > stop) { row.status = 'future'; days.push(row); continue; }
+    // She does not work here any more. A day after her last one is not an
+    // absence — she owes nothing for it — and it is not a paid day off either.
+    // It is simply not hers, so it costs nothing and earns nothing.
+    if (leftOn && date > leftOn) { row.status = 'gone'; goneDays++; days.push(row); continue; }
     // Work done away from the studio counts whatever the day itself turned out
     // to be — it is paid for the hours, not for being here.
     if (a && Number(a.extra_hours) > 0) {
@@ -2024,9 +2036,9 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     days.push(row);
   }
 
-  const advTotal = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=? AND (status IS NULL OR status='approved')").get(params.id, month)).s;
-  const bonus = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='bonus'").get(params.id, month)).s;
-  const deductions = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='deduction'").get(params.id, month)).s;
+  const advTotal = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM advances WHERE user_id=? AND month=? AND (status IS NULL OR status='approved')").get(id, month)).s;
+  const bonus = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='bonus'").get(id, month)).s;
+  const deductions = (await db.prepare("SELECT COALESCE(SUM(amount),0) s FROM salary_adjustments WHERE user_id=? AND month=? AND type='deduction'").get(id, month)).s;
   const r2 = (x) => Math.round(x * 100) / 100;
   const absenceDeduction = r2(daily * absDays);
   // Lateness comes off exactly the way overtime goes on — the same multiplier,
@@ -2037,14 +2049,20 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
   // At the plain rate: the studio's sheet keeps this on a line of its own, apart
   // from the overtime it pays at one and a half.
   const extraTaskPay = r2(extraHours * hourly);
-  const net = r2(base + bonus + overtimePay + extraTaskPay - absenceDeduction - lateDeduction - advTotal - deductions);
+  const fullNet = r2(base + bonus + overtimePay + extraTaskPay - absenceDeduction - lateDeduction - advTotal - deductions);
   // What the month is worth so far: the days already paid for, rather than the
   // whole salary with the missing days taken back off it. Same arithmetic at the
   // end of the month, but it reads correctly in the middle of one.
   const paidDays = presentDays + offDays + paidLeaveDays;
   const earnedToDate = r2(daily * paidDays + bonus + overtimePay + extraTaskPay - lateDeduction - advTotal - deductions);
+  // A part month, because she left inside it. She is owed the days she worked,
+  // not a whole salary with the rest of the month deducted as absence — the two
+  // only come to the same thing when the month was hers all the way through.
+  const monthEndIso = `${month}-${String(lastDay).padStart(2, '0')}`;
+  const partMonth = !!(leftOn && leftOn < monthEndIso);
+  const net = partMonth ? earnedToDate : fullNet;
 
-  send(res, 200, {
+  return {
     user: u.name, month, base, work_days: wd, days_in_month: lastDay, owed_days: owedDays,
     daily: r2(daily), hourly: r2(hourly), work_hours: workHours,
     shift_start: shiftIn, shift_end: shiftOut, shift_is_own: !!(u.shift_start || u.shift_end),
@@ -2055,7 +2073,85 @@ api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
     overtime_off_day_minutes: otOffMin, off_days_worked: offWorkedDays,
     extra_hours: r2(extraHours), extra_task_pay: extraTaskPay,
     bonus, deductions, advances: advTotal, net,
+    left_on: leftOn, gone_days: goneDays, part_month: partMonth,
     as_of: stop, earned_to_date: earnedToDate, paid_days: paidDays, days,
+    // what the days that were hers come to on their own, before anything is
+    // added to them or taken off — the line a part month is read from
+    earned_for_days: r2(daily * paidDays),
+    // the month's pay before any advance comes off it, which is what a
+    // settlement needs: it takes the whole outstanding balance off once itself
+    pay_before_advances: r2((partMonth ? earnedToDate : fullNet) + advTotal),
+  };
+}
+api['GET /api/staff/:id/salary'] = async (req, res, user, url, params) => {
+  if (!requireAuth(user, res)) return;
+  if (user.role !== 'admin' && user.id !== Number(params.id)) return send(res, 403, { error: 'forbidden' });
+  const month = url.searchParams.get('month') || studioNow().date.slice(0, 7);
+  const out = await salaryFor(params.id, month);
+  if (!out) return send(res, 404, { error: 'not found' });
+  send(res, 200, out);
+};
+
+/* Settling up with somebody who has gone.
+   Three things decide what changes hands, and each has to be counted exactly
+   once:
+     · the months she worked and was never paid for, her last one included;
+     · whatever is still standing on her advance, all of it, because there are
+       no more salaries for the rest of it to come off;
+     · nothing at all for the days after she left.
+   A month's own sheet already takes that month's advance instalment off, so
+   this works from pay_before_advances and takes the whole outstanding balance
+   off once at the end. The answer can be negative, and that is not an error:
+   it means she owes the studio rather than the studio owing her. */
+api['GET /api/staff/:id/settlement'] = async (req, res, user, url, params) => {
+  if (!requireAdmin(user, res)) return;
+  const u = await db.prepare('SELECT id,name,base_salary,hire_date,left_on FROM users WHERE id=?').get(params.id);
+  if (!u) return send(res, 404, { error: 'not found' });
+  const r2 = (x) => Math.round(x * 100) / 100;
+  const today = studioNow().date;
+  const leftOn = u.left_on ? String(u.left_on).slice(0, 10) : null;
+  // Back as far as there is anything to look at: her first day here, or a year,
+  // whichever is the shorter. Her last month is the one she left in.
+  const lastMonth = (leftOn || today).slice(0, 7);
+  const from = u.hire_date ? String(u.hire_date).slice(0, 7) : addMonths(lastMonth, -11);
+  const start = from > addMonths(lastMonth, -11) ? from : addMonths(lastMonth, -11);
+  const months = [];
+  for (let m = start; m <= lastMonth; m = addMonths(m, 1)) months.push(m);
+
+  // What was actually handed over, month by month.
+  const sent = {};
+  for (const p of await db.prepare("SELECT month,COALESCE(SUM(amount),0) s FROM salary_payments WHERE user_id=? GROUP BY month").all(params.id)) sent[p.month] = p.s;
+
+  const rows = [];
+  for (const m of months) {
+    const s = await salaryFor(params.id, m);
+    if (!s) continue;
+    const owed = r2(s.pay_before_advances);
+    const paid = r2(sent[m] || 0);
+    // A month she did not work at all is not an unpaid month, it is no month.
+    if (!s.paid_days && !owed) continue;
+    rows.push({ month: m, owed, paid, outstanding: r2(owed - paid), paid_days: s.paid_days, part_month: s.part_month });
+  }
+  const unpaid = rows.filter((r) => r.outstanding > 0.5);
+  const payDue = r2(unpaid.reduce((t, r) => t + r.outstanding, 0));
+
+  // Her advances, whole. Instalments still to come are part of it: there is no
+  // salary left for them to come off.
+  const all = await db.prepare('SELECT * FROM advances WHERE user_id=?').all(params.id);
+  const kids = {};
+  all.forEach((r) => { if (r.parent_id) (kids[r.parent_id] = kids[r.parent_id] || []).push(r); });
+  const shaped = all.filter((r) => !r.parent_id && (r.status || 'approved') === 'approved').map((r) => advanceShape(r, kids[r.id] || []));
+  const advOutstanding = r2(shaped.reduce((t, a) => t + Math.max(0, (a.total || 0) - (a.paid_amount || 0)), 0));
+
+  send(res, 200, {
+    user: u.name, left_on: leftOn, base: Number(u.base_salary) || 0,
+    months: rows, unpaid_months: unpaid.map((r) => r.month),
+    pay_due: payDue,
+    advance_total: r2(shaped.reduce((t, a) => t + (a.total || 0), 0)),
+    advance_recovered: r2(shaped.reduce((t, a) => t + (a.paid_amount || 0), 0)),
+    advance_outstanding: advOutstanding,
+    advances: shaped,
+    settlement: r2(payDue - advOutstanding),
   });
 };
 

@@ -709,7 +709,11 @@ function salaryBreakdown(s, month) {
   const line = (label, detail, amount, cls) => `<div class="sal-line ${cls || ''}">
     <div class="sal-k"><b>${esc(label)}</b>${detail ? `<span>${detail}</span>` : ''}</div>
     <div class="sal-v">${amount}</div></div>`;
-  const earned = [line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, money(s.base))];
+  // A month somebody left inside is read from the days that were hers, not
+  // from a whole salary with the rest taken back off it.
+  const earned = [s.part_month
+    ? line('Salary for the days worked', `${s.paid_days} day(s) at ${moneyText(s.daily)} · last day ${esc(s.left_on || '')}`, money(s.earned_for_days))
+    : line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, money(s.base))];
   if (s.overtime_minutes) earned.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h${s.overtime_off_day_minutes ? ` — of it ${s.overtime_off_day_minutes} min on ${s.off_days_worked} day(s) off` : ''}`, '+ ' + money(s.overtime_pay), 'ok'));
   if (s.extra_hours) earned.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, '+ ' + money(s.extra_task_pay), 'ok'));
   if (s.bonus) earned.push(line('Bonus', '', '+ ' + money(s.bonus), 'ok'));

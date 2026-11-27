@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v211';
+const APP_VERSION = 'v212';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1304,7 +1304,11 @@ PAGES.payslip = async (c) => {
       </div>
 
       <table class="rc-table ps-table"><tbody>
-        ${line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, psm(s.base))}
+        ${s.part_month
+    // She left inside this month. The slip starts from the days that were
+    // hers, not from a whole salary it then has to explain away.
+    ? line('Salary for the days worked', `${s.paid_days} day(s) at ${moneyText(s.daily)} · last day ${esc(s.left_on || '')}`, psm(s.earned_for_days))
+    : line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, psm(s.base))}
         ${plus.join('')}
         ${minus.join('')}
       </tbody></table>
