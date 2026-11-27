@@ -14,6 +14,36 @@ const MEASURE_FIELDS = [
 /* Egypt governorates (for student registration) */
 const EG_GOV = ['Cairo', 'Giza', 'Alexandria', 'Qalyubia', 'Dakahlia', 'Sharqia', 'Gharbia', 'Monufia', 'Beheira', 'Kafr El Sheikh', 'Damietta', 'Port Said', 'Ismailia', 'Suez', 'Faiyum', 'Beni Suef', 'Minya', 'Asyut', 'Sohag', 'Qena', 'Luxor', 'Aswan', 'Red Sea', 'New Valley', 'Matrouh', 'North Sinai', 'South Sinai'];
 
+/* Every country, in English, for an online round taken from anywhere. Egypt
+   first because it is nearly always the answer; the rest alphabetically, and the
+   list is searched rather than scrolled. */
+const COUNTRIES = ['Egypt',
+  'Afghanistan', 'Albania', 'Algeria', 'Andorra', 'Angola', 'Antigua and Barbuda', 'Argentina', 'Armenia', 'Australia', 'Austria', 'Azerbaijan',
+  'Bahamas', 'Bahrain', 'Bangladesh', 'Barbados', 'Belarus', 'Belgium', 'Belize', 'Benin', 'Bhutan', 'Bolivia', 'Bosnia and Herzegovina', 'Botswana', 'Brazil', 'Brunei', 'Bulgaria', 'Burkina Faso', 'Burundi',
+  'Cambodia', 'Cameroon', 'Canada', 'Cape Verde', 'Central African Republic', 'Chad', 'Chile', 'China', 'Colombia', 'Comoros', 'Congo', 'Costa Rica', 'Croatia', 'Cuba', 'Cyprus', 'Czechia',
+  'Democratic Republic of the Congo', 'Denmark', 'Djibouti', 'Dominica', 'Dominican Republic',
+  'Ecuador', 'El Salvador', 'Equatorial Guinea', 'Eritrea', 'Estonia', 'Eswatini', 'Ethiopia',
+  'Fiji', 'Finland', 'France', 'Gabon', 'Gambia', 'Georgia', 'Germany', 'Ghana', 'Greece', 'Grenada', 'Guatemala', 'Guinea', 'Guinea-Bissau', 'Guyana',
+  'Haiti', 'Honduras', 'Hungary', 'Iceland', 'India', 'Indonesia', 'Iran', 'Iraq', 'Ireland', 'Israel', 'Italy', 'Ivory Coast',
+  'Jamaica', 'Japan', 'Jordan', 'Kazakhstan', 'Kenya', 'Kiribati', 'Kosovo', 'Kuwait', 'Kyrgyzstan',
+  'Laos', 'Latvia', 'Lebanon', 'Lesotho', 'Liberia', 'Libya', 'Liechtenstein', 'Lithuania', 'Luxembourg',
+  'Madagascar', 'Malawi', 'Malaysia', 'Maldives', 'Mali', 'Malta', 'Marshall Islands', 'Mauritania', 'Mauritius', 'Mexico', 'Micronesia', 'Moldova', 'Monaco', 'Mongolia', 'Montenegro', 'Morocco', 'Mozambique', 'Myanmar',
+  'Namibia', 'Nauru', 'Nepal', 'Netherlands', 'New Zealand', 'Nicaragua', 'Niger', 'Nigeria', 'North Korea', 'North Macedonia', 'Norway',
+  'Oman', 'Pakistan', 'Palau', 'Palestine', 'Panama', 'Papua New Guinea', 'Paraguay', 'Peru', 'Philippines', 'Poland', 'Portugal', 'Qatar',
+  'Romania', 'Russia', 'Rwanda', 'Saint Kitts and Nevis', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Samoa', 'San Marino', 'Sao Tome and Principe', 'Saudi Arabia', 'Senegal', 'Serbia', 'Seychelles', 'Sierra Leone', 'Singapore', 'Slovakia', 'Slovenia', 'Solomon Islands', 'Somalia', 'South Africa', 'South Korea', 'South Sudan', 'Spain', 'Sri Lanka', 'Sudan', 'Suriname', 'Sweden', 'Switzerland', 'Syria',
+  'Taiwan', 'Tajikistan', 'Tanzania', 'Thailand', 'Timor-Leste', 'Togo', 'Tonga', 'Trinidad and Tobago', 'Tunisia', 'Turkey', 'Turkmenistan', 'Tuvalu',
+  'Uganda', 'Ukraine', 'United Arab Emirates', 'United Kingdom', 'United States', 'Uruguay', 'Uzbekistan',
+  'Vanuatu', 'Vatican City', 'Venezuela', 'Vietnam', 'Yemen', 'Zambia', 'Zimbabwe'];
+
+/* Where somebody is, in the one word a list has room for: an Egyptian student's
+   governorate, because every Egyptian shares the country, and anybody else's
+   country, because that is the thing that tells them apart. */
+function whereFrom(u) {
+  if (!u) return '';
+  if (u.country && u.country !== 'Egypt') return u.country;
+  return u.governorate || (u.country || '');
+}
+
 /* generic form modal. fields: {name,label,type,options,required,value,accept,rows} */
 function fmField(f) {
   if (f.type === 'hidden') return `<input type="hidden" name="${f.name}" value="${esc(f.value ?? '')}" />`;
@@ -27,7 +57,7 @@ function fmField(f) {
   // name. Rows are ours, so they stay one line each and carry what is owed.
   if (f.type === 'pick') return `<label>${f.label}${f.required ? ' *' : ''}</label>
     <input type="hidden" name="${f.name}" id="pk_${f.name}" value="${esc(v)}"${req} />
-    <input class="pick-find" type="search" inputmode="search" placeholder="🔍 Type a name"
+    <input class="pick-find" type="search" inputmode="search" placeholder="🔍 ${esc(f.find || 'Type a name')}"
       oninput="pickFind('${f.name}', this.value)" />
     <div class="pick-list" id="pl_${f.name}">${(f.options || []).map((o) => `
       <div class="pick-row${String(o.value) === String(v) ? ' on' : ''}" data-v="${esc(o.value)}"
@@ -35,7 +65,7 @@ function fmField(f) {
         onclick="pickOne('${f.name}','${esc(o.value)}')">
         <span class="pk-n">${esc(o.label)}</span>${o.meta ? `<span class="pk-m">${esc(o.meta)}</span>` : ''}
       </div>`).join('')}</div>
-    <div class="hint pick-none" id="pn_${f.name}" style="display:none">No name like that.</div>`;
+    <div class="hint pick-none" id="pn_${f.name}" style="display:none">${esc(f.none || 'No name like that.')}</div>`;
   if (f.type === 'textarea') return `<label>${f.label}${f.required ? ' *' : ''}</label><textarea name="${f.name}"${req} ${f.rows ? `style="min-height:${f.rows * 22}px"` : ''}>${esc(v)}</textarea>`;
   if (f.type === 'image' || f.type === 'file') return `<label>${f.label}</label>
     <div class="row"><button type="button" class="btn ghost sm" onclick="pickForField('${f.name}','${f.type}','${f.accept || ''}')">📷 Choose ${f.type === 'file' ? 'file' : 'image'}</button>
@@ -553,7 +583,7 @@ PAGES.students = async (c) => {
        <div class="item" data-name="${esc((u.name || '').toLowerCase())}" style="cursor:pointer" onclick="viewStudent(${u.id})">
          <div class="av">${esc(initials(u.name))}</div>
          <div class="main"><div class="nm">${esc(u.name)}</div>
-           <div class="sub">${u.governorate ? esc(u.governorate) + ' · ' : ''}${u.phone ? esc(u.phone) + ' · ' : ''}${rMap[u.round_id] ? esc(rMap[u.round_id]) : 'No round'}${gMap[u.group_id] ? ' · ' + esc(gMap[u.group_id]) : ''}</div></div>
+           <div class="sub">${whereFrom(u) ? esc(whereFrom(u)) + ' · ' : ''}${u.phone ? esc(u.phone) + ' · ' : ''}${rMap[u.round_id] ? esc(rMap[u.round_id]) : 'No round'}${gMap[u.group_id] ? ' · ' + esc(gMap[u.group_id]) : ''}</div></div>
          <span class="muted" style="font-size:20px">›</span>
        </div>`).join('') : empty('No students yet')}</div>`;
   if (window._stSearch) liveSearch(window._stSearch, '#studentsList');
@@ -582,7 +612,8 @@ window.viewStudent = async (id) => {
     </div>` : ''}
     <div class="card" style="box-shadow:none;margin:12px 0 12px">
       <div class="item"><div class="main"><div class="sub">Phone</div><div class="nm">${u.phone ? esc(u.phone) : '—'}</div></div></div>
-      <div class="item"><div class="main"><div class="sub">Governorate</div><div class="nm">${u.governorate ? esc(u.governorate) : '—'}</div></div></div>
+      <div class="item"><div class="main"><div class="sub">Country</div><div class="nm">${u.country ? esc(u.country) : '—'}</div></div></div>
+      ${(!u.country || u.country === 'Egypt') ? `<div class="item"><div class="main"><div class="sub">Governorate</div><div class="nm">${u.governorate ? esc(u.governorate) : '—'}</div></div></div>` : ''}
       ${u.email ? `<div class="item"><div class="main"><div class="sub">Email (login)</div><div class="nm">${esc(u.email)}</div></div></div>` : ''}
     </div>
     ${canSeeMoney ? `<div class="sec-title">Payments (${pays.length})</div>
@@ -609,12 +640,19 @@ window.editStudent = async (id) => {
   const canManageFull = ['admin', 'manager'].includes(state.user.role); // staff: contact only, no money/round/group
   const { rounds, groups } = window._students;
   const u = id ? window._students.users.find((x) => x.id === id) : {};
-  const govField = { name: 'governorate', label: 'Governorate', type: 'select', value: u.governorate, options: [{ value: '', label: '—' }, ...EG_GOV.map((g) => ({ value: g, label: g }))] };
+  // Where she is: the country first, searched rather than scrolled, because an
+  // online round is taken from anywhere. The governorate is an Egyptian thing
+  // and stays beside it, for the students who have one.
+  const countryField = { name: 'country', label: 'Country', type: 'pick', value: u.country || (id ? '' : 'Egypt'),
+    find: 'Type a country', none: 'No country like that.',
+    options: COUNTRIES.map((c) => ({ value: c, label: c })) };
+  const govField = { name: 'governorate', label: 'Governorate (if she is in Egypt)', type: 'select', value: u.governorate, options: [{ value: '', label: '—' }, ...EG_GOV.map((g) => ({ value: g, label: g }))] };
   if (!canManageFull) {
     // staff: edit contact info only
     formModal('Edit student', [
       { name: 'name', label: 'Name', required: true, value: u.name },
       { name: 'phone', label: 'Phone', value: u.phone },
+      countryField,
       govField,
     ], async (d) => { await PUT('/api/users/' + id, d); toast('Saved'); go(state.page); });
     return;
@@ -624,6 +662,7 @@ window.editStudent = async (id) => {
   formModal(id ? 'Edit student' : 'New student', [
     { name: 'name', label: 'Name', required: true, value: u.name },
     { name: 'phone', label: 'Phone', value: u.phone },
+    countryField,
     govField,
     { name: 'email', label: 'Email — she signs up with this one', type: 'email', value: u.email },
     { name: 'password', label: id ? 'Reset password (optional)' : 'Password (optional)', type: 'password', placeholder: id ? 'leave blank to keep current' : 'leave blank — she picks it when she signs up' },
@@ -986,25 +1025,28 @@ PAGES.round = async (c) => {
   if (tab === 'students') {
     const payMap = {}; finRows.forEach((r) => { payMap[r.id] = r; });
     const payStatus = (uid) => { const r = payMap[uid]; if (!r || !r.total_fee) return null; if (r.remaining <= 0) return { t: 'Paid', c: 'ok' }; if (r.paid > 0) return { t: 'Partial', c: 'warn' }; return { t: 'Unpaid', c: 'bad' }; };
-    const govs = [...new Set(students.map((s) => s.governorate).filter(Boolean))].sort();
+    // An online round is taken from anywhere, so the filter offers whatever the
+    // round actually holds — governorates for a room in Cairo, countries for a
+    // round of students who have never been in it.
+    const govs = [...new Set(students.map((s) => whereFrom(s)).filter(Boolean))].sort();
     const gf = window._roundGov || 'all';
     const pf = canSeeMoney ? (window._roundPay || 'all') : 'all';
     let list = students.slice();
-    if (gf !== 'all') list = list.filter((s) => (s.governorate || '') === gf);
+    if (gf !== 'all') list = list.filter((s) => whereFrom(s) === gf);
     if (pf !== 'all') list = list.filter((s) => { const p = payStatus(s.id); return p && p.t.toLowerCase() === pf; });
-    if (window._roundSortGov) list.sort((a, b) => (a.governorate || 'zzzz').localeCompare(b.governorate || 'zzzz') || a.name.localeCompare(b.name));
+    if (window._roundSortGov) list.sort((a, b) => (whereFrom(a) || 'zzzz').localeCompare(whereFrom(b) || 'zzzz') || a.name.localeCompare(b.name));
     inner = `${canManage ? '<button class="btn" onclick="editStudent()">＋ Add student</button>' : ''}
       <div class="row" style="margin:10px 2px 4px;align-items:center;gap:8px">
         <span style="font-weight:700">${list.length} registered</span>
         <select onchange="setRoundGov(this.value)" style="width:auto;padding:6px 8px;font-size:12px;margin-inline-start:auto">
-          <option value="all">All governorates</option>${govs.map((g) => `<option value="${esc(g)}" ${gf === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
-        <button class="btn ${window._roundSortGov ? '' : 'ghost'} sm" onclick="toggleGovSort()">Sort by gov.</button></div>
+          <option value="all">Everywhere</option>${govs.map((g) => `<option value="${esc(g)}" ${gf === g ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>
+        <button class="btn ${window._roundSortGov ? '' : 'ghost'} sm" onclick="toggleGovSort()">Sort by place</button></div>
       ${canSeeMoney ? `<div class="filters" style="margin:0 2px 6px">${[['all', 'All'], ['paid', 'Paid'], ['partial', 'Partial'], ['unpaid', 'Unpaid']].map(([k, l]) => `<span class="chip ${pf === k ? 'active' : ''}" onclick="setRoundPay('${k}')">${l}</span>`).join('')}</div>` : ''}
       <input placeholder="🔍 Search student by name" value="${esc(window._roundSearch || '')}" oninput="window._roundSearch=this.value; liveSearch(this.value,'#roundStudentsList')" style="width:100%;padding:9px 12px;margin:0 0 8px" />
       <div class="card" id="roundStudentsList">${list.length ? list.map((u) => { const p = payStatus(u.id); const pr = payMap[u.id]; return `<div class="item" data-name="${esc((u.name || '').toLowerCase())}" style="cursor:pointer" onclick="viewStudent(${u.id})">
         <div class="av">${esc(initials(u.name))}</div>
         <div class="main"><div class="nm">${esc(u.name)}${(canSeeMoney && p) ? ` <span class="badge ${p.c}">${p.t}</span>` : ''}</div>
-          <div class="sub">${u.governorate ? esc(u.governorate) + ' · ' : ''}${u.phone ? esc(u.phone) : 'no phone'}</div></div>
+          <div class="sub">${whereFrom(u) ? esc(whereFrom(u)) + ' · ' : ''}${u.phone ? esc(u.phone) : 'no phone'}</div></div>
         ${canSeeMoney ? (pr && pr.remaining > 0 ? `<div style="text-align:end;white-space:nowrap"><div style="color:var(--bad);font-weight:700;font-size:13px">${money(pr.remaining)}</div><div class="muted" style="font-size:10px">remaining</div></div>` : (pr && pr.total_fee ? `<div style="color:var(--ok);font-weight:700;font-size:13px;white-space:nowrap">✓ Paid</div>` : '')) : ''}
         <span class="muted" style="font-size:20px">›</span></div>`; }).join('') : empty('No students in this round')}</div>`;
   } else if (tab === 'groups') {
