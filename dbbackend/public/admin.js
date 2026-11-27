@@ -133,6 +133,9 @@ window.pickOne = (name, value) => {
     } catch (e) { /* a row that cannot answer simply does not */ }
   }
   const err = document.getElementById('fmErr'); if (err) err.classList.add('hidden');
+  // A field that follows this one has to hear about it: a hidden input changed
+  // by hand fires nothing of its own.
+  hid.dispatchEvent(new Event('change', { bubbles: true }));
 };
 window.pickFind = (name, q) => {
   const box = document.getElementById('pl_' + name);
@@ -665,6 +668,48 @@ window.addPaymentFor = async (id) => {
   // picking her here must prefill the amount just as choosing her in the list would
   setTimeout(() => { const s = $('select[name="user_id"]'); if (s) { s.value = id; s.dispatchEvent(new Event('change')); } }, 50);
 };
+/* Two answers that only mean anything inside another: a group belongs to one
+   round, and a governorate to Egypt. Offered all at once, the form asks him to
+   put an online student into a Friday group in Cairo, and a woman in Dubai into
+   Minya. Each one now follows the answer above it, and empties itself rather
+   than keeping something that stopped making sense. */
+function wireStudentForm(groups) {
+  const round = $('select[name="round_id"]');
+  const group = $('select[name="group_id"]');
+  if (round && group) {
+    const fillGroups = () => {
+      const rid = String(round.value || '');
+      const mine = rid ? groups.filter((g) => String(g.round_id) === rid) : [];
+      const had = String(group.value || '');
+      group.innerHTML = `<option value="">—</option>` + mine.map((g) =>
+        `<option value="${g.id}">${esc(g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : ''))}</option>`).join('');
+      // what was chosen stays chosen, but only if it is still one of this round's
+      group.value = mine.some((g) => String(g.id) === had) ? had : '';
+      const label = group.previousElementSibling;
+      if (!rid) { if (label) label.textContent = 'Group (choose a round first)'; group.disabled = true; }
+      else if (!mine.length) { if (label) label.textContent = 'Group — this round has none'; group.disabled = true; }
+      else { if (label) label.textContent = 'Group'; group.disabled = false; }
+    };
+    round.onchange = fillGroups;
+    fillGroups();
+  }
+
+  const country = $('#pk_country');
+  const gov = $('select[name="governorate"]');
+  if (country && gov) {
+    const fillGov = () => {
+      const inEgypt = !country.value || country.value === 'Egypt';
+      const label = gov.previousElementSibling;
+      if (label) label.style.display = inEgypt ? '' : 'none';
+      gov.style.display = inEgypt ? '' : 'none';
+      if (!inEgypt) gov.value = '';
+      if (label && inEgypt) label.textContent = 'Governorate';
+    };
+    country.addEventListener('change', fillGov);
+    fillGov();
+  }
+}
+
 window.stFilter = (f) => { window._stF = f; go('students'); };
 window.editStudent = async (id) => {
   const canManageFull = ['admin', 'manager'].includes(state.user.role); // staff: contact only, no money/round/group
@@ -685,6 +730,7 @@ window.editStudent = async (id) => {
       countryField,
       govField,
     ], async (d) => { await PUT('/api/users/' + id, d); toast('Saved'); go(state.page); });
+    wireStudentForm(groups);
     return;
   }
   let fee = 0;
@@ -699,12 +745,15 @@ window.editStudent = async (id) => {
     { name: 'round_id', label: 'Round', type: 'select', value: u.round_id, options: [{ value: '', label: '—' }, ...rounds.map((r) => ({ value: r.id, label: r.name }))] },
     { name: 'group_id', label: 'Group', type: 'select', value: u.group_id, options: [{ value: '', label: '—' }, ...groups.map((g) => ({ value: g.id, label: g.name + (g.day ? ' · ' + dayEn(g.day) : '') + (g.time_slot ? ' · ' + g.time_slot : '') }))] },
     { name: 'total_fee', label: 'Course fee (EGP)', type: 'number', value: fee },
+  // four to a step, so where she is sits together and the round sits with its
+  // own groups — a field and the one it follows on the same screen
   ], async (d) => {
     d.role = 'trainee';
     if (!d.password) delete d.password; // don't overwrite with a blank password on edit
     if (id) await PUT('/api/users/' + id, d); else await POST('/api/users', d);
     toast('Saved'); go(state.page);
-  });
+  }, { perStep: 4 });
+  wireStudentForm(groups);
   if (id) $('#fm').insertAdjacentHTML('beforeend', `<button type="button" class="btn danger" style="margin-top:8px" onclick="delStudent(${id})">Delete student</button>`);
 };
 window.delStudent = (id) => confirmDel('Delete this student and all their data?', async () => { await DEL('/api/users/' + id); closeModal(); toast('Deleted'); go(state.page === 'round' ? 'round' : 'students'); });
