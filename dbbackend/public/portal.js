@@ -719,14 +719,18 @@ function salaryBreakdown(s, month) {
   // A month somebody left inside is read from the days that were hers, not
   // from a whole salary with the rest taken back off it.
   const earned = [s.part_month
-    ? line('Salary for the days worked', `${s.paid_days} day(s) at ${moneyText(s.daily)} · last day ${esc(s.left_on || '')}`, money(s.earned_for_days))
+    ? line('Salary for the days worked', `${s.paid_days} day(s) at ${moneyText(s.daily)} · last day ${esc(s.left_on || '')}`
+      + (s.absent_days ? ` · ${s.absent_days} day(s) not worked, not counted` : '')
+      + (s.unpaid_off_days ? ` · ${s.unpaid_off_days} unpaid day(s) off, not counted` : ''), money(s.earned_for_days))
     : line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, money(s.base))];
   if (s.overtime_minutes) earned.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h${s.overtime_off_day_minutes ? ` — of it ${s.overtime_off_day_minutes} min on ${s.off_days_worked} day(s) off` : ''}`, '+ ' + money(s.overtime_pay), 'ok'));
   if (s.extra_hours) earned.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, '+ ' + money(s.extra_task_pay), 'ok'));
   if (s.bonus) earned.push(line('Bonus', '', '+ ' + money(s.bonus), 'ok'));
 
   const off = [];
-  if (s.absent_days) off.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'bad'));
+  // In a part month the earning line above already counts only the days that
+  // were hers; a day she missed is not one of them and must not come off twice.
+  if (s.absent_days && !s.part_month) off.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.absence_deduction), 'bad'));
   if (s.unpaid_off_days && !s.part_month) off.push(line('Unpaid weekly day off', `${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, '− ' + money(s.unpaid_off_deduction), 'bad'));
   if (s.late_minutes) off.push(line('Lateness', `${s.late_minutes} min past the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + money(s.late_deduction), 'bad'));
   if (s.deductions) off.push(line('Deductions', '', '− ' + money(s.deductions), 'bad'));
