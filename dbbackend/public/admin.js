@@ -4227,7 +4227,11 @@ PAGES.staffmember = async (c) => {
       ${s.left_on ? kv('Last day here', `${dt(s.left_on)} <span class="badge bad">Left</span>`, 'bad') : ''}
       <button class="btn sec" style="margin-top:10px" onclick="editStaff(${id})">Edit details</button>
       ${s.left_on
-    ? `<button class="btn sec" style="margin-top:8px" onclick="markBack(${id})">She is back — undo this</button>`
+    // Putting a wrong date right was undo-it-then-set-it-again: two steps, and
+    // the first one reads as though it undoes more than the date. The date is
+    // the thing being changed, so it is one tap that opens on what is there.
+    ? `<button class="btn sec" style="margin-top:8px" onclick="markLeft(${id},'${esc(String(s.left_on).slice(0, 10))}')">Change her last day</button>
+       <button class="btn sec" style="margin-top:8px" onclick="markBack(${id})">She is back — undo this</button>`
     : `<button class="btn sec" style="margin-top:8px" onclick="markLeft(${id})">She has left the studio</button>`}</div>
       <div class="sec-title">Paid weekly off-days</div>
       <div class="hint" style="margin:0 2px 6px">Her day off, and the month pays for it. Not counted as absence or lateness, and nothing comes off.</div>
@@ -4518,15 +4522,15 @@ window.toggleUnpaidOffDay = async (id, day) => {
 /* Writing down that somebody has gone, and taking it back if she returns.
    The date matters more than it looks: it is the line the salary sheet stops
    at, so everything after it stops being an absence and stops being paid. */
-window.markLeft = (id) => formModal('She has left the studio', [
-  { name: 'left_on', label: 'Her last day here', type: 'date', required: true, value: today() },
+window.markLeft = (id, current) => formModal(current ? 'Change her last day' : 'She has left the studio', [
+  { name: 'left_on', label: 'Her last day here', type: 'date', required: true, value: current || today() },
 ], async (d) => {
   if (!d.left_on) throw new Error('Pick the last day she worked.');
   await PUT('/api/users/' + id, { left_on: d.left_on });
-  toast('Written down');
+  toast(current ? 'Changed' : 'Written down');
   window._staffTab2 = 'settle';
   go('staffmember');
-}, { hint: 'Nothing after this day is counted as an absence, and nothing after it is paid. Her last month is paid for the days she actually worked.' });
+}, { hint: 'The last day she actually came in. Nothing after it is counted as an absence, and nothing after it is paid — so a day too far pays for days she was not here.' });
 /* Recording the settling-up. The dialog names every row it is about to write,
    because this one tap can add several — and somebody who meant only to tick
    the advance off should see the salary months before, not after. */
