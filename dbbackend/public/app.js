@@ -404,7 +404,7 @@ async function boot() {
     navigator.serviceWorker.register('/sw.js').then((reg) => { try { reg.update(); } catch (e) {} }).catch(() => {});
   }
 }
-const APP_VERSION = 'v215';
+const APP_VERSION = 'v216';
 // manual escape hatch: clear caches + unregister SW + hard reload
 window.forceUpdate = async () => {
   try { if ('caches' in window) { const ks = await caches.keys(); await Promise.all(ks.map((k) => caches.delete(k))); } } catch (e) {}
@@ -1254,6 +1254,34 @@ PAGES.receipt = async (c) => {
    The salary screen is a working view, full of buttons. This is the piece of
    paper that comes out of it: what the month was, what was added and taken off
    and why, and a line for each of them to sign. */
+/* ---------- the language the paper is written in ----------
+   The app is in English and stays in English: it is his. But these two sheets
+   are the only things that leave it and go into somebody's hand, and the hands
+   they go into read Arabic. So the paper has a language of its own, remembered
+   between prints, and the screen around it does not change.
+   The figures stay in Latin digits in both: they are read against the app, the
+   bank transfer and the payslip beside them. */
+const docLang = () => {
+  if (window._docLang) return window._docLang;
+  try { return localStorage.getItem('docLang') || 'en'; } catch (e) { return 'en'; }
+};
+const docT = (en, ar) => (docLang() === 'ar' ? ar : en);
+const AR_MONTHS = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+const docMonth = (ym) => (docLang() === 'ar'
+  ? `${AR_MONTHS[Number(String(ym).slice(5, 7)) - 1]} ${String(ym).slice(0, 4)}`
+  : new Date(ym + '-01T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' }));
+window.setDocLang = (l) => {
+  window._docLang = l;
+  try { localStorage.setItem('docLang', l); } catch (e) { /* a private window still prints */ }
+  go(state.page);
+};
+const docBar = () => `<div class="rc-actions no-print">
+    <button class="btn sec" onclick="goBack()">‹ ${docT('Back', 'رجوع')}</button>
+    <button class="btn sec" onclick="setDocLang('${docLang() === 'ar' ? 'en' : 'ar'}')">${docLang() === 'ar' ? 'English' : 'عربي'}</button>
+    <button class="btn" onclick="window.print()">🖨 ${docT('Print / Save as PDF', 'طباعة / حفظ PDF')}</button>
+  </div>`;
+const docDir = () => (docLang() === 'ar' ? ' dir="rtl" lang="ar"' : '');
+
 PAGES.payslip = async (c) => {
   const o = window._payslip;
   if (!o) return goBack();
@@ -1272,62 +1300,69 @@ PAGES.payslip = async (c) => {
     <td class="ps-amt">${amount}</td></tr>`;
   const plus = [];
   const minus = [];
-  if (s.overtime_minutes) plus.push(line('Overtime', `${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h${s.overtime_off_day_minutes ? ` — of it ${s.overtime_off_day_minutes} min on ${s.off_days_worked} day(s) off` : ''}`, psm(s.overtime_pay), 'ps-plus'));
-  if (s.extra_hours) plus.push(line('Work from home', `${s.extra_hours} h at ${moneyText(s.hourly)}/h`, psm(s.extra_task_pay), 'ps-plus'));
-  if (s.bonus) plus.push(line('Bonus', '', psm(s.bonus), 'ps-plus'));
-  if (s.absent_days) minus.push(line('Absence', `${s.absent_days} day(s) × ${moneyText(s.daily)}`, '− ' + psm(s.absence_deduction), 'ps-minus'));
+  if (s.overtime_minutes) plus.push(line(docT('Overtime', 'ساعات إضافية'), docT(`${s.overtime_minutes} min × ${s.overtime_mult} at ${moneyText(s.hourly)}/h${s.overtime_off_day_minutes ? ` — of it ${s.overtime_off_day_minutes} min on ${s.off_days_worked} day(s) off` : ''}`, `${s.overtime_minutes} دقيقة × ${s.overtime_mult} بسعر ${moneyText(s.hourly)} للساعة${s.overtime_off_day_minutes ? ` — منها ${s.overtime_off_day_minutes} دقيقة في ${s.off_days_worked} يوم راحة` : ''}`), psm(s.overtime_pay), 'ps-plus'));
+  if (s.extra_hours) plus.push(line(docT('Work from home', 'عمل من المنزل'), docT(`${s.extra_hours} h at ${moneyText(s.hourly)}/h`, `${s.extra_hours} ساعة بسعر ${moneyText(s.hourly)} للساعة`), psm(s.extra_task_pay), 'ps-plus'));
+  if (s.bonus) plus.push(line(docT('Bonus', 'مكافأة'), '', psm(s.bonus), 'ps-plus'));
+  // Not in a part month: the first line is already only the days that were
+  // hers, and a day she missed is not among them. It has been left out once
+  // already — taking it off again would not be arithmetic.
+  if (s.absent_days && !s.part_month) minus.push(line(docT('Absence', 'غياب'), docT(`${s.absent_days} day(s) × ${moneyText(s.daily)}`, `${s.absent_days} يوم × ${moneyText(s.daily)}`), '− ' + psm(s.absence_deduction), 'ps-minus'));
   // Her own weekly day off that the month does not pay for. On its own line and
   // under its own name: it is not an absence and should never read as one.
   // Not in a part month: the line above it is already only the days that were
   // hers, and these are not among them. Taking them off twice is not arithmetic.
-  if (s.unpaid_off_days && !s.part_month) minus.push(line('Unpaid weekly day off', `${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, '− ' + psm(s.unpaid_off_deduction), 'ps-minus'));
-  if (s.late_minutes) minus.push(line('Lateness', `${s.late_minutes} min beyond the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, '− ' + psm(s.late_deduction), 'ps-minus'));
-  if (s.deductions) minus.push(line('Deductions', '', '− ' + psm(s.deductions), 'ps-minus'));
-  if (s.advances) minus.push(line('Advances taken this month', '', '− ' + psm(s.advances), 'ps-minus'));
+  if (s.unpaid_off_days && !s.part_month) minus.push(line(docT('Unpaid weekly day off', 'راحة أسبوعية غير مدفوعة'), docT(`${s.unpaid_off_days} day(s) × ${moneyText(s.daily)}`, `${s.unpaid_off_days} يوم × ${moneyText(s.daily)}`), '− ' + psm(s.unpaid_off_deduction), 'ps-minus'));
+  if (s.late_minutes) minus.push(line(docT('Lateness', 'تأخير'), docT(`${s.late_minutes} min beyond the grace × ${s.late_mult || 1} at ${moneyText(s.hourly)}/h`, `${s.late_minutes} دقيقة بعد السماح × ${s.late_mult || 1} بسعر ${moneyText(s.hourly)} للساعة`), '− ' + psm(s.late_deduction), 'ps-minus'));
+  if (s.deductions) minus.push(line(docT('Deductions', 'خصومات'), '', '− ' + psm(s.deductions), 'ps-minus'));
+  if (s.advances) minus.push(line(docT('Advances taken this month', 'سلف مخصومة هذا الشهر'), '', '− ' + psm(s.advances), 'ps-minus'));
 
-  const monthName = new Date(s.month + '-01T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-  c.innerHTML = `<div class="rc-actions no-print">
-      <button class="btn sec" onclick="goBack()">‹ Back</button>
-      <button class="btn" onclick="window.print()">🖨 Print / Save as PDF</button>
-    </div>
-    <div class="receipt-sheet ps-sheet">
+  const monthName = docMonth(s.month);
+  c.innerHTML = docBar() +
+    `<div class="receipt-sheet ps-sheet"${docDir()}>
       <div class="rc-head">
         <div class="rc-brand">DALIA BASSEL</div>
-        <div class="rc-sub">Haute Couture · Payslip</div>
+        <div class="rc-sub">${docT('Haute Couture · Payslip', 'HAUTE COUTURE · إشعار راتب')}</div>
       </div>
 
       <div class="ps-who">
-        <div><div class="ps-k">Employee</div><div class="ps-v">${esc(s.user)}</div></div>
-        <div><div class="ps-k">Month</div><div class="ps-v">${esc(monthName)}</div></div>
+        <div><div class="ps-k">${docT('Employee', 'الموظفة')}</div><div class="ps-v">${esc(s.user)}</div></div>
+        <div><div class="ps-k">${docT('Month', 'الشهر')}</div><div class="ps-v">${esc(monthName)}</div></div>
       </div>
 
       <div class="ps-days">
-        <span><b>${s.present_days}</b> present</span>
-        ${s.paid_leave_days ? `<span><b>${s.paid_leave_days}</b> paid leave</span>` : ''}
-        <span><b>${s.off_days}</b> day(s) off</span>
-        ${s.absent_days ? `<span class="ps-bad"><b>${s.absent_days}</b> absent</span>` : ''}
+        <span><b>${s.present_days}</b> ${docT('present', 'حضور')}</span>
+        ${s.paid_leave_days ? `<span><b>${s.paid_leave_days}</b> ${docT('paid leave', 'أجازة مدفوعة')}</span>` : ''}
+        <span><b>${s.off_days}</b> ${docT('day(s) off', 'يوم راحة')}</span>
+        ${s.absent_days ? `<span class="ps-bad"><b>${s.absent_days}</b> ${docT('absent', 'غياب')}</span>` : ''}
       </div>
 
       <table class="rc-table ps-table"><tbody>
         ${s.part_month
     // She left inside this month. The slip starts from the days that were
     // hers, not from a whole salary it then has to explain away.
-    ? line('Salary for the days worked', `${s.paid_days} day(s) at ${moneyText(s.daily)} · last day ${esc(s.left_on || '')}`, psm(s.earned_for_days))
-    : line('Basic salary', `${s.work_days} day(s) at ${moneyText(s.daily)}`, psm(s.base))}
+    ? line(docT('Salary for the days worked', 'أجر الأيام التي عملتها'),
+      docT(`${s.paid_days} day(s) at ${moneyText(s.daily)} · last day ${esc(s.left_on || '')}`
+          + (s.absent_days ? ` · ${s.absent_days} day(s) not worked, not counted` : '')
+          + (s.unpaid_off_days ? ` · ${s.unpaid_off_days} unpaid day(s) off, not counted` : ''),
+        `${s.paid_days} يوم × ${moneyText(s.daily)} · آخر يوم عمل ${esc(s.left_on || '')}`
+          + (s.absent_days ? ` · ${s.absent_days} يوم دون حضور، غير محتسبة` : '')
+          + (s.unpaid_off_days ? ` · ${s.unpaid_off_days} يوم راحة غير مدفوعة، غير محتسبة` : '')), psm(s.earned_for_days))
+    : line(docT('Basic salary', 'الراتب الأساسي'),
+      docT(`${s.work_days} day(s) at ${moneyText(s.daily)}`, `${s.work_days} يوم × ${moneyText(s.daily)}`), psm(s.base))}
         ${plus.join('')}
         ${minus.join('')}
       </tbody></table>
 
       <div class="ps-net">
-        <div class="ps-net-k">Net salary</div>
+        <div class="ps-net-k">${docT('Net salary', 'صافي المستحق')}</div>
         <div class="ps-net-v">${psm(s.net)}</div>
       </div>
 
       <div class="ps-sign">
-        <div><div class="ps-line"></div>Received by</div>
-        <div><div class="ps-line"></div>Dalia Bassel Couture</div>
+        <div><div class="ps-line"></div>${docT('Received by', 'استلمت المبلغ')}</div>
+        <div><div class="ps-line"></div>${docT('Dalia Bassel Couture', 'داليا باسل كوتور')}</div>
       </div>
-      <div class="rc-foot">${esc(monthName)} · issued ${esc(dt(today()))}</div>
+      <div class="rc-foot">${esc(monthName)} · ${docT('issued', 'حُرِّر في')} ${esc(dt(today()))}</div>
     </div>`;
 };
 window.openPayslip = (sheet) => { window._payslip = { sheet }; go('payslip'); };
@@ -1338,83 +1373,84 @@ window.openPayslip = (sheet) => { window._payslip = { sheet }; go('payslip'); };
    or over. A figure on the payslip is only worth as much as the days behind it,
    and this is where somebody who disagrees with one goes to look. */
 const ATT_WORD = {
-  present: ['Present', 'ok'],
-  off: ['Day off · paid', 'off'],
-  unpaid_off: ['Day off · unpaid', 'warn'],
-  paid_leave: ['Leave · paid', 'off'],
-  unpaid_leave: ['Leave · unpaid', 'bad'],
-  absent: ['Absent', 'bad'],
-  today: ['Today', 'off'],
+  present: ['Present', 'حضور', 'ok'],
+  off: ['Day off · paid', 'راحة · مدفوعة', 'off'],
+  unpaid_off: ['Day off · unpaid', 'راحة · غير مدفوعة', 'warn'],
+  paid_leave: ['Leave · paid', 'أجازة · مدفوعة', 'off'],
+  unpaid_leave: ['Leave · unpaid', 'أجازة · غير مدفوعة', 'bad'],
+  absent: ['Absent', 'غياب', 'bad'],
+  today: ['Today', 'اليوم', 'off'],
 };
+const AR_WEEK = { sunday: 'أحد', monday: 'إثنين', tuesday: 'ثلاثاء', wednesday: 'أربعاء', thursday: 'خميس', friday: 'جمعة', saturday: 'سبت' };
 PAGES.attsheet = async (c) => {
   const s = window._attsheet;
   if (!s) return goBack();
-  const hm = (m) => (m ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : '—');
+  const hm = (m) => (m ? `${Math.floor(m / 60)}${docT('h', 'س')} ${String(m % 60).padStart(2, '0')}${docT('m', 'د')}` : '—');
   const cap = (x) => (x ? x[0].toUpperCase() + x.slice(1) : '');
   // A day that has not happened, and a day after she left, are both left off.
   // Eighteen identical empty lines saying she had gone are not a record of
   // anything — one sentence under the table says it once.
   const rows = (s.days || []).filter((d) => d.status !== 'future' && d.status !== 'gone');
   const gone = (s.days || []).filter((d) => d.status === 'gone');
-  const monthName = new Date(s.month + '-01T12:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const monthName = docMonth(s.month);
   const chip = (n, label, cls) => (n ? `<span class="${cls || ''}"><b>${n}</b> ${label}</span>` : '');
-  c.innerHTML = `<div class="rc-actions no-print">
-      <button class="btn sec" onclick="goBack()">‹ Back</button>
-      <button class="btn" onclick="window.print()">🖨 Print / Save as PDF</button>
-    </div>
-    <div class="receipt-sheet ps-sheet at-sheet">
+  c.innerHTML = docBar() +
+    `<div class="receipt-sheet ps-sheet at-sheet"${docDir()}>
       <div class="rc-head">
         <div class="rc-brand">DALIA BASSEL</div>
-        <div class="rc-sub">Haute Couture · Attendance</div>
+        <div class="rc-sub">${docT('Haute Couture · Attendance', 'HAUTE COUTURE · كشف حضور')}</div>
       </div>
 
       <div class="ps-who">
-        <div><div class="ps-k">Employee</div><div class="ps-v">${esc(s.user)}</div></div>
-        <div><div class="ps-k">Month</div><div class="ps-v">${esc(monthName)}</div></div>
+        <div><div class="ps-k">${docT('Employee', 'الموظفة')}</div><div class="ps-v">${esc(s.user)}</div></div>
+        <div><div class="ps-k">${docT('Month', 'الشهر')}</div><div class="ps-v">${esc(monthName)}</div></div>
       </div>
       <div class="ps-days">
         <span>${esc(s.shift_start)}–${esc(s.shift_end)}</span>
-        ${chip(s.present_days, 'present')}
-        ${chip(s.off_days, 'day(s) off')}
-        ${chip(s.paid_leave_days, 'paid leave')}
-        ${chip(s.unpaid_off_days, 'unpaid day(s) off', 'ps-bad')}
-        ${chip(s.absent_days, 'absent', 'ps-bad')}
-        ${chip(s.gone_days, 'after she left')}
+        ${chip(s.present_days, docT('present', 'حضور'))}
+        ${chip(s.off_days, docT('day(s) off', 'يوم راحة'))}
+        ${chip(s.paid_leave_days, docT('paid leave', 'أجازة مدفوعة'))}
+        ${chip(s.unpaid_off_days, docT('unpaid day(s) off', 'راحة غير مدفوعة'), 'ps-bad')}
+        ${chip(s.absent_days, docT('absent', 'غياب'), 'ps-bad')}
+        ${chip(s.gone_days, docT('after she left', 'بعد انتهاء العمل'))}
       </div>
 
       <div class="at-wrap"><table class="rc-table at-table">
       <colgroup><col class="c-d"><col class="c-t"><col class="c-t"><col class="c-m"><col class="c-m"><col></colgroup>
       <thead><tr>
-        <th>Day</th><th>In</th><th>Out</th><th>Late</th><th>Over</th><th>How it counted</th>
+        <th>${docT('Day', 'اليوم')}</th><th>${docT('In', 'حضور')}</th><th>${docT('Out', 'انصراف')}</th><th>${docT('Late', 'تأخير')}</th><th>${docT('Over', 'إضافي')}</th><th>${docT('How it counted', 'كيف احتُسب')}</th>
       </tr></thead><tbody>
         ${rows.map((d) => {
     // She came in on a day that was hers. Saying "present" hides the one thing
     // that matters about it — it is why the whole day is in the overtime column.
-    const [word, cls] = d.off_day_worked
-      ? ['Day off · worked', 'ok']
-      : (ATT_WORD[d.status] || [cap(d.status), '']);
+    const w = d.off_day_worked
+      ? ['Day off · worked', 'راحة · عملتها', 'ok']
+      : (ATT_WORD[d.status] || [cap(d.status), cap(d.status), '']);
+    const word = docT(w[0], w[1]); const cls = w[2];
     return `<tr class="at-${cls}">
-          <td class="at-d"><b>${Number(d.date.slice(8))}</b> <span>${cap(d.weekday).slice(0, 3)}</span></td>
+          <td class="at-d"><b>${Number(d.date.slice(8))}</b> <span>${docT(cap(d.weekday).slice(0, 3), AR_WEEK[d.weekday] || '')}</span></td>
           <td>${d.check_in ? esc(d.check_in) : '—'}</td>
           <td>${d.check_out ? esc(d.check_out) : '—'}</td>
-          <td class="${d.late_min ? 'at-bad' : ''}">${d.late_min ? d.late_min + 'm' : '—'}</td>
-          <td class="${d.ot_min ? 'at-ok' : ''}">${d.ot_min ? d.ot_min + 'm' : '—'}</td>
-          <td class="at-w">${esc(word)}${d.extra_hours ? ` · ${d.extra_hours}h from home` : ''}</td>
+          <td class="${d.late_min ? 'at-bad' : ''}">${d.late_min ? d.late_min + docT('m', 'د') : '—'}</td>
+          <td class="${d.ot_min ? 'at-ok' : ''}">${d.ot_min ? d.ot_min + docT('m', 'د') : '—'}</td>
+          <td class="at-w">${esc(word)}${d.extra_hours ? docT(` · ${d.extra_hours}h from home`, ` · ${d.extra_hours} ساعة من المنزل`) : ''}</td>
         </tr>`;
   }).join('')}
       </tbody><tfoot><tr>
-        <td colspan="3">Totals</td>
+        <td colspan="3">${docT('Totals', 'الإجمالي')}</td>
         <td class="${s.late_minutes ? 'at-bad' : ''}">${hm(s.late_minutes)}</td>
         <td class="${s.overtime_minutes ? 'at-ok' : ''}">${hm(s.overtime_minutes)}</td>
-        <td class="at-w">${s.paid_days} day(s) paid${s.overtime_off_day_minutes ? ` · ${hm(s.overtime_off_day_minutes)} of the overtime on day(s) off` : ''}</td>
+        <td class="at-w">${docT(`${s.paid_days} day(s) paid`, `${s.paid_days} يوم مدفوع`)}${s.overtime_off_day_minutes ? docT(` · ${hm(s.overtime_off_day_minutes)} of the overtime on day(s) off`, ` · منها ${hm(s.overtime_off_day_minutes)} في أيام راحة`) : ''}</td>
       </tr></tfoot></table></div>
-      ${gone.length ? `<p class="at-note">Her last day here was ${esc(dt(s.left_on) || s.left_on)}. The ${gone.length} day(s) after it are not part of this month — they are neither absence nor pay.</p>` : ''}
+      ${gone.length ? `<p class="at-note">${docT(
+    `Her last day here was ${esc(dt(s.left_on) || s.left_on)}. The ${gone.length} day(s) after it are not part of this month — they are neither absence nor pay.`,
+    `آخر يوم عمل كان ${esc(dt(s.left_on) || s.left_on)}. الـ ${gone.length} يوم التالية له ليست جزءًا من هذا الشهر — لا تُحتسب غيابًا ولا تُحتسب أجرًا.`)}</p>` : ''}
 
       <div class="ps-sign">
-        <div><div class="ps-line"></div>Seen by</div>
-        <div><div class="ps-line"></div>Dalia Bassel Couture</div>
+        <div><div class="ps-line"></div>${docT('Seen by', 'اطّلعت عليه')}</div>
+        <div><div class="ps-line"></div>${docT('Dalia Bassel Couture', 'داليا باسل كوتور')}</div>
       </div>
-      <div class="rc-foot">${esc(monthName)} · issued ${esc(dt(today()))}</div>
+      <div class="rc-foot">${esc(monthName)} · ${docT('issued', 'حُرِّر في')} ${esc(dt(today()))}</div>
     </div>`;
 };
 window.openAttSheet = (sheet) => { window._attsheet = sheet; go('attsheet'); };

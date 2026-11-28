@@ -1131,6 +1131,34 @@ label, .hint, .sub, .nm, .upd-b { overflow-wrap: anywhere; }
 .at-table col.c-t{width:58px}
 .at-table col.c-m{width:50px}
 .at-note{margin:10px 2px 0;font-size:11.5px;color:var(--muted);line-height:1.6}
+
+/* ===== A sheet written in Arabic =====
+   Only the two sheets that leave the app and go into somebody's hand. The app
+   around them does not turn round. The serif the English sheets are set in has
+   no Arabic in it, so the Arabic ones ask the device for the face it keeps for
+   Arabic — every phone this is read on has one. */
+.receipt-sheet[dir="rtl"]{
+  font-family:"Cairo","SF Arabic","Geeza Pro","Noto Naskh Arabic","Noto Sans Arabic",
+    "Droid Arabic Naskh","Tahoma",sans-serif;
+  line-height:1.75;
+}
+.receipt-sheet[dir="rtl"] .rc-brand{font-family:var(--serif)}   /* the name stays the name */
+.receipt-sheet[dir="rtl"] .ps-v,
+.receipt-sheet[dir="rtl"] .ps-net-v{font-family:inherit}
+.receipt-sheet[dir="rtl"] .rc-sub,
+.receipt-sheet[dir="rtl"] .ps-k,
+.receipt-sheet[dir="rtl"] .ps-net-k,
+.receipt-sheet[dir="rtl"] .at-table th{letter-spacing:normal;text-transform:none}
+/* the mark down the side of a day belongs on the outside of the row either way */
+.receipt-sheet[dir="rtl"] .at-table tr.at-bad td:first-child{box-shadow:inset -3px 0 0 var(--bad)}
+.receipt-sheet[dir="rtl"] .at-table tr.at-ok td:first-child{box-shadow:inset -3px 0 0 var(--ok)}
+.receipt-sheet[dir="rtl"] .at-table tr.at-off td:first-child{box-shadow:inset -3px 0 0 #c9bedd}
+.receipt-sheet[dir="rtl"] .at-table tr.at-warn td:first-child{box-shadow:inset -3px 0 0 #d9a441}
+/* a figure is read left to right wherever it sits */
+.receipt-sheet[dir="rtl"] .ps-amt,
+.receipt-sheet[dir="rtl"] .at-table td:not(.at-w):not(.at-d),
+.receipt-sheet[dir="rtl"] .at-d b{direction:ltr;unicode-bidi:isolate}
+.receipt-sheet[dir="rtl"] .at-table td:not(.at-w):not(.at-d){text-align:start}
 .at-table th{border:1px solid #e9e2f7;background:#f6f2fe;color:#4a2f8f;
   font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;padding:7px 8px;text-align:start}
 .at-table td{padding:6px 8px;text-align:start;font-variant-numeric:tabular-nums}
